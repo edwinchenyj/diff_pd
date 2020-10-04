@@ -6,6 +6,9 @@ import numpy as np
 from py_diff_pd.core.py_diff_pd_core import StdRealVector, StdIntVector
 from py_diff_pd.common.common import ndarray, create_folder, copy_std_int_vector
 from py_diff_pd.common.display import export_gif
+from py_diff_pd.common.project_path import root_path
+from py_diff_pd.common.renderer import PbrtRenderer
+from py_diff_pd.core.py_diff_pd_core import Mesh3d
 
 class EnvBase:
     def __init__(self, folder):
@@ -18,6 +21,15 @@ class EnvBase:
         self._stepwise_loss = False
 
         self._folder = Path(folder)
+
+        #Rendering data members
+        #Values specified are default views and colors from the tendon routing example
+        self._spp = 4
+        self._camera_pos = (0.4, -1, .25)
+        self._camera_lookat = (0, 0.15, 0.15)
+        self._color = (0.3, 0.7, 0.5)
+        self._scale = 0.4
+        self._resolution = (800, 800)
 
     # Returns a 2 x 2 Jacobian:
     # Cols: youngs modulus, poissons ratio.
@@ -53,8 +65,29 @@ class EnvBase:
     def default_external_force(self):
         return np.copy(self._f_ext)
 
+    #Default rendering method
+    #Modified through class data members
     def _display_mesh(self, mesh_file, file_name):
-        raise NotImplementedError
+        options = {
+            'file_name': file_name,
+            'light_map': 'uffizi-large.exr',
+            'sample': self._spp,
+            'max_depth': 2,
+            'camera_pos': self._camera_pos,
+            'camera_lookat': self._camera_lookat,
+            'resolution': self._resolution
+        }
+        renderer = PbrtRenderer(options)
+
+        mesh = Mesh3d()
+        mesh.Initialize(mesh_file)
+        renderer.add_hex_mesh(mesh, render_voxel_edge=True, color=self._color, transforms=[
+            ('s', self._scale),
+        ])
+        renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj',
+            texture_img='chkbd_24_0.7', transforms=[('s', 3)])
+
+        renderer.render()
 
     # Return: loss, grad_q, grad_v.
     def _loss_and_grad(self, q, v):

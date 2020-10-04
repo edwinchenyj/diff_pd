@@ -18,7 +18,7 @@ class PlantEnv3d(EnvBase):
 
         youngs_modulus = options['youngs_modulus'] if 'youngs_modulus' in options else 1e6
         poissons_ratio = options['poissons_ratio'] if 'poissons_ratio' in options else 0.45
-    
+
         # Mesh parameters.
         la = youngs_modulus * poissons_ratio / ((1 + poissons_ratio) * (1 - 2 * poissons_ratio))
         mu = youngs_modulus / (2 * (1 + poissons_ratio))
@@ -63,7 +63,13 @@ class PlantEnv3d(EnvBase):
         self._stepwise_loss = True
         self.__dirichlet_dof = dirichlet_dof
 
-        self.__spp = options['spp'] if 'spp' in options else 4
+        #Optional data members for rendering
+        scale = 0.5
+        self._spp = options['spp'] if 'spp' in options else 4
+        self._camera_pos = (0.4, -1, .25)
+        self._camera_lookat = scale/2 * ndarray(np.ones(3))
+        self._color = (0.3, 0.9, 0.3)
+        self._scale = scale
 
     def material_stiffness_differential(self, youngs_modulus, poissons_ratio):
         jac = self._material_jacobian(youngs_modulus, poissons_ratio)
@@ -74,16 +80,6 @@ class PlantEnv3d(EnvBase):
 
     def is_dirichlet_dof(self, dof):
         return dof in self.__dirichlet_dof
-
-    def _display_mesh(self, mesh_file, file_name):
-        mesh = Mesh3d()
-        mesh.Initialize(mesh_file)
-        render_hex_mesh(mesh, file_name=file_name,
-            resolution=(400, 400), sample=self.__spp,
-            transforms=[
-                ('s', 1.4)
-            ],
-            render_voxel_edge=True)
 
     def _stepwise_loss_and_grad(self, q, v, i):
         mesh_file = self._folder / 'groundtruth' / '{:04d}.bin'.format(i)

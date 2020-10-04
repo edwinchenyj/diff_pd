@@ -18,8 +18,8 @@ class CowEnv3d(EnvBase):
         np.random.seed(seed)
         create_folder(folder, exist_ok=True)
 
-        youngs_modulus = options['youngs_modulus']
-        poissons_ratio = options['poissons_ratio']
+        youngs_modulus = options['youngs_modulus'] if 'youngs_modulus' in options else 1e6
+        poissons_ratio = options['poissons_ratio'] if 'poissons_ratio' in options else 0.49
         gait = options['gait'] if 'gait' in options else 'pronk'
 
         # Mesh parameters.
@@ -163,7 +163,13 @@ class CowEnv3d(EnvBase):
         self._spine_indices = spine_indices
         self.__element_num = mesh.NumOfElements()
 
-        self.__spp = options['spp'] if 'spp' in options else 4
+        scale = 3
+        self._spp = options['spp'] if 'spp' in options else 8
+        self._camera_pos = (0.5, -1, 0.3)
+        self._camera_lookat = (0.5, 0, 0.15)
+        self._color = (0.9, 0.9, 0.3)
+        self._scale = scale
+        self._resolution = (1600, 900)
 
     def element_num(self):
         return self.__element_num
@@ -183,14 +189,6 @@ class CowEnv3d(EnvBase):
 
     def is_dirichlet_dof(self, dof):
         return False
-
-    def _display_mesh(self, mesh_file, file_name):
-        mesh = Mesh3d()
-        mesh.Initialize(mesh_file)
-        render_hex_mesh(mesh, file_name=file_name,
-            resolution=(400, 400), sample=self.__spp, transforms=[
-                ('s', 4)
-            ], render_voxel_edge=True)
 
     def _loss_and_grad(self, q, v):
         # Compute the center of mass.

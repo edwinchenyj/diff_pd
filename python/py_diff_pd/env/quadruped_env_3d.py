@@ -17,16 +17,16 @@ class QuadrupedEnv3d(EnvBase):
         np.random.seed(seed)
         create_folder(folder, exist_ok=True)
 
-        youngs_modulus = options['youngs_modulus']
-        poissons_ratio = options['poissons_ratio']
+        youngs_modulus = options['youngs_modulus'] if 'youngs_modulus' in options else 1e6
+        poissons_ratio = options['poissons_ratio'] if 'poissons_ratio' in options else 0.49
         # Configure the size of the quadruped:
         # Foot width = 1.
         foot_width_size = 0.1
-        leg_z_length = options['leg_z_length']
-        body_x_length = options['body_x_length']
-        body_y_length = options['body_y_length']
-        body_z_length = options['body_z_length']
-        refinement = options['refinement']
+        leg_z_length = options['leg_z_length'] if 'leg_z_length' in options else 2
+        body_x_length = options['body_x_length'] if 'body_x_length' in options else 4
+        body_y_length = options['body_y_length'] if 'body_y_length' in options else 4
+        body_z_length = options['body_z_length'] if 'body_z_length' in options else 1
+        refinement = options['refinement'] if 'refinement' in options else 2
         assert leg_z_length >= 1
         assert body_x_length >= 3
         assert body_y_length >= 3
@@ -141,7 +141,12 @@ class QuadrupedEnv3d(EnvBase):
         self._act_indices = act_indices
         self._options = options
 
-        self.__spp = options['spp'] if 'spp' in options else 4
+        scale = 0.5
+        self._spp = options['spp'] if 'spp' in options else 8
+        self._camera_pos = (0.25, -1, .25)
+        self._camera_lookat = (0.25, 0, 0.1)
+        self._color = (0.8, 0.8, 0.3)
+        self._scale = scale
 
     def material_stiffness_differential(self, youngs_modulus, poissons_ratio):
         jac = self._material_jacobian(youngs_modulus, poissons_ratio)
@@ -161,16 +166,6 @@ class QuadrupedEnv3d(EnvBase):
 
     def act_indices(self):
         return self._act_indices
-
-    def _display_mesh(self, mesh_file, file_name):
-        mesh = Mesh3d()
-        mesh.Initialize(mesh_file)
-        render_hex_mesh(mesh, file_name=file_name,
-            resolution=(400, 400), sample=self.__spp, transforms=[
-                ('s', 1)
-            ],
-            camera_pos=(2, -2.2, 1.5),
-            render_voxel_edge=True)
 
     def _loss_and_grad(self, q, v):
         # Compute the center of mass.

@@ -8,6 +8,7 @@ from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray
 from py_diff_pd.common.mesh import generate_hex_mesh, get_contact_vertex
 from py_diff_pd.common.display import render_hex_mesh, export_gif
+from py_diff_pd.common.renderer import PbrtRenderer
 from py_diff_pd.core.py_diff_pd_core import Mesh3d, Deformable3d, StdRealVector
 from py_diff_pd.common.project_path import root_path
 
@@ -17,8 +18,8 @@ class TorusEnv3d(EnvBase):
 
         create_folder(folder, exist_ok=True)
 
-        youngs_modulus = options['youngs_modulus']
-        poissons_ratio = options['poissons_ratio']
+        youngs_modulus = options['youngs_modulus'] if 'youngs_modulus' in options else 5e5
+        poissons_ratio = options['poissons_ratio'] if 'poissons_ratio' in options else 0.45
 
         # Mesh parameters.
         la = youngs_modulus * poissons_ratio / ((1 + poissons_ratio) * (1 - 2 * poissons_ratio))
@@ -68,9 +69,9 @@ class TorusEnv3d(EnvBase):
 
         # Actuation.
         element_num = mesh.NumOfElements()
-        act_stiffness = options['act_stiffness']
+        act_stiffness = options['act_stiffness'] if 'act_stiffness' in options else 2e5
         com = np.mean(q0.reshape((-1, 3)), axis=0)
-        act_group_num = options['act_group_num']
+        act_group_num = options['act_group_num'] if 'act_group_num' in options else 4
         act_groups = [[] for _ in range(act_group_num)]
         delta = np.pi * 2 / act_group_num
         for i in range(element_num):
@@ -98,7 +99,13 @@ class TorusEnv3d(EnvBase):
         self._stepwise_loss = False
         self.__act_groups = act_groups
 
-        self.__spp = options['spp'] if 'spp' in options else 4
+        scale = 3
+        self._spp = options['spp'] if 'spp' in options else 8
+        self._camera_pos = (0.5, -2, .25)
+        self._camera_lookat = (0.5, 0, 0.1)
+        self._color = (0.3, 0.7, 0.5)
+        self._scale = scale
+
 
     def material_stiffness_differential(self, youngs_modulus, poissons_ratio):
         jac = self._material_jacobian(youngs_modulus, poissons_ratio)
@@ -112,17 +119,6 @@ class TorusEnv3d(EnvBase):
 
     def act_groups(self):
         return self.__act_groups
-
-    def _display_mesh(self, mesh_file, file_name):
-        mesh = Mesh3d()
-        mesh.Initialize(mesh_file)
-        render_hex_mesh(mesh, file_name=file_name,
-            resolution=(400, 400), sample=self.__spp, transforms=[
-                ('s', 5)
-            ],
-            camera_pos=[2, -2.2, 1.4],
-            camera_lookat=[0.5, 0.5, 0.4],
-            render_voxel_edge=True)
 
     def _loss_and_grad(self, q, v):
         # Compute the center of mass.
