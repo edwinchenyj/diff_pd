@@ -22,8 +22,8 @@ class EnvBase:
 
         self._folder = Path(folder)
 
-        #Rendering data members
-        #Values specified are default views and colors from the tendon routing example
+        # Rendering data members.
+        # Values specified are default views and colors from the tendon routing example.
         self._spp = 4
         self._camera_pos = (0.4, -1, .25)
         self._camera_lookat = (0, 0.15, 0.15)
@@ -65,8 +65,8 @@ class EnvBase:
     def default_external_force(self):
         return np.copy(self._f_ext)
 
-    #Default rendering method
-    #Modified through class data members
+    # Default rendering method.
+    # Modified through class data members.
     def _display_mesh(self, mesh_file, file_name):
         options = {
             'file_name': file_name,

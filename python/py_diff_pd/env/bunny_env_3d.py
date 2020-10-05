@@ -106,7 +106,7 @@ class BunnyEnv3d(EnvBase):
         mesh.Initialize(mesh_file)
 
         scale = 3
-        #Draw Wireframe of Bunny Mesh
+        # Draw wireframe of the bunny.
         vertices, faces = hex2obj(mesh)
         for f in faces:
             for i in range(4):
@@ -125,7 +125,7 @@ class BunnyEnv3d(EnvBase):
         renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj',
             texture_img='chkbd_24_0.7', transforms=[('s', 2)])
 
-        #Add target CoM and mesh CoM
+        # Add target CoM and mesh CoM.
         renderer.add_shape_mesh({ 'name': 'sphere', 'center': self._target_com, 'radius': 0.0075 },
             transforms=[('s', scale)], color=(0.1, 0.1, 0.9))
 

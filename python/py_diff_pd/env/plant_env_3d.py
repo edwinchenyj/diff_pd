@@ -63,7 +63,7 @@ class PlantEnv3d(EnvBase):
         self._stepwise_loss = True
         self.__dirichlet_dof = dirichlet_dof
 
-        #Optional data members for rendering
+        # Optional data members for rendering.
         scale = 0.5
         self._spp = options['spp'] if 'spp' in options else 4
         self._camera_pos = (0.4, -1, .25)
