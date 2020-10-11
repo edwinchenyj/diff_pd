@@ -8,7 +8,7 @@ from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.proj3d import proj_transform
 import matplotlib.animation as animation
-from py_diff_pd.core.py_diff_pd_core import Mesh2d
+from py_diff_pd.core.py_diff_pd_core import QuadMesh2d
 from py_diff_pd.common.common import ndarray
 
 # transforms is a list of:

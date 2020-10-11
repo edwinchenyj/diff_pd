@@ -5,7 +5,7 @@ import os
 import numpy as np
 from PIL import Image
 
-from py_diff_pd.core.py_diff_pd_core import Mesh3d
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d
 from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.mesh import hex2obj, hex2obj_with_textures
 from py_diff_pd.common.project_path import root_path
@@ -71,7 +71,7 @@ class PbrtRenderer(object):
         self.__tri_objects = []
         self.__shape_objects = []
 
-    # - hex_mesh is either a Mesh3d() or an obj.
+    # - hex_mesh is either a HexMesh3d() or an obj.
     #
     # - transforms is a list of rotation, translation, and scaling applied to the mesh applied in the order of
     #   their occurances in transforms.

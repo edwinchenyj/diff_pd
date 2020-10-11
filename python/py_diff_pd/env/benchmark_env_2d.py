@@ -7,7 +7,7 @@ from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray
 from py_diff_pd.common.mesh import generate_rectangle_mesh
 from py_diff_pd.common.display import display_quad_mesh, export_gif
-from py_diff_pd.core.py_diff_pd_core import Mesh2d, Deformable2d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import QuadMesh2d, Deformable2d, StdRealVector
 
 class BenchmarkEnv2d(EnvBase):
     # Possible options:
@@ -30,7 +30,7 @@ class BenchmarkEnv2d(EnvBase):
         origin = (0, 0)
         bin_file_name = str(folder / 'mesh.bin')
         generate_rectangle_mesh(cell_nums, dx, origin, bin_file_name)
-        mesh = Mesh2d()
+        mesh = QuadMesh2d()
         mesh.Initialize(bin_file_name)
 
         # FEM parameters.
@@ -103,7 +103,7 @@ class BenchmarkEnv2d(EnvBase):
         return dof in [2 * (self.__node_nums[1] - 1), 2 * (self.__node_nums[1] - 1) + 1]
 
     def _display_mesh(self, mesh_file, file_name):
-        mesh = Mesh2d()
+        mesh = QuadMesh2d()
         mesh.Initialize(mesh_file)
         display_quad_mesh(mesh, xlim=[-0.01, 0.15], ylim=[-0.01, 0.2],
             file_name=file_name, show=False)

@@ -7,7 +7,7 @@ from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray
 from py_diff_pd.common.mesh import generate_hex_mesh
 from py_diff_pd.common.display import render_hex_mesh, export_gif
-from py_diff_pd.core.py_diff_pd_core import Mesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
 
 class BenchmarkEnv3d(EnvBase):
     # Refinement is an integer controlling the resolution of the mesh. We use 8 for benchmark_3d.
@@ -32,7 +32,7 @@ class BenchmarkEnv3d(EnvBase):
         bin_file_name = folder / 'mesh.bin'
         voxels = np.ones(cell_nums)
         generate_hex_mesh(voxels, dx, origin, bin_file_name)
-        mesh = Mesh3d()
+        mesh = HexMesh3d()
         mesh.Initialize(str(bin_file_name))
 
         deformable = Deformable3d()
@@ -110,7 +110,7 @@ class BenchmarkEnv3d(EnvBase):
         return i == 0
 
     def _display_mesh(self, mesh_file, file_name):
-        mesh = Mesh3d()
+        mesh = HexMesh3d()
         mesh.Initialize(mesh_file)
         render_hex_mesh(mesh, file_name=file_name,
             resolution=(400, 400), sample=self.__spp, transforms=[

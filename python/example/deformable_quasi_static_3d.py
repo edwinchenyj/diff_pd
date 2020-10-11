@@ -6,7 +6,7 @@ import time
 import scipy.optimize
 import numpy as np
 
-from py_diff_pd.core.py_diff_pd_core import Mesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
 from py_diff_pd.common.common import create_folder, ndarray, print_info, print_error
 from py_diff_pd.common.mesh import generate_hex_mesh
 from py_diff_pd.common.display import display_hex_mesh, render_hex_mesh, export_gif
@@ -44,7 +44,7 @@ def test_deformable_quasi_static_3d(verbose):
     bin_file_name = str(folder / 'cube.bin')
     voxels = np.ones(cell_nums)
     generate_hex_mesh(voxels, dx, origin, bin_file_name)
-    mesh = Mesh3d()
+    mesh = HexMesh3d()
     mesh.Initialize(bin_file_name)
 
     # FEM parameters.
@@ -92,9 +92,9 @@ def test_deformable_quasi_static_3d(verbose):
     q_array = StdRealVector(dofs)
     deformable.PyGetQuasiStaticState(method, act, f_ext, opt, q_array)
     deformable.PySaveToMeshFile(q_array, str(folder / 'quasi_static.bin'))
-    mesh = Mesh3d()
+    mesh = HexMesh3d()
     mesh.Initialize(str(folder / 'quasi_static.bin'))
-    mesh_template = Mesh3d()
+    mesh_template = HexMesh3d()
     mesh_template.Initialize(str(folder / 'quasi_static_master.bin'))
     # Compuare mesh and mesh_template.
     if not compare_mesh_3d(mesh_template, mesh):

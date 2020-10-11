@@ -51,7 +51,6 @@ public:
 
 private:
     void SaveToBinaryFile(const std::string& binary_file_name) const;
-    void SaveToObjFile(const std::string& obj_file_name) const;
 
     Eigen::Matrix<real, vertex_dim, -1> vertices_;
     Eigen::Matrix<int, element_dim, -1> elements_;

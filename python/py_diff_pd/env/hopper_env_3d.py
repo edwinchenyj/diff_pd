@@ -7,7 +7,7 @@ from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray, print_info
 from py_diff_pd.common.mesh import generate_hex_mesh, get_contact_vertex
 from py_diff_pd.common.display import export_gif, render_hex_mesh
-from py_diff_pd.core.py_diff_pd_core import Mesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
 #import IPython
 
 class HopperEnv3d(EnvBase):
@@ -43,7 +43,7 @@ class HopperEnv3d(EnvBase):
                 voxels[i, :, k] = 0
         bin_file_name = str(folder / 'mesh.bin')
         generate_hex_mesh(voxels, dx, origin, bin_file_name)
-        mesh = Mesh3d()
+        mesh = HexMesh3d()
         mesh.Initialize(bin_file_name)
 
         # FEM parameters.
@@ -154,7 +154,7 @@ class HopperEnv3d(EnvBase):
         return self._right_leg_right_fiber
 
     def _display_mesh(self, mesh_file, file_name):
-        mesh = Mesh3d()
+        mesh = HexMesh3d()
         mesh.Initialize(mesh_file)
         render_hex_mesh(mesh, file_name=file_name,
             resolution=(400, 400), sample=8,

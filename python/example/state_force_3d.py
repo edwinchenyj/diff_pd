@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 import numpy as np
 
-from py_diff_pd.core.py_diff_pd_core import Deformable3d, Mesh3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import Deformable3d, HexMesh3d, StdRealVector
 from py_diff_pd.core.py_diff_pd_core import StdRealVector, StdRealArray3d
 from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce3d, PlanarCollisionStateForce3d, HydrodynamicsStateForce3d
 from py_diff_pd.common.common import ndarray, create_folder
@@ -33,7 +33,7 @@ def test_state_force_3d(verbose):
     bin_file_name = folder / 'cuboid.bin'
     generate_hex_mesh(np.ones(cell_nums), dx, (0, 0, 0), bin_file_name)
 
-    mesh = Mesh3d()
+    mesh = HexMesh3d()
     mesh.Initialize(str(bin_file_name))
 
     deformable = Deformable3d()

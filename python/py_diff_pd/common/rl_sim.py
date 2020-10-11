@@ -22,7 +22,7 @@ from deep_rl import Task, Config, Logger, BaseNormalizer
 from deep_rl.component.envs import DummyVecEnv, SubprocVecEnv, OriginalReturnWrapper
 from deep_rl.network import GaussianActorCriticNet, DeterministicActorCriticNet, NoisyLinear, layer_init
 
-from py_diff_pd.core.py_diff_pd_core import Mesh3d, Deformable3d, StdRealVector, StdIntVector, Mesh2d
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector, StdIntVector, QuadMesh2d
 from py_diff_pd.common.common import create_folder, ndarray, print_info
 from py_diff_pd.common.mesh import generate_hex_mesh, get_boundary_face
 from py_diff_pd.common.display import export_gif, Arrow3D
@@ -220,7 +220,7 @@ def make_water_snake_3d(sim_class, seed, rank, *args, **kwargs):
     voxels = np.ones(cell_nums)
 
     voxel_indices, vertex_indices = generate_hex_mesh(voxels, dx, origin, bin_file_name, write=False)
-    mesh = Mesh3d()
+    mesh = HexMesh3d()
     mesh.Initialize(bin_file_name)
 
     # FEM parameters.
@@ -383,7 +383,7 @@ def make_starfish_3d(sim_class, seed, rank, *args, **kwargs):
 
     voxel_indices, vertex_indices = generate_hex_mesh(
         voxels, dx, origin, bin_file_name, write=False)
-    mesh = Mesh3d()
+    mesh = HexMesh3d()
     mesh.Initialize(bin_file_name)
 
     # FEM parameters.
@@ -563,7 +563,7 @@ class AdaSim(gym.Env):
 
         if isinstance(mesh, Mesh2d):
             dim = 2
-        elif isinstance(mesh, Mesh3d):
+        elif isinstance(mesh, HexMesh3d):
             dim = 3
         else:
             raise ValueError(f'invlaid mesh type: {type(mesh)}')

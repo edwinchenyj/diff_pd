@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 import numpy as np
 
-from py_diff_pd.core.py_diff_pd_core import Deformable2d, Mesh2d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import Deformable2d, QuadMesh2d, StdRealVector
 from py_diff_pd.core.py_diff_pd_core import StdRealVector, StdRealArray2d
 from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce2d, PlanarCollisionStateForce2d, HydrodynamicsStateForce2d
 from py_diff_pd.common.common import ndarray, create_folder
@@ -33,7 +33,7 @@ def test_state_force_2d(verbose):
     bin_file_name = folder / 'rectangle.bin'
     generate_rectangle_mesh(cell_nums, dx, (0, 0), bin_file_name)
 
-    mesh = Mesh2d()
+    mesh = QuadMesh2d()
     mesh.Initialize(str(bin_file_name))
 
     deformable = Deformable2d()

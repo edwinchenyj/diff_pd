@@ -24,7 +24,6 @@ void Mesh<vertex_dim, element_dim>::Initialize(const Eigen::Matrix<real, vertex_
 template<int vertex_dim, int element_dim>
 void Mesh<vertex_dim, element_dim>::SaveToFile(const std::string& file_name) const {
     if (EndsWith(file_name, ".bin")) SaveToBinaryFile(file_name);
-    else if (EndsWith(file_name, ".obj")) SaveToObjFile(file_name);
     else PrintError("Invalid save file name: " + file_name);
 }
 
@@ -38,10 +37,7 @@ void Mesh<vertex_dim, element_dim>::SaveToBinaryFile(const std::string& binary_f
     Save<MatrixXi>(fout, elements_);
 }
 
-template<int vertex_dim, int element_dim>
-void Mesh<vertex_dim, element_dim>::SaveToObjFile(const std::string& obj_file_name) const {
-    // TODO.
-}
-
-template class Mesh<2, 4>;
-template class Mesh<3, 8>;
+template class Mesh<2, 3>;  // Triangle mesh.
+template class Mesh<2, 4>;  // Quad mesh.
+template class Mesh<3, 4>;  // Tet mesh.
+template class Mesh<3, 8>;  // Hex mesh.

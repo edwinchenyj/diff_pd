@@ -1,7 +1,7 @@
 import os
 import struct
 import numpy as np
-from py_diff_pd.core.py_diff_pd_core import Mesh3d
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d
 from py_diff_pd.common.common import ndarray
 
 def generate_rectangle_mesh(cell_nums, dx, origin, bin_file_name):
@@ -365,7 +365,7 @@ def filter_hex(hex_mesh, active_elements):
         f.write(struct.pack('i', 8))
         f.write(struct.pack('i', faces.shape[1]))
         f.write(struct.pack('i' * faces.size, *list(faces.ravel())))
-    mesh = Mesh3d()
+    mesh = HexMesh3d()
     mesh.Initialize(tmp_file_name)
     os.remove(tmp_file_name)
     return mesh

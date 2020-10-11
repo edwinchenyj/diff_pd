@@ -8,7 +8,7 @@ from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray
 from py_diff_pd.common.mesh import generate_hex_mesh, get_contact_vertex
 from py_diff_pd.common.display import render_hex_mesh, export_gif
-from py_diff_pd.core.py_diff_pd_core import Mesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
 from py_diff_pd.common.renderer import PbrtRenderer
 from py_diff_pd.common.project_path import root_path
 from py_diff_pd.common.mesh import hex2obj
@@ -29,7 +29,7 @@ class BunnyEnv3d(EnvBase):
         density = 1e3
 
         bin_file_name = Path(root_path) / 'asset' / 'mesh' / 'bunny_watertight.bin'
-        mesh = Mesh3d()
+        mesh = HexMesh3d()
         mesh.Initialize(str(bin_file_name))
         bunny_size = 0.1
         # Rescale the mesh.
@@ -102,7 +102,7 @@ class BunnyEnv3d(EnvBase):
         }
         renderer = PbrtRenderer(options)
 
-        mesh = Mesh3d()
+        mesh = HexMesh3d()
         mesh.Initialize(mesh_file)
 
         scale = 3

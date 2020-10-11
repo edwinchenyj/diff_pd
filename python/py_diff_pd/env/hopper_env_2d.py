@@ -7,7 +7,7 @@ from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray
 from py_diff_pd.common.mesh import generate_rectangle_mesh
 from py_diff_pd.common.display import display_quad_mesh, export_gif
-from py_diff_pd.core.py_diff_pd_core import Mesh2d, Deformable2d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import QuadMesh2d, Deformable2d, StdRealVector
 
 class HopperEnv2d(EnvBase):
     def __init__(self, seed, folder, options):
@@ -27,7 +27,7 @@ class HopperEnv2d(EnvBase):
         origin = (0, dx)
         bin_file_name = str(folder / 'mesh.bin')
         generate_rectangle_mesh(cell_nums, dx, origin, bin_file_name)
-        mesh = Mesh2d()
+        mesh = QuadMesh2d()
         mesh.Initialize(bin_file_name)
 
         # FEM parameters.
@@ -94,7 +94,7 @@ class HopperEnv2d(EnvBase):
         return False
 
     def _display_mesh(self, mesh_file, file_name):
-        mesh = Mesh2d()
+        mesh = QuadMesh2d()
         mesh.Initialize(mesh_file)
         display_quad_mesh(mesh, xlim=[-0.01, 0.3], ylim=[0, 0.2],
             file_name=file_name, show=False)

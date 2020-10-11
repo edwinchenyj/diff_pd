@@ -7,7 +7,7 @@ from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray, print_info
 from py_diff_pd.common.mesh import generate_hex_mesh
 from py_diff_pd.common.display import render_hex_mesh, export_gif
-from py_diff_pd.core.py_diff_pd_core import Mesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
 
 class QuadrupedEnv3d(EnvBase):
     # Refinement is an integer controlling the resolution of the mesh.
@@ -58,7 +58,7 @@ class QuadrupedEnv3d(EnvBase):
                         (i >= body_x_length * refinement - refinement and j >= body_y_length * refinement - refinement):
                         voxels[i][j][k] = 1
         generate_hex_mesh(voxels, dx, origin, bin_file_name)
-        mesh = Mesh3d()
+        mesh = HexMesh3d()
         mesh.Initialize(str(bin_file_name))
 
         deformable = Deformable3d()

@@ -8,7 +8,7 @@ from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray
 from py_diff_pd.common.mesh import generate_hex_mesh, get_contact_vertex
 from py_diff_pd.common.display import render_hex_mesh, export_gif
-from py_diff_pd.core.py_diff_pd_core import Mesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
 from py_diff_pd.common.renderer import PbrtRenderer
 from py_diff_pd.common.project_path import root_path
 
@@ -29,7 +29,7 @@ class BouncingBallEnv3d(EnvBase):
 
         # Shape of the rolling jelly.
         bin_file_name = Path(root_path) / 'asset' / 'mesh' / 'lock.bin'
-        mesh = Mesh3d()
+        mesh = HexMesh3d()
         mesh.Initialize(str(bin_file_name))
         # Rescale the mesh.
         mesh.Scale(0.2)
@@ -89,7 +89,7 @@ class BouncingBallEnv3d(EnvBase):
         mesh_file = self._folder / 'groundtruth' / '{:04d}.bin'.format(i)
         if not mesh_file.exists(): return 0, np.zeros(q.size), np.zeros(q.size)
 
-        mesh = Mesh3d()
+        mesh = HexMesh3d()
         mesh.Initialize(str(mesh_file))
         q_ref = ndarray(mesh.py_vertices())
         grad = q - q_ref

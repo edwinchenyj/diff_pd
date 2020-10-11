@@ -8,7 +8,7 @@ from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray
 from py_diff_pd.common.mesh import generate_hex_mesh, get_contact_vertex
 from py_diff_pd.common.display import render_hex_mesh, export_gif
-from py_diff_pd.core.py_diff_pd_core import Mesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
 from py_diff_pd.common.project_path import root_path
 
 class CowEnv3d(EnvBase):
@@ -28,7 +28,7 @@ class CowEnv3d(EnvBase):
         density = 7e2
 
         bin_file_name = Path(root_path) / 'asset' / 'mesh' / 'spot.bin'
-        mesh = Mesh3d()
+        mesh = HexMesh3d()
         mesh.Initialize(str(bin_file_name))
         cow_size = 0.1
         # Rescale the mesh.

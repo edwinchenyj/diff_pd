@@ -9,7 +9,7 @@ from py_diff_pd.common.common import create_folder, ndarray
 from py_diff_pd.common.mesh import generate_hex_mesh, get_contact_vertex
 from py_diff_pd.common.display import render_hex_mesh, export_gif
 from py_diff_pd.common.renderer import PbrtRenderer
-from py_diff_pd.core.py_diff_pd_core import Mesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
 from py_diff_pd.common.project_path import root_path
 
 class TorusEnv3d(EnvBase):
@@ -27,7 +27,7 @@ class TorusEnv3d(EnvBase):
         density = 1e3
 
         bin_file_name = Path(root_path) / 'asset' / 'mesh' / 'torus_analytic.bin'
-        mesh = Mesh3d()
+        mesh = HexMesh3d()
         mesh.Initialize(str(bin_file_name))
         torus_size = 0.1
         # Rescale the mesh.

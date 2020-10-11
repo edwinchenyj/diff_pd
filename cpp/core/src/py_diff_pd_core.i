@@ -43,8 +43,10 @@ namespace std {
     %template(StdMap) map<string, real>;
 }
 
-%template(Mesh2d) Mesh<2, 4>;
-%template(Mesh3d) Mesh<3, 8>;
+%template(TriangleMesh2d) Mesh<2, 3>;
+%template(QuadMesh2d) Mesh<2, 4>;
+%template(TetMesh3d) Mesh<3, 4>;
+%template(HexMesh3d) Mesh<3, 8>;
 %template(Deformable2d) Deformable<2, 4>;
 %template(Deformable3d) Deformable<3, 8>;
 

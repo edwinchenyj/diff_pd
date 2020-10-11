@@ -8,7 +8,7 @@ from py_diff_pd.common.common import ndarray, create_folder, copy_std_int_vector
 from py_diff_pd.common.display import export_gif
 from py_diff_pd.common.project_path import root_path
 from py_diff_pd.common.renderer import PbrtRenderer
-from py_diff_pd.core.py_diff_pd_core import Mesh3d
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d
 
 class EnvBase:
     def __init__(self, folder):
@@ -79,7 +79,7 @@ class EnvBase:
         }
         renderer = PbrtRenderer(options)
 
-        mesh = Mesh3d()
+        mesh = HexMesh3d()
         mesh.Initialize(mesh_file)
         renderer.add_hex_mesh(mesh, render_voxel_edge=True, color=self._color, transforms=[
             ('s', self._scale),

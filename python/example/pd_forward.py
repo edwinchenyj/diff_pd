@@ -7,7 +7,7 @@ import time
 import scipy.optimize
 import numpy as np
 
-from py_diff_pd.core.py_diff_pd_core import Mesh2d, Deformable2d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import QuadMesh2d, Deformable2d, StdRealVector
 from py_diff_pd.common.common import create_folder, ndarray, print_info, print_error, print_ok
 from py_diff_pd.common.mesh import generate_rectangle_mesh
 from py_diff_pd.common.display import display_quad_mesh, export_gif
