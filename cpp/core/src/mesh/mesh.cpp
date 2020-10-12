@@ -16,17 +16,19 @@ void Mesh<vertex_dim, element_dim>::Initialize(const std::string& binary_file_na
     // Compute element volumne.
     const int element_num = static_cast<int>(elements.cols());
     element_volume_.resize(element_num, 0);
-    real average_element_volume = 0;
     for (int e = 0; e < element_num; ++e) {
         Eigen::Matrix<real, vertex_dim, element_dim> element;
         for (int k = 0; k < element_dim; ++k) {
             element.col(k) = vertices.col(elements(k, e));
         }
         element_volume_[e] = ComputeElementVolume(element);
-        average_element_volume += element_volume_[e];
     }
-    average_element_volume /= element_num;
-    dx_ = std::pow(average_element_volume, ToReal(1) / vertex_dim);
+
+    // Compute average element volume.
+    average_element_volume_ = 0;
+    for (const real& e : element_volume_) average_element_volume_ += e;
+    average_element_volume_ /= element_num;
+    dx_ = std::pow(average_element_volume_, ToReal(1) / vertex_dim);
 }
 
 template<int vertex_dim, int element_dim>
@@ -38,17 +40,19 @@ void Mesh<vertex_dim, element_dim>::Initialize(const Eigen::Matrix<real, vertex_
     // Compute element volumne.
     const int element_num = static_cast<int>(elements.cols());
     element_volume_.resize(element_num, 0);
-    real average_element_volume = 0;
     for (int e = 0; e < element_num; ++e) {
         Eigen::Matrix<real, vertex_dim, element_dim> element;
         for (int k = 0; k < element_dim; ++k) {
             element.col(k) = vertices.col(elements(k, e));
         }
         element_volume_[e] = ComputeElementVolume(element);
-        average_element_volume += element_volume_[e];
     }
-    average_element_volume /= element_num;
-    dx_ = std::pow(average_element_volume, ToReal(1) / vertex_dim);
+
+    // Compute average element volume.
+    average_element_volume_ = 0;
+    for (const real& e : element_volume_) average_element_volume_ += e;
+    average_element_volume_ /= element_num;
+    dx_ = std::pow(average_element_volume_, ToReal(1) / vertex_dim);
 }
 
 template<int vertex_dim, int element_dim>

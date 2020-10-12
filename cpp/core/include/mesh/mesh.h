@@ -44,6 +44,7 @@ public:
         return ret;
     }
     const real element_volume(const int element_idx) const;
+    const real average_element_volume() const { return average_element_volume_; }
 
     // Transformation.
     void Scale(const real scale_factor);
@@ -59,6 +60,7 @@ private:
     Eigen::Matrix<int, element_dim, -1> elements_;
 
     std::vector<real> element_volume_;
+    real average_element_volume_;
     // For quad meshes and hex meshes, we assume the element is square or cube and dx is its size.
     real dx_;
 };
