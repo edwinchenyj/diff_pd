@@ -29,7 +29,7 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsLocalStepDiffer
                 wdBp += w * dBp;
                 ++energy_cnt;
             }
-            wAtdBpA += pd_At_[j] * wdBp * pd_A_[j];
+            wAtdBpA += finite_element_samples_[i][j].pd_At() * wdBp * finite_element_samples_[i][j].pd_A();
         }
         pd_backward_local_element_matrices[i] = wAtdBpA;
     }
@@ -51,7 +51,8 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsLocalStepDiffer
                 Eigen::Matrix<real, vertex_dim, vertex_dim * vertex_dim> JF;
                 Eigen::Matrix<real, vertex_dim, 1> Ja;
                 energy->ProjectToManifoldDifferential(F_auxiliary_[i][j].F(), a_cur(act_idx + ei), JF, Ja);
-                pd_backward_local_muscle_matrices[energy_idx][ei] += wi * pd_At_[j] * Mt * JF * pd_A_[j];
+                pd_backward_local_muscle_matrices[energy_idx][ei] += wi * finite_element_samples_[i][j].pd_At()
+                    * Mt * JF * finite_element_samples_[i][j].pd_A();
             }
         }
         act_idx += element_cnt;

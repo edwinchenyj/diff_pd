@@ -245,7 +245,6 @@ private:
 
     mutable std::array<SparseMatrix, vertex_dim> pd_lhs_;
     mutable bool pd_solver_ready_;
-    mutable std::vector<SparseMatrix> pd_A_, pd_At_;
 
     // State-based forces.
     std::vector<std::shared_ptr<StateForce<vertex_dim>>> state_forces_;
