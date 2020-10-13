@@ -25,7 +25,7 @@ void FiniteElementSample<vertex_dim, element_dim>::Initialize(const Eigen::Matri
 
     pd_A_ = ToSparseMatrix(vertex_dim * vertex_dim, vertex_dim * element_dim, pd_A_nonzeros);
     pd_At_ = ToSparseMatrix(vertex_dim * element_dim, vertex_dim * vertex_dim, pd_At_nonzeros);
-    pd_AtA_ = pd_A_ * pd_At_;
+    pd_AtA_ = pd_At_ * pd_A_;
 }
 
 template class FiniteElementSample<2, 3>;

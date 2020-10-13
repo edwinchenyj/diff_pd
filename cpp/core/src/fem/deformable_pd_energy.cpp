@@ -151,16 +151,15 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdEnergyForce(const VectorXr
         ++energy_cnt;
     }
 
-    VectorXr f_int = VectorXr::Zero(dofs_);
     for (int i = 0; i < element_num; ++i) {
         const auto vi = mesh_.element(i);
         for (int j = 0; j < element_dim; ++j) {
             for (int k = 0; k < vertex_dim; ++k) {
-                f_int(vi(j) * vertex_dim + k) += f_ints[i * element_dim + j](k);
+                f(vi(j) * vertex_dim + k) += f_ints[i * element_dim + j](k);
             }
         }
     }
-    return f_int;
+    return f;
 }
 
 template<int vertex_dim, int element_dim>
@@ -207,16 +206,15 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdEnergyForceDifferential(co
         ++energy_cnt;
     }
 
-    VectorXr df_int = VectorXr::Zero(dofs_);
     for (int i = 0; i < element_num; ++i) {
         const auto vi = mesh_.element(i);
         for (int j = 0; j < element_dim; ++j) {
             for (int k = 0; k < vertex_dim; ++k) {
-                df_int(vi(j) * vertex_dim + k) += df_ints[i * element_dim + j](k);
+                df(vi(j) * vertex_dim + k) += df_ints[i * element_dim + j](k);
             }
         }
     }
-    return df_int;
+    return df;
 }
 
 template<int vertex_dim, int element_dim>
