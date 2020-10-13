@@ -29,7 +29,9 @@ void Deformable<vertex_dim, element_dim>::BackwardNewton(const std::string& meth
 
     const real h = dt;
     const real inv_h = 1 / h;
-    const real h2m = h * h / (cell_volume_ * density_);
+    // TODO: this mass is incorrect for tri or tet meshes.
+    const real mass = element_volume_ * density_;
+    const real h2m = h * h / mass;
     // Forward:
     // Step 1:
     // rhs_basic = q + hv + h2m * f_ext + h2m * f_state(q, v).
@@ -155,5 +157,7 @@ void Deformable<vertex_dim, element_dim>::BackwardNewton(const std::string& meth
     dl_dv += dl_dv_single;
 }
 
+template class Deformable<2, 3>;
 template class Deformable<2, 4>;
+template class Deformable<3, 4>;
 template class Deformable<3, 8>;

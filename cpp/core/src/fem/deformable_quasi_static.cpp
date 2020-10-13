@@ -143,5 +143,7 @@ const SparseMatrix Deformable<vertex_dim, element_dim>::QuasiStaticMatrix(const 
     return ToSparseMatrix(dofs_, dofs_, nonzeros_new);
 }
 
+template class Deformable<2, 3>;
 template class Deformable<2, 4>;
+template class Deformable<3, 4>;
 template class Deformable<3, 8>;

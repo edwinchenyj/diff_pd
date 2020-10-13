@@ -32,5 +32,7 @@ void Deformable<vertex_dim, element_dim>::SetFrictionalBoundary(const std::strin
     }
 }
 
+template class Deformable<2, 3>;
 template class Deformable<2, 4>;
+template class Deformable<3, 4>;
 template class Deformable<3, 8>;

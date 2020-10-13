@@ -5,14 +5,14 @@
 #include "common/common.h"
 
 // Please see Eq. (6) from the SoftCon paper for more details.
-template<int vertex_dim, int face_dim>
+template<int vertex_dim, int element_dim>
 class HydrodynamicsStateForce : public StateForce<vertex_dim> {
 public:
     HydrodynamicsStateForce();
 
     void Initialize(const real rho, const Eigen::Matrix<real, vertex_dim, 1>& v_water,
         const Eigen::Matrix<real, 4, 2>& Cd_points, const Eigen::Matrix<real, 4, 2>& Ct_points,
-        const Eigen::Matrix<int, face_dim, -1>& surface_faces);
+        const MatrixXi& surface_faces);
     void PyInitialize(const real rho, const std::array<real, vertex_dim>& v_water,
         const std::vector<real>& Cd_points, const std::vector<real>& Ct_points,
         const std::vector<int>& surface_faces);
@@ -33,7 +33,7 @@ private:
     Eigen::Matrix<real, vertex_dim, 1> v_water_;
     Eigen::Matrix<real, 4, 2> Cd_points_;
     Eigen::Matrix<real, 4, 2> Ct_points_;
-    Eigen::Matrix<int, face_dim, -1> surface_faces_;
+    MatrixXi surface_faces_;
     int surface_face_num_;
 };
 

@@ -150,6 +150,18 @@ const real Mesh<3, 8>::dx() const {
     return dx_;
 }
 
+template<>
+const int Mesh<2, 3>::GetNumOfVerticesInFace() { return 2; }
+
+template<>
+const int Mesh<2, 4>::GetNumOfVerticesInFace() { return 2; }
+
+template<>
+const int Mesh<3, 4>::GetNumOfVerticesInFace() { return 3; }
+
+template<>
+const int Mesh<3, 8>::GetNumOfVerticesInFace() { return 4; }
+
 template class Mesh<2, 3>;  // Triangle mesh.
 template class Mesh<2, 4>;  // Quad mesh.
 template class Mesh<3, 4>;  // Tet mesh.

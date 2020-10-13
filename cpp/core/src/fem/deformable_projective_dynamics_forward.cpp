@@ -18,9 +18,9 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
     // I + h2m * w_i * S'A'AS + h2m * w_i + h2m * w_i * S'A'M'MAS.
     // Assemble and pre-factorize the left-hand-side matrix.
     const int element_num = mesh_.NumOfElements();
-    const int sample_num = element_dim;
+    const int sample_num = GetNumOfSamplesInElement();
     const int vertex_num = mesh_.NumOfVertices();
-    const real mass = density_ * cell_volume_;
+    const real mass = density_ * element_volume_;
     const real h2m = dt * dt / mass;
     std::array<SparseMatrixElements, vertex_dim> nonzeros;
     // Part I: Add I.
@@ -33,11 +33,9 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
     // Part II: PD element energy: h2m * w_i * S'A'AS.
     real w = 0;
     for (const auto& energy : pd_element_energies_) w += energy->stiffness();
-    w *= cell_volume_ / sample_num;
+    w *= element_volume_ / sample_num;
     const real h2mw = h2m * w;
     // For each element and for each sample, AS maps q to the deformation gradient F.
-    std::array<SparseMatrixElements, sample_num> AtA;
-    for (int j = 0; j < sample_num; ++j) AtA[j] = FromSparseMatrix(pd_At_[j] * pd_A_[j]);
     for (int i = 0; i < element_num; ++i) {
         const Eigen::Matrix<int, element_dim, 1> vi = mesh_.element(i);
         std::array<int, vertex_dim * element_dim> remap_idx;
@@ -46,7 +44,8 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
                 remap_idx[j * vertex_dim + k] = vertex_dim * vi[j] + k;
         for (int j = 0; j < sample_num; ++j) {
             // Add h2mw * SAAS to nonzeros.
-            for (const auto& triplet: AtA[j]) {
+            const SparseMatrixElements pd_AtA_nonzeros = FromSparseMatrix(finite_element_samples_[i][j].pd_AtA());
+            for (const auto& triplet: pd_AtA_nonzeros) {
                 const int row = triplet.row();
                 const int col = triplet.col();
                 const real val = triplet.value() * h2mw;
@@ -79,10 +78,13 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
     for (const auto& pair : pd_muscle_energies_) {
         const auto& energy = pair.first;
         const auto& MtM = energy->MtM();
-        std::array<SparseMatrixElements, sample_num> AtMtMA;
-        for (int j = 0; j < sample_num; ++j) AtMtMA[j] = FromSparseMatrix(pd_At_[j] * MtM * pd_A_[j]);
-        const real h2mw = h2m * energy->stiffness() * cell_volume_ / sample_num;
+        const real h2mw = h2m * energy->stiffness() * element_volume_ / sample_num;
         for (const int i : pair.second) {
+            std::vector<SparseMatrixElements> AtMtMA(sample_num);
+            for (int j = 0; j < sample_num; ++j)
+                AtMtMA[j] = FromSparseMatrix(
+                    finite_element_samples_[i][j].pd_At() * MtM * finite_element_samples_[i][j].pd_A()
+                );
             const Eigen::Matrix<int, element_dim, 1> vi = mesh_.element(i);
             std::array<int, vertex_dim * element_dim> remap_idx;
             for (int j = 0; j < element_dim; ++j)
@@ -161,7 +163,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::ProjectiveDynamicsLocalStep(
     // w_i S'A'(Bp(q) - ASq_0). Do not worry about the rows corresponding to dirichlet --- it will be set in
     // the forward and backward functions.
 
-    const int sample_num = element_dim;
+    const int sample_num = GetNumOfSamplesInElement();
     // Handle dirichlet boundary conditions.
     VectorXr q_boundary = VectorXr::Zero(dofs_);
     for (const auto& pair : dirichlet_with_friction) q_boundary(pair.first) = pair.second;
@@ -172,19 +174,22 @@ const VectorXr Deformable<vertex_dim, element_dim>::ProjectiveDynamicsLocalStep(
     // Project PdElementEnergy.
     const int element_num = mesh_.NumOfElements();
     for (const auto& energy : pd_element_energies_) {
-        const real w = energy->stiffness() * cell_volume_ / sample_num;
+        const real w = energy->stiffness() * element_volume_ / sample_num;
         #pragma omp parallel for
         for (int i = 0; i < element_num; ++i) {
             const Eigen::Matrix<int, element_dim, 1> vi = mesh_.element(i);
             const auto deformed = ScatterToElementFlattened(q_cur, i);
             const auto deformed_dirichlet = ScatterToElementFlattened(q_boundary, i);
             for (int j = 0; j < sample_num; ++j) {
-                const Eigen::Matrix<real, vertex_dim * vertex_dim, 1> F_flattened = pd_A_[j] * deformed;
-                const Eigen::Matrix<real, vertex_dim * vertex_dim, 1> F_bound = pd_A_[j] * deformed_dirichlet;
+                const Eigen::Matrix<real, vertex_dim * vertex_dim, 1> F_flattened =
+                    finite_element_samples_[i][j].pd_A() * deformed;
+                const Eigen::Matrix<real, vertex_dim * vertex_dim, 1> F_bound =
+                    finite_element_samples_[i][j].pd_A() * deformed_dirichlet;
                 const Eigen::Matrix<real, vertex_dim, vertex_dim> F = Unflatten(F_flattened);
                 const Eigen::Matrix<real, vertex_dim, vertex_dim> Bp = energy->ProjectToManifold(F);
                 const Eigen::Matrix<real, vertex_dim * vertex_dim, 1> Bp_flattened = Flatten(Bp);
-                const Eigen::Matrix<real, vertex_dim * element_dim, 1> AtBp = pd_At_[j] * (Bp_flattened - F_bound);
+                const Eigen::Matrix<real, vertex_dim * element_dim, 1> AtBp = finite_element_samples_[i][j].pd_At()
+                    * (Bp_flattened - F_bound);
                 for (int k = 0; k < element_dim; ++k)
                     for (int d = 0; d < vertex_dim; ++d)
                         pd_rhss[k](vertex_dim * vi[k] + d) += w * AtBp(k * vertex_dim + d);
@@ -196,7 +201,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::ProjectiveDynamicsLocalStep(
     int act_idx = 0;
     for (const auto& pair : pd_muscle_energies_) {
         const auto& energy = pair.first;
-        const real wi = energy->stiffness() * cell_volume_ / sample_num;
+        const real wi = energy->stiffness() * element_volume_ / sample_num;
         const auto& MtM = energy->MtM();
         const auto& Mt = energy->Mt();
         const int element_cnt = static_cast<int>(pair.second.size());
@@ -207,11 +212,14 @@ const VectorXr Deformable<vertex_dim, element_dim>::ProjectiveDynamicsLocalStep(
             const auto deformed = ScatterToElementFlattened(q_cur, i);
             const auto deformed_dirichlet = ScatterToElementFlattened(q_boundary, i);
             for (int j = 0; j < sample_num; ++j) {
-                const Eigen::Matrix<real, vertex_dim * vertex_dim, 1> F_flattened = pd_A_[j] * deformed;
-                const Eigen::Matrix<real, vertex_dim * vertex_dim, 1> F_bound = pd_A_[j] * deformed_dirichlet;
+                const Eigen::Matrix<real, vertex_dim * vertex_dim, 1> F_flattened =
+                    finite_element_samples_[i][j].pd_A() * deformed;
+                const Eigen::Matrix<real, vertex_dim * vertex_dim, 1> F_bound =
+                    finite_element_samples_[i][j].pd_A() * deformed_dirichlet;
                 const Eigen::Matrix<real, vertex_dim, vertex_dim> F = Unflatten(F_flattened);
                 const Eigen::Matrix<real, vertex_dim, 1> Bp = energy->ProjectToManifold(F, a_cur(act_idx + ei));
-                const Eigen::Matrix<real, vertex_dim * element_dim, 1> AtBp = pd_At_[j] * (Mt * Bp - MtM * F_bound);
+                const Eigen::Matrix<real, vertex_dim * element_dim, 1> AtBp =
+                    finite_element_samples_[i][j].pd_At() * (Mt * Bp - MtM * F_bound);
                 for (int k = 0; k < element_dim; ++k)
                     for (int d = 0; d < vertex_dim; ++d)
                         pd_rhss[k](vertex_dim * vi[k] + d) += wi * AtBp(k * vertex_dim + d);
@@ -472,7 +480,9 @@ void Deformable<vertex_dim, element_dim>::ForwardProjectiveDynamics(const std::s
     // q_next = q + hv + h2m * (f_ext + f_ela(q_next) + f_state(q, v) + f_pd(q_next) + f_act(q_next, a)).
     // q_next - h2m * (f_ela(q_next) + f_pd(q_next) + f_act(q_next, a)) = q + hv + h2m * f_ext + h2m * f_state(q, v).
     const real h = dt;
-    const real h2m = dt * dt / (cell_volume_ * density_);
+    // TODO: this mass is incorrect for tri or tet meshes.
+    const real mass = element_volume_ * density_;
+    const real h2m = dt * dt / mass;
     const VectorXr rhs = q + h * v + h2m * f_ext + h2m * ForwardStateForce(q, v);
     const int max_contact_iter = 5;
     std::vector<std::set<int>> active_contact_idx_history;
@@ -740,5 +750,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdLhsSolve(const std::string
     return x;
 }
 
+template class Deformable<2, 3>;
 template class Deformable<2, 4>;
+template class Deformable<3, 4>;
 template class Deformable<3, 8>;

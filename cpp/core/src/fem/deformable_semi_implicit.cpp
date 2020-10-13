@@ -13,7 +13,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSemiImplicit(const VectorXr& q,
     // Semi-implicit Euler.
     // Step 1: compute the predicted velocity:
     // v_pred = v + h / m * (f_ext + f_ela(q) + f_state(q, v) + f_pd(q) + f_act(q, a))
-    const real mass = density_ * cell_volume_;
+    const real mass = density_ * element_volume_;
     const VectorXr v_pred = v + dt / mass * (f_ext + ElasticForce(q) + ForwardStateForce(q, v)
         + PdEnergyForce(q, false) + ActuationForce(q, a));
     // Step 2: compute q_next via the semi-implicit rule:
@@ -47,7 +47,7 @@ void Deformable<vertex_dim, element_dim>::BackwardSemiImplicit(const VectorXr& q
     dl_dq += -dl_dv_next * inv_dt;
 
     VectorXr dl_dv_pred = VectorXr::Zero(dofs_);
-    const real mass = density_ * cell_volume_;
+    const real mass = density_ * element_volume_;
     const VectorXr v_pred = v + dt / mass * (f_ext + ElasticForce(q) + ForwardStateForce(q, v)
         + PdEnergyForce(q, false) + ActuationForce(q, a));
 
@@ -61,7 +61,7 @@ void Deformable<vertex_dim, element_dim>::BackwardSemiImplicit(const VectorXr& q
 
     // Step 1: v_pred = v + h / m * (f_ext + f_ela(q) + f_state(q, v) + f_pd(q) + f_act(q, a)).
     dl_dv += dl_dv_pred;
-    const real hm = dt / (density_ * cell_volume_);
+    const real hm = dt / mass;
     dl_df_ext += dl_dv_pred * hm;
     // f_ela(q).
     dl_dq += ElasticForceDifferential(q, dl_dv_pred) * hm;
@@ -84,5 +84,7 @@ void Deformable<vertex_dim, element_dim>::BackwardSemiImplicit(const VectorXr& q
     dl_da += VectorXr(dl_dv_pred.transpose() * dact_da * hm);
 }
 
+template class Deformable<2, 3>;
 template class Deformable<2, 4>;
+template class Deformable<3, 4>;
 template class Deformable<3, 8>;

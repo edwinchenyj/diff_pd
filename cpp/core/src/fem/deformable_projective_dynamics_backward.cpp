@@ -10,7 +10,7 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsLocalStepDiffer
     CheckError(!material_, "PD does not support material models.");
     for (const auto& pair : dirichlet_) CheckError(q_cur(pair.first) == pair.second, "Boundary conditions violated.");
 
-    const int sample_num = element_dim;
+    const int sample_num = GetNumOfSamplesInElement();
     // Implements w * S' * A' * (d(BP)/dF) * A * (Sx).
 
     const int element_num = mesh_.NumOfElements();
@@ -23,7 +23,7 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsLocalStepDiffer
             Eigen::Matrix<real, vertex_dim * vertex_dim, vertex_dim * vertex_dim> wdBp; wdBp.setZero();
             int energy_cnt = 0;
             for (const auto& energy : pd_element_energies_) {
-                const real w = energy->stiffness() * cell_volume_ / sample_num;
+                const real w = energy->stiffness() * element_volume_ / sample_num;
                 const Eigen::Matrix<real, vertex_dim * vertex_dim, vertex_dim * vertex_dim> dBp
                     = energy->ProjectToManifoldDifferential(F_auxiliary_[i][j], projections_[energy_cnt][i][j]);
                 wdBp += w * dBp;
@@ -39,7 +39,7 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsLocalStepDiffer
     int act_idx = 0;
     for (const auto& pair : pd_muscle_energies_) {
         const auto& energy = pair.first;
-        const real wi = energy->stiffness() * cell_volume_ / sample_num;
+        const real wi = energy->stiffness() * element_volume_ / sample_num;
         const auto& Mt = energy->Mt();
         const int element_cnt = static_cast<int>(pair.second.size());
         pd_backward_local_muscle_matrices[energy_idx].resize(element_cnt);
@@ -173,7 +173,9 @@ void Deformable<vertex_dim, element_dim>::BackwardProjectiveDynamics(const std::
 
     const real h = dt;
     const real inv_h = 1 / h;
-    const real h2m = h * h / (cell_volume_ * density_);
+    // TODO: this mass is incorrect for tri or tet meshes.
+    const real mass = element_volume_ * density_;
+    const real h2m = h * h / mass;
     std::vector<Eigen::Matrix<real, vertex_dim * element_dim, vertex_dim * element_dim>> pd_backward_local_element_matrices;
     std::vector<std::vector<Eigen::Matrix<real, vertex_dim * element_dim, vertex_dim * element_dim>>> pd_backward_local_muscle_matrices;
     ComputeDeformationGradientAuxiliaryDataAndProjection(q_next);
@@ -468,5 +470,7 @@ void Deformable<vertex_dim, element_dim>::BackwardProjectiveDynamics(const std::
     dl_dv += dl_dv_single;
 }
 
+template class Deformable<2, 3>;
 template class Deformable<2, 4>;
+template class Deformable<3, 4>;
 template class Deformable<3, 8>;

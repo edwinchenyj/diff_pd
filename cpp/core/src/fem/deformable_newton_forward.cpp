@@ -30,7 +30,9 @@ void Deformable<vertex_dim, element_dim>::ForwardNewton(const std::string& metho
     // q_next = q + hv + h2m * (f_ext + f_ela(q_next) + f_state(q, v) + f_pd(q_next) + f_act(q_next, a)).
     // q_next - h2m * (f_ela(q_next) + f_pd(q_next) + f_act(q_next, a)) = q + hv + h2m * f_ext + h2m * f_state(q, v).
     const real h = dt;
-    const real h2m = dt * dt / (cell_volume_ * density_);
+    // TODO: this mass is wrong for tri or tet meshes.
+    const real mass = element_volume_ * density_;
+    const real h2m = dt * dt / mass;
     const VectorXr rhs = q + h * v + h2m * f_ext + h2m * ForwardStateForce(q, v);
     const int max_contact_iter = 5;
     std::vector<std::set<int>> active_contact_idx_history;
@@ -287,5 +289,7 @@ const SparseMatrix Deformable<vertex_dim, element_dim>::NewtonMatrix(const Vecto
     return ToSparseMatrix(dofs_, dofs_, nonzeros_new);
 }
 
+template class Deformable<2, 3>;
 template class Deformable<2, 4>;
+template class Deformable<3, 4>;
 template class Deformable<3, 8>;

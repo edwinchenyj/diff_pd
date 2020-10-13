@@ -50,6 +50,10 @@ public:
     void Scale(const real scale_factor);
 
     const real dx() const;
+    // For triangle and quad meshes: each face is a line segment (2 vertices).
+    // For tet meshes: each face is a triangle (3 vertices).
+    // For hex meshes: each face is a quad (4 vertices).
+    static const int GetNumOfVerticesInFace();
 
 private:
     void SaveToBinaryFile(const std::string& binary_file_name) const;

@@ -1,12 +1,11 @@
 #ifndef FEM_DEFORMABLE_H
 #define FEM_DEFORMABLE_H
 
-// This deformable class simulates a hex mesh with dirichlet boundary conditions. See README for more details.
-
 #include "common/config.h"
 #include "mesh/mesh.h"
 #include "material/material.h"
 #include "fem/state_force.h"
+#include "fem/finite_element_sample.h"
 #include "pd_energy/pd_vertex_energy.h"
 #include "pd_energy/pd_element_energy.h"
 #include "pd_energy/pd_muscle_energy.h"
@@ -29,8 +28,8 @@ public:
         const std::string& material_type, const real youngs_modulus, const real poissons_ratio);
 
     const real density() const { return density_; }
-    const real cell_volume() const { return cell_volume_; }
-    const real dx() const { return dx_; }
+    // TODO: for now we assume all elements have equal volume. This is not true for tet or triangle meshes.
+    const real element_volume() const { return element_volume_; }
     const int dofs() const { return dofs_; }
     const int act_dofs() const { return act_dofs_; }
     const Mesh<vertex_dim, element_dim>& mesh() const { return mesh_; }
@@ -142,42 +141,55 @@ public:
         std::vector<std::vector<real>>& da) const;
 
 protected:
-    virtual void ForwardSemiImplicit(const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
+    void ForwardSemiImplicit(const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
         const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
         std::vector<int>& active_contact_idx) const;
-    virtual void ForwardNewton(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
+    void ForwardNewton(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
         const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
         std::vector<int>& active_contact_idx) const;
-    virtual void ForwardProjectiveDynamics(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a,
+    void ForwardProjectiveDynamics(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a,
         const VectorXr& f_ext, const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
         std::vector<int>& active_contact_idx) const;
 
-    virtual void BackwardSemiImplicit(const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext, const real dt,
+    void BackwardSemiImplicit(const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext, const real dt,
         const VectorXr& q_next, const VectorXr& v_next, const std::vector<int>& active_contact_idx,
         const VectorXr& dl_dq_next, const VectorXr& dl_dv_next, const std::map<std::string, real>& options,
         VectorXr& dl_dq, VectorXr& dl_dv, VectorXr& dl_da, VectorXr& dl_df_ext, VectorXr& dl_dw) const;
-    virtual void BackwardNewton(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
+    void BackwardNewton(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
         const real dt, const VectorXr& q_next, const VectorXr& v_next, const std::vector<int>& active_contact_idx,
         const VectorXr& dl_dq_next, const VectorXr& dl_dv_next,
         const std::map<std::string, real>& options,
         VectorXr& dl_dq, VectorXr& dl_dv, VectorXr& dl_da, VectorXr& dl_df_ext, VectorXr& dl_dw) const;
-    virtual void BackwardProjectiveDynamics(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a,
+    void BackwardProjectiveDynamics(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a,
         const VectorXr& f_ext, const real dt, const VectorXr& q_next, const VectorXr& v_next, const std::vector<int>& active_contact_idx,
         const VectorXr& dl_dq_next, const VectorXr& dl_dv_next, const std::map<std::string, real>& options,
         VectorXr& dl_dq, VectorXr& dl_dv, VectorXr& dl_da, VectorXr& dl_df_ext, VectorXr& dl_dw) const;
 
-    virtual void QuasiStaticStateNewton(const std::string& method, const VectorXr& a, const VectorXr& f_ext,
+    void QuasiStaticStateNewton(const std::string& method, const VectorXr& a, const VectorXr& f_ext,
         const std::map<std::string, real>& options, VectorXr& q) const;
     const VectorXr GetUndeformedShape() const;
 
     // Check if elements are flipped.
     const bool HasFlippedElement(const VectorXr& q) const;
+    const Eigen::Matrix<real, vertex_dim, vertex_dim> DeformationGradient(const int element_idx,
+        const Eigen::Matrix<real, vertex_dim, element_dim>& q, const int sample_idx) const;
+
+    // Derived classes should implement the following function and data members.
+    virtual void InitializeFiniteElementSamples() {
+        CheckError(false, "This function must be implemented in a derived class.");
+    }
+    virtual const int GetNumOfSamplesInElement() const {    
+        CheckError(false, "This function must be implemented in a derived class.");
+        return 0;
+    }
+    // finite_element_samples_[element_idx][sample_idx].
+    // See the header file for a detailed explanation.
+    std::vector<std::vector<FiniteElementSample<vertex_dim, element_dim>>> finite_element_samples_;
+    // End of methods and data members that need implementations from derived classes.
 
 private:
     const std::shared_ptr<Material<vertex_dim>> InitializeMaterial(const std::string& material_type,
         const real youngs_modulus, const real poissons_ratio) const;
-    const real InitializeCellSize(const Mesh<vertex_dim, element_dim>& mesh) const;
-    void InitializeShapeFunction();
     const VectorXr NewtonMatrixOp(const VectorXr& q_sol, const VectorXr& a, const real h2m,
         const std::map<int, real>& dirichlet_with_friction, const VectorXr& dq) const;
     const SparseMatrix NewtonMatrix(const VectorXr& q_sol, const VectorXr& a, const real h2m,
@@ -204,8 +216,6 @@ private:
     // Compute deformation gradient.
     const Eigen::Matrix<real, vertex_dim, element_dim> ScatterToElement(const VectorXr& q, const int element_idx) const;
     const Eigen::Matrix<real, vertex_dim * element_dim, 1> ScatterToElementFlattened(const VectorXr& q, const int element_idx) const;
-    const Eigen::Matrix<real, vertex_dim, vertex_dim> DeformationGradient(const Eigen::Matrix<real, vertex_dim, element_dim>& q,
-        const int sample_idx) const;
     void ComputeDeformationGradientAuxiliaryDataAndProjection(const VectorXr& q) const;
 
     // A dedicate function of using PD to solve the nonlinear systems of equations.
@@ -218,10 +228,9 @@ private:
 
     // Undeformed shape.
     Mesh<vertex_dim, element_dim> mesh_;
-    // Cell information.
+    // Element information.
     real density_;
-    real cell_volume_;
-    real dx_;
+    real element_volume_;
     // Material model that defines the elastic energy --- not used by PD.
     std::shared_ptr<Material<vertex_dim>> material_;
     // Number of variables. Typically vertex_dim * vertex number.
@@ -229,11 +238,6 @@ private:
 
     // Boundary conditions.
     std::map<int, real> dirichlet_;
-
-    // Shape-function-related data members.
-    Eigen::Matrix<real, vertex_dim, element_dim> undeformed_samples_;
-    std::array<Eigen::Matrix<real, vertex_dim, element_dim>, element_dim> grad_undeformed_sample_weights_;
-    std::array<Eigen::Matrix<real, element_dim * vertex_dim, vertex_dim * vertex_dim>, element_dim> dF_dxkd_flattened_;
 
     // Projective-dynamics-related data members.
     mutable std::array<PardisoSpdSolver, vertex_dim> pd_pardiso_solver_;
