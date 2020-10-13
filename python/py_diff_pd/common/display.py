@@ -77,6 +77,68 @@ def display_quad_mesh(quad_mesh, xlim=None, ylim=None, title=None, file_name=Non
         plt.show()
     plt.close()
 
+def display_tri_mesh(tri_mesh, xlim=None, ylim=None, title=None, file_name=None, show=True,
+    transforms=None):
+    def apply_transform(p):
+        p = ndarray(p)
+        if transforms is None:
+            return p
+        else:
+            for key, val in transforms:
+                if key == 's':
+                    p *= val
+                elif key == 't':
+                    p += ndarray(val)
+                elif key == 'r':
+                    c, s = np.cos(val), np.sin(val)
+                    R = ndarray([[c, -s], [s, c]])
+                    p = R @ p
+                else:
+                    raise NotImplementedError
+            return p
+
+    vertex_num = tri_mesh.NumOfVertices()
+    element_num = tri_mesh.NumOfElements()
+
+    fig = plt.figure()
+    ax = fig.add_subplot()
+    lines = []
+    for i in range(element_num):
+        f = ndarray(tri_mesh.py_element(i))
+        j01 = [(0, 1), (1, 2), (2, 0)]
+        for j0, j1 in j01:
+            j0 = int(f[j0])
+            j1 = int(f[j1])
+            v0 = ndarray(apply_transform(tri_mesh.py_vertex(j0)))
+            v1 = ndarray(apply_transform(tri_mesh.py_vertex(j1)))
+            lines.append((v0, v1))
+    ax.add_collection(mc.LineCollection(lines, colors='tab:red', alpha=0.5))
+
+    ax.set_aspect('equal')
+    v = ndarray(lines)
+    padding = 0.5
+    x_min = np.min(v[:, :, 0]) - padding
+    x_max = np.max(v[:, :, 0]) + padding
+    y_min = np.min(v[:, :, 1]) - padding
+    y_max = np.max(v[:, :, 1]) + padding
+    if xlim is None:
+        ax.set_xlim([x_min, x_max])
+    else:
+        ax.set_xlim(xlim)
+    if ylim is None:
+        ax.set_ylim([y_min, y_max])
+    else:
+        ax.set_ylim(ylim)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    if title is not None:
+        ax.set_title(title)
+    if file_name is not None:
+        fig.savefig(file_name)
+    if show:
+        plt.show()
+    plt.close()
+
 def display_hex_mesh(hex_mesh, xlim=None, ylim=None, zlim=None, title=None, file_name=None, show=True):
     vertex_num = hex_mesh.NumOfVertices()
     element_num = hex_mesh.NumOfElements()
