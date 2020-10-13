@@ -261,11 +261,9 @@ void Deformable<vertex_dim, element_dim>::PdEnergyForceDifferential(const Vector
                     else
                         dP_from_dF = energy->StressTensorDifferential(DeformationGradient(i, deformed, j)) * dF;
                     const Eigen::Matrix<real, element_dim * vertex_dim, element_dim * vertex_dim> df_kd_from_dF
-                        = -dP_from_dF.transpose() * finite_element_samples_[i][j].dF_dxkd_flattened();
-                    const int offset = dq_offset
-                        + energy_cnt * element_num * sample_num * element_dim * vertex_dim * element_dim * vertex_dim
-                        + i * sample_num * element_dim * vertex_dim * element_dim * vertex_dim
-                        + j * element_dim * vertex_dim * element_dim * vertex_dim;
+                        = -dP_from_dF.transpose() * finite_element_samples_[i][j].dF_dxkd_flattened() * element_volume_ / sample_num;
+                    const int offset = dq_offset + (energy_cnt * element_num * sample_num + i * sample_num + j)
+                        * element_dim * vertex_dim * element_dim * vertex_dim;
                     for (int k = 0; k < element_dim; ++k)
                         for (int d = 0; d < vertex_dim; ++d)
                             for (int s = 0; s < element_dim; ++s)
@@ -302,7 +300,7 @@ void Deformable<vertex_dim, element_dim>::PdEnergyForceDifferential(const Vector
                     }
                     const auto dP_from_dw = Flatten(P) * inv_w;
                     const Eigen::Matrix<real, 1, element_dim * vertex_dim> df_kd_from_dw
-                        = -dP_from_dw.transpose() * finite_element_samples_[i][j].dF_dxkd_flattened();
+                        = -dP_from_dw.transpose() * finite_element_samples_[i][j].dF_dxkd_flattened() * element_volume_ / sample_num;
                     for (int k = 0; k < element_dim; ++k)
                         for (int d = 0; d < vertex_dim; ++d) {
                             const int idx = offset + i * sample_num * element_dim * vertex_dim

@@ -7,7 +7,7 @@ from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray, print_info
 from py_diff_pd.common.mesh import generate_hex_mesh
 from py_diff_pd.common.display import render_hex_mesh, export_gif
-from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector
 from py_diff_pd.common.project_path import root_path
 
 class PlantEnv3d(EnvBase):
@@ -27,7 +27,7 @@ class PlantEnv3d(EnvBase):
         bin_file_name = Path(root_path) / 'asset' / 'mesh' / 'plant.bin'
         mesh = HexMesh3d()
         mesh.Initialize(str(bin_file_name))
-        deformable = Deformable3d()
+        deformable = HexDeformable()
         deformable.Initialize(str(bin_file_name), density, 'none', youngs_modulus, poissons_ratio)
         # Obtain dx.
         fi = ndarray(mesh.py_element(0))

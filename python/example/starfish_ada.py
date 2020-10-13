@@ -29,7 +29,7 @@ import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
-from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector
 from py_diff_pd.common.common import create_folder, ndarray, print_info
 from py_diff_pd.common.mesh import generate_hex_mesh, get_boundary_face
 from py_diff_pd.common.display import display_hex_mesh, export_gif
@@ -200,7 +200,7 @@ def main():
         'thread_ct': 4, 'use_bfgs': 1, 'bfgs_history_size': 10
     }
 
-    deformable = Deformable3d()
+    deformable = HexDeformable()
     deformable.Initialize(bin_file_name, density, 'none', youngs_modulus, poissons_ratio)
     # Elasticity.
     deformable.AddPdEnergy('corotated', [youngs_modulus / (1 + poissons_ratio),], [])

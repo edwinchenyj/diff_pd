@@ -6,7 +6,7 @@ import time
 import scipy.optimize
 import numpy as np
 
-from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector
 from py_diff_pd.common.common import create_folder, ndarray, print_info, print_error
 from py_diff_pd.common.mesh import generate_hex_mesh
 from py_diff_pd.common.display import display_hex_mesh, render_hex_mesh, export_gif
@@ -53,7 +53,7 @@ def test_deformable_quasi_static_3d(verbose):
     density = 1e3
     method = 'newton_cholesky'
     opt = { 'max_newton_iter': 10, 'max_ls_iter': 10, 'abs_tol': 1e-6, 'rel_tol': 1e-2, 'verbose': 0, 'thread_ct': 4 }
-    deformable = Deformable3d()
+    deformable = HexDeformable()
     deformable.Initialize(bin_file_name, density, 'corotated', youngs_modulus, poissons_ratio)
     # Boundary conditions.
     theta = np.pi / 6

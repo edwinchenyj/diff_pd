@@ -22,7 +22,7 @@ from deep_rl import Task, Config, Logger, BaseNormalizer
 from deep_rl.component.envs import DummyVecEnv, SubprocVecEnv, OriginalReturnWrapper
 from deep_rl.network import GaussianActorCriticNet, DeterministicActorCriticNet, NoisyLinear, layer_init
 
-from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector, StdIntVector, QuadMesh2d
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector, StdIntVector, QuadMesh2d
 from py_diff_pd.common.common import create_folder, ndarray, print_info
 from py_diff_pd.common.mesh import generate_hex_mesh, get_boundary_face
 from py_diff_pd.common.display import export_gif, Arrow3D
@@ -233,7 +233,7 @@ def make_water_snake_3d(sim_class, seed, rank, *args, **kwargs):
         'thread_ct': 1, 'use_bfgs': 1, 'bfgs_history_size': 10
     }
 
-    deformable = Deformable3d()
+    deformable = HexDeformable()
     deformable.Initialize(bin_file_name, density, 'none', youngs_modulus, poissons_ratio)
     # Elasticity.
     deformable.AddPdEnergy('corotated', [youngs_modulus / (1 + poissons_ratio),], [])
@@ -396,7 +396,7 @@ def make_starfish_3d(sim_class, seed, rank, *args, **kwargs):
         'thread_ct': 1, 'use_bfgs': 1, 'bfgs_history_size': 10
     }
 
-    deformable = Deformable3d()
+    deformable = HexDeformable()
     deformable.Initialize(bin_file_name, density, 'none', youngs_modulus, poissons_ratio)
     # Elasticity.
     deformable.AddPdEnergy('corotated', [youngs_modulus / (1 + poissons_ratio),], [])

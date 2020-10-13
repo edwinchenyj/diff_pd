@@ -9,7 +9,7 @@ from py_diff_pd.common.mesh import generate_hex_mesh
 from py_diff_pd.common.display import export_gif
 from py_diff_pd.common.project_path import root_path
 from py_diff_pd.common.renderer import PbrtRenderer
-from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector
 
 class TendonRoutingEnv3d(EnvBase):
     def __init__(self, seed, folder, options):
@@ -40,7 +40,7 @@ class TendonRoutingEnv3d(EnvBase):
         mesh = HexMesh3d()
         mesh.Initialize(str(bin_file_name))
 
-        deformable = Deformable3d()
+        deformable = HexDeformable()
         deformable.Initialize(str(bin_file_name), density, 'none', youngs_modulus, poissons_ratio)
         # Boundary conditions.
         for i in range(node_nums[0]):

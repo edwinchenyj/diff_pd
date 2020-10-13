@@ -9,7 +9,7 @@ from py_diff_pd.common.common import ndarray, create_folder, rpy_to_rotation, rp
 from py_diff_pd.common.common import print_info, print_ok, print_error
 from py_diff_pd.common.mesh import hex2obj
 from py_diff_pd.common.grad_check import check_gradients
-from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector
 from py_diff_pd.env.bunny_env_3d import BunnyEnv3d
 
 def apply_transform(q, R, t):

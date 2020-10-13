@@ -10,7 +10,7 @@ from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.common import print_info, print_ok, print_error
 from py_diff_pd.common.mesh import hex2obj_with_textures, filter_hex
 from py_diff_pd.common.grad_check import check_gradients
-from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector
 from py_diff_pd.env.quadruped_env_3d import QuadrupedEnv3d
 
 if __name__ == '__main__':

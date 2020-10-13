@@ -17,7 +17,7 @@ void FiniteElementSample<vertex_dim, element_dim>::Initialize(const Eigen::Matri
             for (int k = 0; k < element_dim; ++k) {
                 const int row = i + j * vertex_dim;
                 const int col = i + k * vertex_dim;
-                const real val = grad_undeformed_sample_weight_(k, k);
+                const real val = grad_undeformed_sample_weight_(k, j);
                 dF_dxkd_flattened_(row, col) = val;
                 pd_A_nonzeros.push_back(Eigen::Triplet<real>(row, col, val));
                 pd_At_nonzeros.push_back(Eigen::Triplet<real>(col, row, val));

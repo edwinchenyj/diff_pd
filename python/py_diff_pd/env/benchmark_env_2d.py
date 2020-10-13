@@ -7,7 +7,7 @@ from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray
 from py_diff_pd.common.mesh import generate_rectangle_mesh
 from py_diff_pd.common.display import display_quad_mesh, export_gif
-from py_diff_pd.core.py_diff_pd_core import QuadMesh2d, Deformable2d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import QuadMesh2d, QuadDeformable, StdRealVector
 
 class BenchmarkEnv2d(EnvBase):
     # Possible options:
@@ -37,7 +37,7 @@ class BenchmarkEnv2d(EnvBase):
         la = youngs_modulus * poissons_ratio / ((1 + poissons_ratio) * (1 - 2 * poissons_ratio))
         mu = youngs_modulus / (2 * (1 + poissons_ratio))
         density = 1e4
-        deformable = Deformable2d()
+        deformable = QuadDeformable()
         deformable.Initialize(bin_file_name, density, 'none', youngs_modulus, poissons_ratio)
 
         # Boundary conditions.

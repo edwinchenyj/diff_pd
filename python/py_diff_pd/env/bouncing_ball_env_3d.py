@@ -8,7 +8,7 @@ from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray
 from py_diff_pd.common.mesh import generate_hex_mesh, get_contact_vertex
 from py_diff_pd.common.display import render_hex_mesh, export_gif
-from py_diff_pd.core.py_diff_pd_core import HexMesh3d, Deformable3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector
 from py_diff_pd.common.renderer import PbrtRenderer
 from py_diff_pd.common.project_path import root_path
 
@@ -35,7 +35,7 @@ class BouncingBallEnv3d(EnvBase):
         mesh.Scale(0.2)
         tmp_bin_file_name = '.tmp.bin'
         mesh.SaveToFile(tmp_bin_file_name)
-        deformable = Deformable3d()
+        deformable = HexDeformable()
         deformable.Initialize(tmp_bin_file_name, density, 'none', youngs_modulus, poissons_ratio)
         os.remove(tmp_bin_file_name)
         # Obtain dx.

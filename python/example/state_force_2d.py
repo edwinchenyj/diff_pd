@@ -5,9 +5,9 @@ from pathlib import Path
 import shutil
 import numpy as np
 
-from py_diff_pd.core.py_diff_pd_core import Deformable2d, QuadMesh2d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import QuadDeformable, QuadMesh2d, StdRealVector
 from py_diff_pd.core.py_diff_pd_core import StdRealVector, StdRealArray2d
-from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce2d, PlanarCollisionStateForce2d, HydrodynamicsStateForce2d
+from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce2d, PlanarCollisionStateForce2d, QuadHydrodynamicsStateForce
 from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.common import print_info, print_error, print_ok
 from py_diff_pd.common.mesh import generate_rectangle_mesh, get_boundary_edge
@@ -36,7 +36,7 @@ def test_state_force_2d(verbose):
     mesh = QuadMesh2d()
     mesh.Initialize(str(bin_file_name))
 
-    deformable = Deformable2d()
+    deformable = QuadDeformable()
     deformable.Initialize(str(bin_file_name), density, 'none', youngs_modulus, poissons_ratio)
     deformable.AddStateForce('gravity', [0.0, -9.81])
     deformable.AddStateForce('planar_collision', [1e2, 0.01, 0.01, 0.99, -dx / 2])
@@ -70,7 +70,7 @@ def test_state_force_2d(verbose):
     for i in range(2): normal[i] = np.random.normal()
     collision.PyInitialize(1.2, 0.34, normal, 0.56)
 
-    hydro = HydrodynamicsStateForce2d()
+    hydro = QuadHydrodynamicsStateForce()
     flattened_surface_faces = [ll for l in surface_faces for ll in l]
     hydro.PyInitialize(rho, v_water, Cd_points.ravel(), Ct_points.ravel(), flattened_surface_faces)
 

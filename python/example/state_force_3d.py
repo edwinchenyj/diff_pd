@@ -5,9 +5,9 @@ from pathlib import Path
 import shutil
 import numpy as np
 
-from py_diff_pd.core.py_diff_pd_core import Deformable3d, HexMesh3d, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import HexDeformable, HexMesh3d, StdRealVector
 from py_diff_pd.core.py_diff_pd_core import StdRealVector, StdRealArray3d
-from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce3d, PlanarCollisionStateForce3d, HydrodynamicsStateForce3d
+from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce3d, PlanarCollisionStateForce3d, HexHydrodynamicsStateForce
 from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.common import print_info, print_ok, print_error
 from py_diff_pd.common.mesh import generate_hex_mesh, get_boundary_face
@@ -36,7 +36,7 @@ def test_state_force_3d(verbose):
     mesh = HexMesh3d()
     mesh.Initialize(str(bin_file_name))
 
-    deformable = Deformable3d()
+    deformable = HexDeformable()
     deformable.Initialize(str(bin_file_name), density, 'none', youngs_modulus, poissons_ratio)
     deformable.AddStateForce('gravity', [0.0, 0.0, -9.81])
     deformable.AddStateForce('planar_collision', [1e2, 0.01, 0.01, 0.2, 0.99, -dx / 2])
@@ -71,7 +71,7 @@ def test_state_force_3d(verbose):
     for i in range(3): normal[i] = np.random.normal()
     collision.PyInitialize(1.2, 0.34, normal, 0.56)
 
-    hydro = HydrodynamicsStateForce3d()
+    hydro = HexHydrodynamicsStateForce()
     flattened_surface_faces = [ll for l in surface_faces for ll in l]
     hydro.PyInitialize(rho, v_water, Cd_points.ravel(), Ct_points.ravel(), flattened_surface_faces)
 

@@ -34,8 +34,8 @@ const real Deformable<vertex_dim, element_dim>::ActuationEnergy(const VectorXr& 
     for (const auto& pair : pd_muscle_energies_) {
         const auto& energy = pair.first;
         for (const int element_idx : pair.second) {
+            const auto qi = ScatterToElement(q, element_idx);
             for (int j = 0; j < sample_num; ++j) {
-                const auto qi = ScatterToElement(q, element_idx);
                 const auto F = DeformationGradient(element_idx, qi, j);
                 total_energy += energy->EnergyDensity(F, a(act_idx)) * element_volume_ / sample_num;
             }
