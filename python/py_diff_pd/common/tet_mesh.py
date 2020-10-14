@@ -2,7 +2,7 @@ import os
 import struct
 import numpy as np
 from py_diff_pd.core.py_diff_pd_core import TetMesh3d
-from py_diff_pd.common.common import ndarray
+from py_diff_pd.common.common import ndarray, filter_unused_vertices
 
 # use this function to generate *3D* tet meshes.
 # vertices: n x 3 numpy array.
@@ -88,6 +88,8 @@ def tet2obj(tet_mesh, obj_file_name=None):
     for _, vidx in face_dict.items():
         f.append(vidx)
     f = ndarray(f).astype(int)
+
+    v, f = filter_unused_vertices(v, f)
 
     if obj_file_name is not None:
         with open(obj_file_name, 'w') as f_obj:
@@ -216,4 +218,4 @@ def tetrahedralize(triangle_mesh_file_name, visualize=False):
         else:
             elements.append([e[0], e[2], e[1], e[3]])
     elements = ndarray(elements).astype(np.int)
-    return nodes, elements
+    return filter_unused_vertices(nodes, elements)

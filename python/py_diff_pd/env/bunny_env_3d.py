@@ -63,7 +63,7 @@ class BunnyEnv3d(EnvBase):
         if mesh_type == 'hex':
             friction_node_idx = get_hex_contact_vertex(mesh)
         elif mesh_type == 'tet':
-            friction_node_idx = get_tet_contact_vertex(mesh)
+            friction_node_idx = get_tet_contact_vertex(mesh, threshold=np.pi * 1.2)
         else:
             raise NotImplementedError
         # Uncomment the code below if you would like to display the contact set for a sanity check:
