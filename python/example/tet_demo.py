@@ -12,5 +12,6 @@ import os
 import numpy as np
 
 if __name__ == '__main__':
-    obj_file_name = Path(root_path) / 'asset' / 'mesh' / 'torus_tri_mesh.obj'
-    tetrahedralize(obj_file_name, visualize=True)
+    obj_file_name = Path(root_path) / 'asset' / 'mesh' / 'bunny_watertight_simplified2.obj'
+    verts, elements = tetrahedralize(obj_file_name, visualize=True)
+    print('Generated {:4d} vertices and {:4d} elements'.format(verts.shape[0], elements.shape[0]))
