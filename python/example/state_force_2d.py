@@ -10,7 +10,7 @@ from py_diff_pd.core.py_diff_pd_core import StdRealVector, StdRealArray2d
 from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce2d, PlanarCollisionStateForce2d, QuadHydrodynamicsStateForce
 from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.common import print_info, print_error, print_ok
-from py_diff_pd.common.mesh import generate_rectangle_mesh, get_boundary_edge
+from py_diff_pd.common.quad_mesh import generate_rectangle_mesh, get_boundary_edge
 from py_diff_pd.common.grad_check import check_gradients
 
 def test_state_force_2d(verbose):

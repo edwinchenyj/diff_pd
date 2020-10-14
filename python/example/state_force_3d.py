@@ -10,7 +10,7 @@ from py_diff_pd.core.py_diff_pd_core import StdRealVector, StdRealArray3d
 from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce3d, PlanarCollisionStateForce3d, HexHydrodynamicsStateForce
 from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.common import print_info, print_ok, print_error
-from py_diff_pd.common.mesh import generate_hex_mesh, get_boundary_face
+from py_diff_pd.common.hex_mesh import generate_hex_mesh, get_boundary_face
 from py_diff_pd.common.grad_check import check_gradients
 
 def test_state_force_3d(verbose):

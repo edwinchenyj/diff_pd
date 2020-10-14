@@ -5,7 +5,7 @@ import numpy as np
 
 from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray
-from py_diff_pd.common.mesh import generate_circle_mesh, get_boundary_edge
+from py_diff_pd.common.tri_mesh import generate_circle_mesh, get_boundary_edge
 from py_diff_pd.common.display import display_tri_mesh, export_gif
 from py_diff_pd.core.py_diff_pd_core import TriMesh2d, TriDeformable, StdRealVector
 

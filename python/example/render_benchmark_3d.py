@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from py_diff_pd.common.common import create_folder, print_info
-from py_diff_pd.common.mesh import hex2obj, hex2obj_with_textures
+from py_diff_pd.common.hex_mesh import hex2obj, hex2obj_with_textures
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d
 from py_diff_pd.env.benchmark_env_3d import BenchmarkEnv3d
 

@@ -5,7 +5,7 @@ import numpy as np
 
 from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray, print_info
-from py_diff_pd.common.mesh import generate_hex_mesh, get_contact_vertex
+from py_diff_pd.common.hex_mesh import generate_hex_mesh, get_contact_vertex
 from py_diff_pd.common.display import export_gif, render_hex_mesh
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector
 #import IPython

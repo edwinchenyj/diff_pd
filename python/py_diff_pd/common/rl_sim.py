@@ -24,7 +24,7 @@ from deep_rl.network import GaussianActorCriticNet, DeterministicActorCriticNet,
 
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector, StdIntVector, QuadMesh2d
 from py_diff_pd.common.common import create_folder, ndarray, print_info
-from py_diff_pd.common.mesh import generate_hex_mesh, get_boundary_face
+from py_diff_pd.common.hex_mesh import generate_hex_mesh, get_boundary_face
 from py_diff_pd.common.display import export_gif, Arrow3D
 
 from baselines.common.running_mean_std import RunningMeanStd

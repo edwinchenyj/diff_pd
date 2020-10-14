@@ -10,7 +10,7 @@ from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from py_diff_pd.common.common import create_folder, ndarray
 from py_diff_pd.common.common import print_info, print_ok, print_error
 from py_diff_pd.common.display import render_hex_mesh
-from py_diff_pd.common.mesh import generate_hex_mesh
+from py_diff_pd.common.hex_mesh import generate_hex_mesh
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d
 
 def image_to_numpy_array(img_name):

@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from py_diff_pd.common.common import create_folder, print_info
-from py_diff_pd.common.mesh import hex2obj
+from py_diff_pd.common.hex_mesh import hex2obj
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d
 from py_diff_pd.env.cantilever_env_3d import CantileverEnv3d
 

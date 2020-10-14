@@ -7,7 +7,7 @@ from PIL import Image
 
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d
 from py_diff_pd.common.common import ndarray, create_folder
-from py_diff_pd.common.mesh import hex2obj, hex2obj_with_textures
+from py_diff_pd.common.hex_mesh import hex2obj, hex2obj_with_textures
 from py_diff_pd.common.project_path import root_path
 
 # This class assumes z is pointing up.

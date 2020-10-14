@@ -8,7 +8,7 @@ import numpy as np
 
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector
 from py_diff_pd.common.common import create_folder, ndarray, print_info, print_error
-from py_diff_pd.common.mesh import generate_hex_mesh
+from py_diff_pd.common.hex_mesh import generate_hex_mesh
 from py_diff_pd.common.display import display_hex_mesh, render_hex_mesh, export_gif
 
 def compare_mesh_3d(mesh1, mesh2):

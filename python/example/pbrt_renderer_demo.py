@@ -7,7 +7,7 @@ import os
 import numpy as np
 
 from py_diff_pd.common.renderer import PbrtRenderer
-from py_diff_pd.common.mesh import voxelize, generate_hex_mesh
+from py_diff_pd.common.hex_mesh import voxelize, generate_hex_mesh
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d
 from py_diff_pd.common.common import print_info, create_folder
 from py_diff_pd.common.project_path import root_path

@@ -223,7 +223,7 @@ def render_hex_mesh(hex_mesh, file_name,
     camera_pos=(2, -2.2, 2), camera_lookat=(0.5, 0.5, 0.5), camear_up=(0, 0, 1), fov=33,
     transforms=None, render_voxel_edge=False):
     from py_diff_pd.common.project_path import root_path
-    from py_diff_pd.common.mesh import hex2obj, hex2obj_with_textures
+    from py_diff_pd.common.hex_mesh import hex2obj, hex2obj_with_textures
 
     file_name = str(file_name)
     assert file_name.endswith('.png') or file_name.endswith('.exr')

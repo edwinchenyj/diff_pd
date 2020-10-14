@@ -3,10 +3,10 @@ sys.path.append('../')
 
 from pathlib import Path
 
-from py_diff_pd.common.mesh import voxelize, hex2obj, generate_hex_mesh, ndarray, filter_hex
+from py_diff_pd.common.hex_mesh import voxelize, hex2obj, generate_hex_mesh, filter_hex
 from py_diff_pd.common.project_path import root_path
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d
-from py_diff_pd.common.common import print_info
+from py_diff_pd.common.common import print_info, ndarray
 
 import shutil
 import os

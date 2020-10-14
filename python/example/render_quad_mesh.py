@@ -7,7 +7,7 @@ from pathlib import Path
 
 from py_diff_pd.core.py_diff_pd_core import QuadMesh2d
 from py_diff_pd.common.display import display_quad_mesh
-from py_diff_pd.common.mesh import generate_rectangle_mesh
+from py_diff_pd.common.quad_mesh import generate_rectangle_mesh
 from py_diff_pd.common.common import ndarray, print_error
 
 def load_mesh_2d(mesh_file):

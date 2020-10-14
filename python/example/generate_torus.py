@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from py_diff_pd.common.common import print_info, ndarray
-from py_diff_pd.common.mesh import voxelize, generate_hex_mesh, hex2obj
+from py_diff_pd.common.hex_mesh import voxelize, generate_hex_mesh, hex2obj
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d
 from py_diff_pd.common.project_path import root_path
 

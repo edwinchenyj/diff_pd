@@ -13,7 +13,7 @@ from py_diff_pd.core.py_diff_pd_core import HexMesh3d
 from py_diff_pd.common.display import render_hex_mesh
 from py_diff_pd.common.renderer import PbrtRenderer
 from py_diff_pd.common.project_path import root_path
-from py_diff_pd.common.mesh import hex2obj
+from py_diff_pd.common.hex_mesh import hex2obj
 
 def render_shark_3d(mesh_folder, img_name):
     # Read mesh.

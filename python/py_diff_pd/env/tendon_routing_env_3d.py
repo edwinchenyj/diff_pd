@@ -5,7 +5,7 @@ import numpy as np
 
 from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray
-from py_diff_pd.common.mesh import generate_hex_mesh
+from py_diff_pd.common.hex_mesh import generate_hex_mesh
 from py_diff_pd.common.display import export_gif
 from py_diff_pd.common.project_path import root_path
 from py_diff_pd.common.renderer import PbrtRenderer
