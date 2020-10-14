@@ -6,9 +6,12 @@ import numpy as np
 
 from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray
-from py_diff_pd.common.hex_mesh import generate_hex_mesh, get_contact_vertex, hex2obj
-from py_diff_pd.common.display import render_hex_mesh, export_gif
+from py_diff_pd.common.hex_mesh import generate_hex_mesh, hex2obj
+from py_diff_pd.common.tet_mesh import generate_tet_mesh, tet2obj, tetrahedralize
+from py_diff_pd.common.hex_mesh import get_contact_vertex as get_hex_contact_vertex
+from py_diff_pd.common.tet_mesh import get_contact_vertex as get_tet_contact_vertex
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector
+from py_diff_pd.core.py_diff_pd_core import TetMesh3d, TetDeformable
 from py_diff_pd.common.renderer import PbrtRenderer
 from py_diff_pd.common.project_path import root_path
 
@@ -21,31 +24,48 @@ class BunnyEnv3d(EnvBase):
 
         youngs_modulus = options['youngs_modulus'] if 'youngs_modulus' in options else 1e6
         poissons_ratio = options['poissons_ratio'] if 'poissons_ratio' in options else 0.49
+        mesh_type = options['mesh_type'] if 'mesh_type' in options else 'hex'
+        assert mesh_type in ['hex', 'tet']
 
         # Mesh parameters.
         la = youngs_modulus * poissons_ratio / ((1 + poissons_ratio) * (1 - 2 * poissons_ratio))
         mu = youngs_modulus / (2 * (1 + poissons_ratio))
         density = 1e3
 
-        bin_file_name = Path(root_path) / 'asset' / 'mesh' / 'bunny_watertight.bin'
-        mesh = HexMesh3d()
-        mesh.Initialize(str(bin_file_name))
-        bunny_size = 0.1
+        bunny_size = 0.1    
+        tmp_bin_file_name = '.tmp.bin'
+        if mesh_type == 'hex':
+            bin_file_name = Path(root_path) / 'asset' / 'mesh' / 'bunny_watertight.bin'
+            mesh = HexMesh3d()
+            mesh.Initialize(str(bin_file_name))
+            deformable = HexDeformable()
+        elif mesh_type == 'tet':
+            obj_file_name = Path(root_path) / 'asset' / 'mesh' / 'bunny_watertight_simplified2.obj'
+            verts, eles = tetrahedralize(obj_file_name)
+            generate_tet_mesh(verts, eles, tmp_bin_file_name)
+            mesh = TetMesh3d()
+            mesh.Initialize(str(tmp_bin_file_name))
+            deformable = TetDeformable()
+        else:
+            raise NotImplementedError
         # Rescale the mesh.
         mesh.Scale(bunny_size)
-        tmp_bin_file_name = '.tmp.bin'
         mesh.SaveToFile(tmp_bin_file_name)
-
-        deformable = HexDeformable()
         deformable.Initialize(tmp_bin_file_name, density, 'none', youngs_modulus, poissons_ratio)
         os.remove(tmp_bin_file_name)
+
         # Elasticity.
         deformable.AddPdEnergy('corotated', [2 * mu,], [])
         deformable.AddPdEnergy('volume', [la,], [])
         # State-based forces.
         deformable.AddStateForce('gravity', [0, 0, -9.81])
         # Collisions.
-        friction_node_idx = get_contact_vertex(mesh)
+        if mesh_type == 'hex':
+            friction_node_idx = get_hex_contact_vertex(mesh)
+        elif mesh_type == 'tet':
+            friction_node_idx = get_tet_contact_vertex(mesh)
+        else:
+            raise NotImplementedError
         # Uncomment the code below if you would like to display the contact set for a sanity check:
         '''
         import matplotlib.pyplot as plt
@@ -77,6 +97,7 @@ class BunnyEnv3d(EnvBase):
         self._stepwise_loss = False
         self._target_com = ndarray(options['target_com']) if 'target_com' in options else ndarray([0.15, 0.15, 0.15])
         self._bunny_size = bunny_size
+        self._mesh_type = mesh_type
 
         self.__spp = options['spp'] if 'spp' in options else 4
 
@@ -101,16 +122,25 @@ class BunnyEnv3d(EnvBase):
         }
         renderer = PbrtRenderer(options)
 
-        mesh = HexMesh3d()
-        mesh.Initialize(mesh_file)
+        if self._mesh_type == 'hex':
+            mesh = HexMesh3d()
+            mesh.Initialize(mesh_file)
+            vertices, faces = hex2obj(mesh)
+            fij = [(0, 1), (1, 2), (2, 3), (3, 0)]
+        elif self._mesh_type == 'tet':
+            mesh = TetMesh3d()
+            mesh.Initialize(mesh_file)
+            vertices, faces = tet2obj(mesh)
+            fij = [(0, 1), (1, 2), (2, 0)]
+        else:
+            raise NotImplementedError
 
         scale = 3
         # Draw wireframe of the bunny.
-        vertices, faces = hex2obj(mesh)
         for f in faces:
-            for i in range(4):
+            for i, j in fij:
                 vi = vertices[f[i]]
-                vj = vertices[f[(i + 1) % 4]]
+                vj = vertices[f[j]]
                 # Draw line vi to vj.
                 renderer.add_shape_mesh({
                         'name': 'curve',

@@ -70,7 +70,7 @@ def tet2obj(tet_mesh, obj_file_name=None):
 
     face_dict = {}
     for i in range(element_num):
-        fi = ndarray(tet_mesh.py_element(i))
+        fi = list(tet_mesh.py_element(i))
         element_vert = []
         for vi in fi:
             element_vert.append(tet_mesh.py_vertex(vi))
@@ -115,7 +115,7 @@ def compute_tet_angles(verts):
         ([0, 1, 2], 3)
     ]
     verts = ndarray(verts)
-    solid_angles = []
+    solid_angles = np.zeros(4)
     for (i0, i1, i2), apex_idx in partition:
         apex = verts[apex_idx]
         v0 = verts[i0]
