@@ -54,6 +54,85 @@ def fix_tet_faces(verts):
 
     return ndarray(f).astype(np.int)
 
+# Given a tet mesh, save it as an obj file with texture coordinates.
+def tet2obj_with_textures(tet_mesh, obj_file_name=None, pbrt_file_name=None):
+    vertex_num = tet_mesh.NumOfVertices()
+    element_num = tet_mesh.NumOfElements()
+
+    v = []
+    for i in range(vertex_num):
+        v.append(tet_mesh.py_vertex(i))
+    v = ndarray(v)
+
+    face_dict = {}
+    for i in range(element_num):
+        fi = list(tet_mesh.py_element(i))
+        element_vert = []
+        for vi in fi:
+            element_vert.append(tet_mesh.py_vertex(vi))
+        element_vert = ndarray(element_vert)
+        face_idx = fix_tet_faces(element_vert)
+        for f in face_idx:
+            vidx = [int(fi[fij]) for fij in f]
+            vidx_key = tuple(sorted(vidx))
+            if vidx_key in face_dict:
+                del face_dict[vidx_key]
+            else:
+                face_dict[vidx_key] = vidx
+
+    f = []
+    for _, vidx in face_dict.items():
+        f.append(vidx)
+    f = ndarray(f).astype(int)
+
+    v, f = filter_unused_vertices(v, f)
+
+    v_out = []
+    f_out = []
+    v_cnt = 0
+    for fi in f:
+        fi_out = [v_cnt, v_cnt + 1, v_cnt + 2]
+        f_out.append(fi_out)
+        v_cnt += 3
+        for vi in fi:
+            v_out.append(ndarray(v[vi]))
+
+    texture_map = [[0, 0], [1, 0], [0, 1]]
+    if obj_file_name is not None:
+        with open(obj_file_name, 'w') as f_obj:
+            for vv in v_out:
+                f_obj.write('v {:6f} {:6f} {:6f}\n'.format(vv[0], vv[1], vv[2]))
+            for u, v in texture_map:
+                f_obj.write('vt {:6f} {:6f}\n'.format(u, v))
+            for ff in f_out:
+                f_obj.write('f {:d}/1 {:d}/2 {:d}/3\n'.format(ff[0] + 1, ff[1] + 1, ff[2] + 1))
+
+    if pbrt_file_name is not None:
+        with open(pbrt_file_name, 'w') as f_pbrt:
+            f_pbrt.write('AttributeBegin\n')
+            f_pbrt.write('Shape "trianglemesh"\n')
+
+            # Log point data.
+            f_pbrt.write('  "point3 P" [\n')
+            for vv in v_out:
+                f_pbrt.write('  {:6f} {:6f} {:6f}\n'.format(vv[0], vv[1], vv[2]))
+            f_pbrt.write(']\n')
+
+            # Log texture data.
+            f_pbrt.write('  "float uv" [\n')
+            for _ in range(int(len(v_out) / 3)):
+                f_pbrt.write('  0 0\n')
+                f_pbrt.write('  1 0\n')
+                f_pbrt.write('  0 1\n')
+            f_pbrt.write(']\n')
+
+            # Log face data.
+            f_pbrt.write('  "integer indices" [\n')
+            for ff in f_out:
+                f_pbrt.write('  {:d} {:d} {:d}\n'.format(ff[0], ff[1], ff[2]))
+            f_pbrt.write(']\n')
+            f_pbrt.write('AttributeEnd\n')
+
 # Given tet_mesh, return vert and faces that describes the surface mesh as a triangle mesh.
 # You should use this function mostly for rendering.
 # Output:
