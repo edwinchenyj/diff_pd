@@ -193,7 +193,7 @@ class PbrtRenderer(object):
                 tet2obj_with_textures(tri_mesh, obj_file_name=tri_obj_name, pbrt_file_name=tri_pbrt_name)
             else:
                 tmp_error_name = self.__temporary_folder / '.tmp.error'
-                tet2obj(tri_mesh, obj_file_name=hex_obj_name)
+                tet2obj(tri_mesh, obj_file_name=tri_obj_name)
                 os.system('{} {} {} 2>{}'.format(str(Path(root_path) / 'external/pbrt_build/obj2pbrt'),
                     tri_obj_name, tri_pbrt_name, tmp_error_name))
         else:

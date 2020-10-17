@@ -379,7 +379,7 @@ const VectorXr HydrodynamicsStateForce<3, 4>::ForwardForce(const VectorXr& q, co
         const Vector3r p1 = pos_i.col(1);
         const Vector3r p2 = pos_i.col(2);
         const Vector3r unnormalized_n = (p1 - p0).cross(p2 - p1);
-        const real A = (p1 - p0).cross(p2 - p1).norm();
+        const real A = unnormalized_n.norm();
         const real eps = std::numeric_limits<real>::epsilon();
         if (A <= eps) continue;
         // Compute v_rel.
@@ -388,9 +388,7 @@ const VectorXr HydrodynamicsStateForce<3, 4>::ForwardForce(const VectorXr& q, co
         if (v_rel_len <= eps) continue;
         const Vector3r d = v_rel / v_rel_len;
         // Compute normal.
-        const real n_norm = unnormalized_n.norm();
-        Vector3r n = Vector3r::Zero();
-        if (n_norm > eps) n = unnormalized_n / n_norm;
+        const Vector3r n = unnormalized_n / A;
         // Compute the angle of attack.
         const real nd = n.dot(d);
         if (nd < 0.0) continue;
@@ -501,14 +499,13 @@ void HydrodynamicsStateForce<3, 4>::BackwardForce(const VectorXr& q, const Vecto
         const Vector3r d = v_rel / v_rel_len;
         // Compute derivatives of d.
         const Matrix3r I = Matrix3r::Identity();
-        const Matrix3r dd_dv = -0.25 * (I - d * d.transpose()) / v_rel_len;
+        const Matrix3r dd_dv = -(I - d * d.transpose()) / (3 * v_rel_len);
 
         // Compute normal.
-        Vector3r n = Vector3r::Zero();
+        const Vector3r n = unnormalized_n / A;
         Matrix3r dn_dp0 = Matrix3r::Zero();
         Matrix3r dn_dp1 = Matrix3r::Zero();
         Matrix3r dn_dp2 = Matrix3r::Zero();
-        n = unnormalized_n / A;
         const Matrix3r Inn = (I - n * n.transpose()) / A;
         dn_dp0 = Inn * dun_dp0;
         dn_dp1 = Inn * dun_dp1;
@@ -542,7 +539,7 @@ void HydrodynamicsStateForce<3, 4>::BackwardForce(const VectorXr& q, const Vecto
         const Matrix3r df_thrust_dp2 = -0.5 * rho_ * v_rel_len * v_rel_len * (dn_dp2 * A * Ct_phi
             + n * dA_dp2.transpose() * Ct_phi + n * A * Ct_derivative * dphi_dp2);
         const Matrix3r df_thrust_dv = -0.5 * rho_ * A * n * (Ct_derivative * dphi_dv * v_rel_len * v_rel_len
-            -0.5 * Ct_phi * v_rel.transpose());
+            - 2 * Ct_phi * v_rel.transpose() / 3);
 
         // Added f_drag and f_thrust back to i0 and i1.
         const Matrix3r df_node_dp0 = (df_drag_dp0 + df_thrust_dp0) / 3;

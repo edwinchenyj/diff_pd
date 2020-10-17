@@ -248,14 +248,15 @@ import trimesh
 import tetgen
 import pyvista as pv
 
-def tetrahedralize(triangle_mesh_file_name, visualize=False):
+def tetrahedralize(triangle_mesh_file_name, visualize=False, normalize_input=True):
     tri_mesh = trimesh.load(triangle_mesh_file_name)
     assert tri_mesh.is_watertight
-    bbx_offset = np.min(tri_mesh.vertices, axis=0)
-    tri_mesh.vertices -= bbx_offset
-    bbx_extent = ndarray(tri_mesh.bounding_box.extents)
-    tri_mesh.vertices /= np.max(bbx_extent)
-    # Now tri_mesh.vertices is bounded by [0, 1].
+    if normalize_input:
+        bbx_offset = np.min(tri_mesh.vertices, axis=0)
+        tri_mesh.vertices -= bbx_offset
+        bbx_extent = ndarray(tri_mesh.bounding_box.extents)
+        tri_mesh.vertices /= np.max(bbx_extent)
+        # Now tri_mesh.vertices is bounded by [0, 1].
     tmp_file_name = '.tmp.stl'
     tri_mesh.export(tmp_file_name)
     mesh = pv.read(tmp_file_name)
@@ -269,8 +270,9 @@ def tetrahedralize(triangle_mesh_file_name, visualize=False):
 
     if visualize:
         tet_grid = tet.grid
+        bbx_center = 0.5 * (np.min(tri_mesh.vertices, axis=0) + np.max(tri_mesh.vertices, axis=0))
         # Plot half the tet.
-        mask = tet_grid.points[:, 2] < 0.5
+        mask = tet_grid.points[:, 2] < bbx_center[2]
         half_tet = tet_grid.extract_points(mask)
 
         plotter = pv.Plotter()
