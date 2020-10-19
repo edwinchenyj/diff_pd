@@ -100,7 +100,8 @@ class EnvBase:
     # dt: time step.
     # frame_num: number of frames.
     # method: 'semi_implicit' or 'newton_pcg' or 'newton_cholesky' or 'pd'.
-    # opt: see each method.
+    # method can be either a string or a tuple of two string (forward and backward).
+    # opt: see each method. opt can optionally be a tuple of two options (forward and backward).
     # q0 and v0: if None, use the default initial values (see the two functions above).
     # act: either None or a list of size frame_num.
     # f_ext: either None or a list of size frame_num whose element is of size dofs.
@@ -115,8 +116,24 @@ class EnvBase:
         # Check input parameters.
         assert dt > 0
         assert frame_num > 0
-        assert method in [ 'semi_implicit', 'newton_pcg', 'newton_cholesky', 'newton_pardiso',
+        if isinstance(method, str):
+            forward_method = method
+            backward_method = method
+        elif isinstance(method, tuple):
+            assert len(method) == 2
+            forward_method, backward_method = method
+        else:
+            raise NotImplementedError
+        assert forward_method in [ 'semi_implicit', 'newton_pcg', 'newton_cholesky', 'newton_pardiso',
             'pd_eigen', 'pd_pardiso' ]
+        assert backward_method in [ 'semi_implicit', 'newton_pcg', 'newton_cholesky', 'newton_pardiso',
+            'pd_eigen', 'pd_pardiso' ]
+        if isinstance(opt, dict):
+            forward_opt = opt
+            backward_opt = opt
+        elif isinstance(opt, tuple):
+            assert len(opt) == 2
+            forward_opt, backward_opt = opt
 
         if q0 is None:
             sim_q0 = np.copy(self._q0)
@@ -163,7 +180,7 @@ class EnvBase:
             q_next_array = StdRealVector(dofs)
             v_next_array = StdRealVector(dofs)
             active_contact_idx = copy_std_int_vector(active_contact_indices[-1])
-            self._deformable.PyForward(method, q[-1], v[-1], sim_act[i], sim_f_ext[i], dt, opt,
+            self._deformable.PyForward(forward_method, q[-1], v[-1], sim_act[i], sim_f_ext[i], dt, forward_opt,
                 q_next_array, v_next_array, active_contact_idx)
             q_next = ndarray(q_next_array)
             v_next = ndarray(v_next_array)
@@ -215,8 +232,9 @@ class EnvBase:
                 dl_da = StdRealVector(act_dofs)
                 dl_df = StdRealVector(dofs)
                 dl_dwi = StdRealVector(2)
-                self._deformable.PyBackward(method, q[i], v[i], sim_act[i], sim_f_ext[i], dt,
-                    q[i + 1], v[i + 1], active_contact_indices[i + 1], dl_dq_next, dl_dv_next, opt, dl_dq, dl_dv, dl_da, dl_df, dl_dwi)
+                self._deformable.PyBackward(backward_method, q[i], v[i], sim_act[i], sim_f_ext[i], dt,
+                    q[i + 1], v[i + 1], active_contact_indices[i + 1], dl_dq_next, dl_dv_next,
+                    backward_opt, dl_dq, dl_dv, dl_da, dl_df, dl_dwi)
                 dl_dq_next = ndarray(dl_dq)
                 dl_dv_next = ndarray(dl_dv)
                 if self._stepwise_loss and i != 0:

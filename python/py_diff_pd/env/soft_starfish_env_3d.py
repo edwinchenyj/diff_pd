@@ -78,7 +78,7 @@ class SoftStarfishEnv3d(EnvBase):
             v_com = np.mean(v, axis=0)
             x, y, z = v_com
             if np.abs(x) > half_limb_width and np.abs(y) > half_limb_width: continue
-            if z < 0: continue
+            if z > 0: continue
             if x < -half_center_size:
                 x_neg_act_eles.append(ei)
             elif x > half_center_size:
@@ -107,7 +107,7 @@ class SoftStarfishEnv3d(EnvBase):
         self._f_ext = f_ext
         self._youngs_modulus = youngs_modulus
         self._poissons_ratio = poissons_ratio
-        self._stepwise_loss = True
+        self._stepwise_loss = False
 
         self.__spp = options['spp'] if 'spp' in options else 4
 
@@ -149,9 +149,13 @@ class SoftStarfishEnv3d(EnvBase):
 
         renderer.render()
 
-    def _stepwise_loss_and_grad(self, q, v, i):
-        # TODO.
-        loss = 0
+    def _loss_and_grad(self, q, v):
+        # Compute the center of mass.
+        com = np.mean(q.reshape((-1, 3)), axis=0)
+        loss = -com[2]
+        # Compute grad.
         grad_q = np.zeros(q.size)
+        vertex_num = int(q.size // 3)
+        grad_q[2::3] = -1.0 / vertex_num
         grad_v = np.zeros(v.size)
         return loss, grad_q, grad_v
