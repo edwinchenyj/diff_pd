@@ -248,7 +248,7 @@ import trimesh
 import tetgen
 import pyvista as pv
 
-def tetrahedralize(triangle_mesh_file_name, visualize=False, normalize_input=True):
+def tetrahedralize(triangle_mesh_file_name, visualize=False, normalize_input=True, options=None):
     tri_mesh = trimesh.load(triangle_mesh_file_name)
     assert tri_mesh.is_watertight
     if normalize_input:
@@ -266,7 +266,10 @@ def tetrahedralize(triangle_mesh_file_name, visualize=False, normalize_input=Tru
 
     tet = tetgen.TetGen(mesh)
     tet.make_manifold()
-    nodes, elements = tet.tetrahedralize()
+    if options is None:
+        nodes, elements = tet.tetrahedralize()
+    else:
+        nodes, elements = tet.tetrahedralize(**options)
 
     if visualize:
         tet_grid = tet.grid
