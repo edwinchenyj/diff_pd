@@ -152,6 +152,7 @@ if __name__ == '__main__':
     youngs_modulus = 5e5
     poissons_ratio = 0.4
     act_stiffness = 2e6
+    substep = 1
     env = SoftStarfishEnv3d(seed, folder, {
         'youngs_modulus': youngs_modulus,
         'poissons_ratio': poissons_ratio,
@@ -162,7 +163,8 @@ if __name__ == '__main__':
         'fix_center_y': True,
         'fix_center_z': True,
         'use_stepwise_loss': True,
-        'data': measurement_data
+        'data': measurement_data,
+        'substep': substep
     })
     deformable = env.deformable()
 
@@ -180,9 +182,9 @@ if __name__ == '__main__':
     act_dofs = deformable.act_dofs()
     q0 = env.default_init_position()
     v0 = np.zeros(dofs)
-    dt = measurement_data['dt']
-    frame_num = 5
-    a0 = [np.random.uniform(low=0.49, high=0.51, size=act_dofs) for _ in range(frame_num)]
+    dt = measurement_data['dt'] / substep
+    frame_num = 5 * substep
+    a0 = [np.random.uniform(low=0.24, high=0.26, size=act_dofs) for _ in range(frame_num)]
     f0 = np.zeros(dofs)
     f0 = [f0 for _ in range(frame_num)]
     _, info = env.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, a0, f0, require_grad=False,
@@ -207,11 +209,11 @@ if __name__ == '__main__':
     ###########################################################################
     # Conmpute actuation signals.
     actuator_signals = []
-    frame_num = 120
+    frame_num = 60 * substep
     f0 = np.zeros(dofs)
     f0 = [f0 for _ in range(frame_num)]
     for i in range(frame_num):
-        actuator_signal = 1 - np.ones(act_dofs) * measurement_data['dl'][i] / env.full_tendon_length()
+        actuator_signal = 1 - np.ones(act_dofs) * measurement_data['dl'][int(i // substep)] / env.full_tendon_length()
         actuator_signals.append(actuator_signal)
 
     # Range of the material parameters.
@@ -225,6 +227,7 @@ if __name__ == '__main__':
     random_guess_num = 16
     x_rands = [np.random.uniform(low=x_lb, high=x_ub) for _ in range(random_guess_num)]
     random_loss = []
+    best_loss = np.inf
     for x_rand in x_rands:
         E = np.exp(x_rand[0])
         nu = np.exp(x_rand[1])
@@ -238,13 +241,18 @@ if __name__ == '__main__':
             'fix_center_y': True,
             'fix_center_z': True,
             'use_stepwise_loss': True,
-            'data': measurement_data
+            'data': measurement_data,
+            'substep': substep
         })
         loss, _ = env_opt.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, actuator_signals, f0,
             require_grad=False, vis_folder=None)
         print('E: {:3e}, nu: {:3f}, loss: {:3f}'.format(E, nu, loss))
         random_loss.append(loss)
+        if loss < best_loss:
+            best_loss = loss
+            x_init = np.copy(x_rand)
     loss_range = ndarray([0, np.mean(random_loss)])
+    unit_loss = np.mean(random_loss)
     print_info('Loss range: {:3f}, {:3f}'.format(loss_range[0], loss_range[1]))
 
     data = { 'loss_range': loss_range }
@@ -262,14 +270,19 @@ if __name__ == '__main__':
             'fix_center_y': True,
             'fix_center_z': True,
             'use_stepwise_loss': True,
-            'data': measurement_data
+            'data': measurement_data,
+            'substep': substep
         })
         loss, _, info = env_opt.simulate(dt, frame_num, (pd_method, newton_method),
             (pd_opt, newton_opt), q0, v0, actuator_signals, f0, require_grad=True, vis_folder=None)
         grad = info['material_parameter_gradients']
         grad = grad * np.exp(x)
-        print('loss: {:3.6e}, |grad|: {:3.6e}, E: {:3.6e}, nu: {:3.6f}, forward time: {:3.6f}s, backward time: {:3.6f}s'.format(
-            loss, np.linalg.norm(grad), E, nu, info['forward_time'], info['backward_time']))
+        average_dist = np.sqrt(loss / 4 / frame_num) * 1000
+        # Normalize the loss.
+        loss /= unit_loss
+        grad /= unit_loss
+        print('loss: {:3.6e}, |grad|: {:3.6e}, dist: {:3.6f} mm, E: {:3.6e}, nu: {:3.6f}, forward: {:3.6f} s, backward: {:3.6f} s'.format(
+            loss, np.linalg.norm(grad), average_dist, E, nu, info['forward_time'], info['backward_time']))
         return loss, grad
 
     # File index + 1 = len(opt_history).
@@ -307,7 +320,8 @@ if __name__ == '__main__':
         'fix_center_y': True,
         'fix_center_z': True,
         'use_stepwise_loss': True,
-        'data': measurement_data
+        'data': measurement_data,
+        'substep': substep
     })
     env_opt.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, actuator_signals, f0,
         require_grad=False, vis_folder=pd_method)

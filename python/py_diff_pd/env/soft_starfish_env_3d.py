@@ -33,6 +33,7 @@ class SoftStarfishEnv3d(EnvBase):
         fix_center_z = bool(options['fix_center_z']) if 'fix_center_z' in options else True
         self._stepwise_loss = bool(options['use_stepwise_loss']) if 'use_stepwise_loss' in options else True
         self.__data = options['data']
+        self.__substep = int(options['substep'])
 
         # Mesh parameters.
         la = youngs_modulus * poissons_ratio / ((1 + poissons_ratio) * (1 - 2 * poissons_ratio))
@@ -216,7 +217,8 @@ class SoftStarfishEnv3d(EnvBase):
 
         self.__spp = options['spp'] if 'spp' in options else 4
         self.__markers_info = markers_info
-        self.__full_tendon_length = limb_length + half_center_size
+        # The full tendon length comes from Josie.
+        self.__full_tendon_length = 65 / 1000
 
     def full_tendon_length(self):
         return self.__full_tendon_length
@@ -255,6 +257,37 @@ class SoftStarfishEnv3d(EnvBase):
             render_tet_edge=False,
         )
 
+        # Render markers.
+        frame_idx = int(mesh_file.split('.')[0].split('/')[-1])
+        for i in range(1, 5):
+            name = 'M{:d}'.format(i)
+            vi = self.__markers_info[name]
+            pos = ndarray(mesh.py_vertex(vi))
+            renderer.add_shape_mesh({
+                'name': 'sphere',
+                'center': pos,
+                'radius': 0.005
+            },
+            transforms=[
+                ('s', 1.5),
+                ('t', (0.2, 0.4, 0.4))
+            ],
+            color=(.2, .3, .7))
+            _, yi, _ = pos
+            xi_target = self.__data[name + '_rel_x'][frame_idx] + self._q0[3 * vi]
+            zi_target = self.__data[name + '_rel_z'][frame_idx] + self._q0[3 * vi + 2]
+            target_pos = ndarray([xi_target, yi, zi_target])
+            renderer.add_shape_mesh({
+                'name': 'sphere',
+                'center': target_pos,
+                'radius': 0.005
+            },
+            transforms=[
+                ('s', 1.5),
+                ('t', (0.2, 0.4, 0.4))
+            ],
+            color=(.2, .7, .3))
+
         renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj',
             texture_img='chkbd_24_0.7', transforms=[('s', 2)])
 
@@ -264,13 +297,13 @@ class SoftStarfishEnv3d(EnvBase):
         loss = 0
         grad_q = np.zeros(q.size)
         grad_v = np.zeros(v.size)
-        for i in range(1, 5):
-            name = 'M{:d}'.format(i)
+        for k in range(1, 5):
+            name = 'M{:d}'.format(k)
             vi = self.__markers_info[name]
             xi = q[3 * vi]
             zi = q[3 * vi + 2]
-            xi_target = self.__data[name + '_rel_x'][i] + self._q0[3 * vi]
-            zi_target = self.__data[name + '_rel_z'][i] + self._q0[3 * vi + 2]
+            xi_target = self.__data[name + '_rel_x'][int(i // self.__substep)] + self._q0[3 * vi]
+            zi_target = self.__data[name + '_rel_z'][int(i // self.__substep)] + self._q0[3 * vi + 2]
             loss += (xi - xi_target) ** 2 + (zi - zi_target) ** 2
             grad_q[3 * vi] += 2 * (xi - xi_target)
             grad_q[3 * vi + 2] += 2 * (zi - zi_target)
