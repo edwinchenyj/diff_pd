@@ -413,6 +413,17 @@ if __name__ == '__main__':
                 u_full.append(u)
         return u_full
 
+    # Export initial actuator signals.
+    a_init = ndarray(variable_to_act(x_init))
+    assert a_init.shape == (frame_num, act_dofs)
+    with open(folder / 'init_signal.txt', 'w') as f:
+        for i in range(int(frame_num / substep)):
+            u = a_init[i * substep]
+            assert np.max(u) == np.min(u)
+            # Multiply by 1000: mm -> meters.
+            dl = (1 - u[0]) * env_final.full_tendon_length() * 1000
+            f.write('{:3.6f}\n'.format(dl))
+
     f0 = np.zeros((frame_num, dofs))
     def loss_and_grad(x):
         u_full = variable_to_act(x)
@@ -460,6 +471,17 @@ if __name__ == '__main__':
     print_info('Data saved to {}/traj_opt_{:04d}.data.'.format(str(folder), len(opt_history) - 1))
     x_final = results.x
 
+    # Export actuator signals.
+    a_final = ndarray(variable_to_act(x_final))
+    assert a_final.shape == (frame_num, act_dofs)
+    with open(folder / 'final_signal.txt', 'w') as f:
+        for i in range(int(frame_num / substep)):
+            u = a_final[i * substep]
+            assert np.max(u) == np.min(u)
+            # Multiply by 1000: mm -> meters.
+            dl = (1 - u[0]) * env_final.full_tendon_length() * 1000
+            f.write('{:3.6f}\n'.format(dl))
+
     # Visualize results.
     a_final = variable_to_act(x_final)
     env_final.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, a_final, f0, require_grad=False, vis_folder='final')
@@ -503,15 +525,3 @@ if __name__ == '__main__':
 
     plt.show()
     fig.savefig(folder / 'traj_opt_progress.pdf')
-
-    # Export actuator signals.
-    x_final = opt_history[-1][0]
-    a_final = ndarray(variable_to_act(x_final))
-    assert a_final.shape == (frame_num, act_dofs)
-    with open(folder / 'signal.txt', 'w') as f:
-        for i in range(int(frame_num / substep)):
-            u = a_final[i * substep]
-            assert np.max(u) == np.min(u)
-            # Multiply by 1000: mm -> meters.
-            dl = (1 - u[0]) * env_final.full_tendon_length() * 1000
-            f.write('{:3.6f}\n'.format(dl))
