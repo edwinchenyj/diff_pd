@@ -107,7 +107,7 @@ def load_csv_data(csv_name):
         if l == '': continue
         item = [float(v) for v in l.split(',') if v != '']
         assert len(item) == 10
-        if np.isnan(item[1]):
+        if np.isnan(item[1]) or item[1] == 0:
             continue
         t, dl, m1x, m1y, m2x, m2y, m3x, m3y, m4x, m4y = item
         data['time'].append(t)
@@ -147,19 +147,19 @@ if __name__ == '__main__':
     seed = 42
     np.random.seed(seed)
     folder = Path('soft_starfish_3d')
-    measurement_data = load_csv_data(Path(root_path) / 'python/example' / folder / 'data_cyclic1.csv')
+    measurement_data = load_csv_data(Path(root_path) / 'python/example' / folder / 'data_horizontal_cyclic1.csv')
 
     youngs_modulus = 5e5
     poissons_ratio = 0.4
     act_stiffness = 2e6
-    substep = 1
+    substep = 5
     env = SoftStarfishEnv3d(seed, folder, {
         'youngs_modulus': youngs_modulus,
         'poissons_ratio': poissons_ratio,
         'act_stiffness': act_stiffness,
         'y_actuator': False,
         'z_actuator': True,
-        'fix_center_x': True,
+        'fix_center_x': False,
         'fix_center_y': True,
         'fix_center_z': True,
         'use_stepwise_loss': True,
@@ -183,8 +183,8 @@ if __name__ == '__main__':
     q0 = env.default_init_position()
     v0 = np.zeros(dofs)
     dt = measurement_data['dt'] / substep
-    frame_num = 5 * substep
-    a0 = [np.random.uniform(low=0.24, high=0.26, size=act_dofs) for _ in range(frame_num)]
+    frame_num = 1 * substep
+    a0 = [np.random.uniform(low=0.69, high=0.71, size=act_dofs) for _ in range(frame_num)]
     f0 = np.zeros(dofs)
     f0 = [f0 for _ in range(frame_num)]
     _, info = env.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, a0, f0, require_grad=False,
@@ -224,7 +224,7 @@ if __name__ == '__main__':
     bounds = scipy.optimize.Bounds(x_lb, x_ub)
 
     # Normalize the loss.
-    random_guess_num = 16
+    random_guess_num = 4
     x_rands = [np.random.uniform(low=x_lb, high=x_ub) for _ in range(random_guess_num)]
     random_loss = []
     best_loss = np.inf
@@ -237,7 +237,7 @@ if __name__ == '__main__':
             'act_stiffness': act_stiffness,
             'y_actuator': False,
             'z_actuator': True,
-            'fix_center_x': True,
+            'fix_center_x': False,
             'fix_center_y': True,
             'fix_center_z': True,
             'use_stepwise_loss': True,
@@ -266,7 +266,7 @@ if __name__ == '__main__':
             'act_stiffness': act_stiffness,
             'y_actuator': False,
             'z_actuator': True,
-            'fix_center_x': True,
+            'fix_center_x': False,
             'fix_center_y': True,
             'fix_center_z': True,
             'use_stepwise_loss': True,
@@ -301,7 +301,7 @@ if __name__ == '__main__':
         pickle.dump(opt_history, open(folder / '{:04d}.data'.format(cnt), 'wb'))
 
     results = scipy.optimize.minimize(loss_and_grad, x_init.copy(), method='L-BFGS-B', jac=True, bounds=bounds,
-        callback=callback, options={ 'ftol': 1e-4, 'maxiter': 20 })
+        callback=callback, options={ 'ftol': 1e-8, 'maxiter': 20 })
     if not results.success:
         print_warning('Local optimization fails to reach the optimal condition and will return the last solution.')
     print_info('Data saved to {}/{:04d}.data.'.format(str(folder), len(opt_history) - 1))
@@ -316,7 +316,7 @@ if __name__ == '__main__':
         'act_stiffness': act_stiffness,
         'y_actuator': False,
         'z_actuator': True,
-        'fix_center_x': True,
+        'fix_center_x': False,
         'fix_center_y': True,
         'fix_center_z': True,
         'use_stepwise_loss': True,

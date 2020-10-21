@@ -274,8 +274,8 @@ class SoftStarfishEnv3d(EnvBase):
             ],
             color=(.2, .3, .7))
             _, yi, _ = pos
-            xi_target = self.__data[name + '_rel_x'][frame_idx] + self._q0[3 * vi]
-            zi_target = self.__data[name + '_rel_z'][frame_idx] + self._q0[3 * vi + 2]
+            xi_target = self.__data[name + '_rel_x'][int(frame_idx // self.__substep)] + self._q0[3 * vi]
+            zi_target = self.__data[name + '_rel_z'][int(frame_idx // self.__substep)] + self._q0[3 * vi + 2]
             target_pos = ndarray([xi_target, yi, zi_target])
             renderer.add_shape_mesh({
                 'name': 'sphere',
