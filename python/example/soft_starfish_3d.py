@@ -366,7 +366,7 @@ if __name__ == '__main__':
     ax_grad.grid(True, which='both')
 
     plt.show()
-    fig.savefig(folder / 'progress.pdf')
+    fig.savefig(folder / 'sys_id_progress.pdf')
 
     ###########################################################################
     # Trajectory optimization
@@ -396,7 +396,7 @@ if __name__ == '__main__':
     # Cyclical motion.
     var_dofs = control_frame_num
     act_dofs = env_final.deformable().act_dofs()
-    x_low = np.ones(var_dofs) * 0.5
+    x_low = np.ones(var_dofs) * 0.75
     x_high = np.ones(var_dofs)
     bounds = scipy.optimize.Bounds(x_low, x_high)
     x_init = np.random.uniform(x_low, x_high)
@@ -454,7 +454,7 @@ if __name__ == '__main__':
         pickle.dump(opt_history, open(folder / 'traj_opt_{:04d}.data'.format(cnt), 'wb'))
 
     results = scipy.optimize.minimize(loss_and_grad, x_init.copy(), method='L-BFGS-B', jac=True, bounds=bounds,
-        callback=callback, options={ 'ftol': 1e-4, 'maxiter': 10 })
+        callback=callback, options={ 'ftol': 1e-4, 'maxiter': 20 })
     if not results.success:
         print_warning('Local optimization fails to reach the optimal condition and will return the last solution.')
     print_info('Data saved to {}/traj_opt_{:04d}.data.'.format(str(folder), len(opt_history) - 1))
@@ -463,3 +463,55 @@ if __name__ == '__main__':
     # Visualize results.
     a_final = variable_to_act(x_final)
     env_final.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, a_final, f0, require_grad=False, vis_folder='final')
+
+    # Visualize the progress.
+    cnt = 0
+    while True:
+        data_file_name = folder / 'traj_opt_{:04d}.data'.format(cnt)
+        if not os.path.exists(data_file_name):
+            cnt -= 1
+            break
+        cnt += 1
+    data_file_name = folder / 'traj_opt_{:04d}.data'.format(cnt)
+    print_info('Loading data from {}.'.format(data_file_name))
+    opt_history = pickle.load(open(data_file_name, 'rb'))
+
+    # Plot the optimization progress.
+    plt.rc('pdf', fonttype=42)
+    plt.rc('font', size=18)
+    plt.rc('axes', titlesize=18)
+    plt.rc('axes', labelsize=18)
+
+    fig = plt.figure(figsize=(18, 12))
+    ax_loss = fig.add_subplot(121)
+    ax_grad = fig.add_subplot(122)
+
+    ax_loss.set_position((0.12, 0.2, 0.33, 0.6))
+    iterations = np.arange(len(opt_history))
+    ax_loss.plot(iterations, [l for _, l, _ in opt_history], color='tab:red')
+    ax_loss.set_xlabel('Iteration')
+    ax_loss.set_ylabel('Loss')
+    ax_loss.grid(True, which='both')
+
+    ax_grad.set_position((0.55, 0.2, 0.33, 0.6))
+    ax_grad.plot(iterations, [np.linalg.norm(g) + np.finfo(np.float).eps for _, _, g in opt_history],
+        color='tab:green')
+    ax_grad.set_xlabel('Iteration')
+    ax_grad.set_ylabel('|Gradient|')
+    ax_grad.set_yscale('log')
+    ax_grad.grid(True, which='both')
+
+    plt.show()
+    fig.savefig(folder / 'traj_opt_progress.pdf')
+
+    # Export actuator signals.
+    x_final = opt_history[-1][0]
+    a_final = ndarray(variable_to_act(x_final))
+    assert a_final.shape == (frame_num, act_dofs)
+    with open(folder / 'signal.txt', 'w') as f:
+        for i in range(int(frame_num / substep)):
+            u = a_final[i * substep]
+            assert np.max(u) == np.min(u)
+            # Multiply by 1000: mm -> meters.
+            dl = (1 - u[0]) * env_final.full_tendon_length() * 1000
+            f.write('{:3.6f}\n'.format(dl))
