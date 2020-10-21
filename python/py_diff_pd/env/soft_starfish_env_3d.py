@@ -312,13 +312,12 @@ class SoftStarfishEnv3d(EnvBase):
         return loss, grad_q, grad_v
 
     def _loss_and_grad(self, q, v):
-        # TODO.
         # Compute the center of mass.
         com = np.mean(q.reshape((-1, 3)), axis=0)
-        loss = -com[2]
+        loss = com[0]
         # Compute grad.
         grad_q = np.zeros(q.size)
         vertex_num = int(q.size // 3)
-        grad_q[2::3] = -1.0 / vertex_num
+        grad_q[::3] = 1.0 / vertex_num
         grad_v = np.zeros(v.size)
         return loss, grad_q, grad_v

@@ -288,7 +288,7 @@ if __name__ == '__main__':
     # File index + 1 = len(opt_history).
     loss, grad = loss_and_grad(x_init)
     opt_history = [(x_init.copy(), loss, grad.copy())]
-    pickle.dump(opt_history, open(folder / '{:04d}.data'.format(0), 'wb'))
+    pickle.dump(opt_history, open(folder / 'sys_id_{:04d}.data'.format(0), 'wb'))
     def callback(x):
         loss, grad = loss_and_grad(x)
         global opt_history
@@ -298,13 +298,13 @@ if __name__ == '__main__':
         print_info('loss: {:3.6e}, |grad|: {:3.6e}, |x|: {:3.6e}'.format(
             loss, np.linalg.norm(grad), np.linalg.norm(x)))
         # Save data to the folder.
-        pickle.dump(opt_history, open(folder / '{:04d}.data'.format(cnt), 'wb'))
+        pickle.dump(opt_history, open(folder / 'sys_id_{:04d}.data'.format(cnt), 'wb'))
 
     results = scipy.optimize.minimize(loss_and_grad, x_init.copy(), method='L-BFGS-B', jac=True, bounds=bounds,
         callback=callback, options={ 'ftol': 1e-4, 'maxiter': 10 })
     if not results.success:
         print_warning('Local optimization fails to reach the optimal condition and will return the last solution.')
-    print_info('Data saved to {}/{:04d}.data.'.format(str(folder), len(opt_history) - 1))
+    print_info('Data saved to {}/sys_id_{:04d}.data.'.format(str(folder), len(opt_history) - 1))
     x_final = results.x
 
     # Visualize results.
@@ -330,12 +330,12 @@ if __name__ == '__main__':
     # Visualize the progress.
     cnt = 0
     while True:
-        data_file_name = folder / '{:04d}.data'.format(cnt)
+        data_file_name = folder / 'sys_id_{:04d}.data'.format(cnt)
         if not os.path.exists(data_file_name):
             cnt -= 1
             break
         cnt += 1
-    data_file_name = folder / '{:04d}.data'.format(cnt)
+    data_file_name = folder / 'sys_id_{:04d}.data'.format(cnt)
     print_info('Loading data from {}.'.format(data_file_name))
     opt_history = pickle.load(open(data_file_name, 'rb'))
 
@@ -368,75 +368,98 @@ if __name__ == '__main__':
     plt.show()
     fig.savefig(folder / 'progress.pdf')
 
-    '''
-    # Optimization.
-    frame_num = 120
-    control_skip_frame_num = 1
+    ###########################################################################
+    # Trajectory optimization
+    ###########################################################################
+    # Create an environment with the final material parameters.
+    x_final = opt_history[-1][0]
+    E = np.exp(x_final[0])
+    nu = np.exp(x_final[1])
+    env_final = SoftStarfishEnv3d(seed, folder, {
+        'youngs_modulus': E,
+        'poissons_ratio': nu,
+        'act_stiffness': act_stiffness,
+        'y_actuator': True,
+        'z_actuator': True,
+        'fix_center_x': False,
+        'fix_center_y': True,
+        'fix_center_z': True,
+        'use_stepwise_loss': False,
+        'data': measurement_data,
+        'substep': substep
+    })
+
+    # Trajectory optimization.
+    frame_num = 60 * substep
+    control_skip_frame_num = substep
     control_frame_num = int(frame_num // control_skip_frame_num)
-    var_dofs = 2 * (control_frame_num + 1)
-    x_low = np.zeros(var_dofs)
+    # Cyclical motion.
+    var_dofs = control_frame_num
+    act_dofs = env_final.deformable().act_dofs()
+    x_low = np.ones(var_dofs) * 0.5
     x_high = np.ones(var_dofs)
     bounds = scipy.optimize.Bounds(x_low, x_high)
     x_init = np.random.uniform(x_low, x_high)
     def variable_to_act(x):
         u_full = []
-        half_act_dofs = int(act_dofs // 2)
         for i in range(control_frame_num):
-            ui_begin = x[2 * i:2 * i + 2]
-            ui_end = x[2 * i + 2:2 * i + 4]
+            ui_begin = x[i]
+            ui_end = x[(i + 1) % control_frame_num]
             for j in range(control_skip_frame_num):
                 t = j / control_skip_frame_num
                 ui = (1 - t) * ui_begin + t * ui_end
                 u = np.zeros(act_dofs)
-                u[:half_act_dofs] = ui[0]
-                u[half_act_dofs:] = ui[1]
+                u[:] = ui
                 u_full.append(u)
         return u_full
 
     f0 = np.zeros((frame_num, dofs))
-    data = []
     def loss_and_grad(x):
         u_full = variable_to_act(x)
-        loss, grad, info = env.simulate(dt, frame_num, (pd_method, newton_method), (pd_opt, newton_opt),
+        loss, grad, info = env_final.simulate(dt, frame_num, (pd_method, newton_method), (pd_opt, newton_opt),
             q0, v0, u_full, f0, require_grad=True, vis_folder=None)
         grad_u_full = grad[2]
         grad_x = np.zeros(x.size)
-        half_act_dofs = int(act_dofs // 2)
         for i in range(control_frame_num):
             for j in range(control_skip_frame_num):
                 t = j / control_skip_frame_num
                 grad_u = grad_u_full[i * control_skip_frame_num + j]
-                grad_x[2 * i] += (1 - t) * np.sum(grad_u[:half_act_dofs])
-                grad_x[2 * i + 1] += (1 - t) * np.sum(grad_u[half_act_dofs:])
-                grad_x[2 * i + 2] += t * np.sum(grad_u[:half_act_dofs])
-                grad_x[2 * i + 3] += t * np.sum(grad_u[half_act_dofs:])
-        print('loss: {:8.3f}, |grad|: {:8.3f}, forward time: {:6.3f}s, backward time: {:6.3f}s'.format(
+                grad_x[i] += (1 - t) * np.sum(grad_u)
+                grad_x[(i + 1) % control_frame_num] += t * np.sum(grad_u)
+        print('loss: {:3.6e}, |grad|: {:3.6e}, forward: {:3.6f} s, backward: {:3.6f} s'.format(
             loss, np.linalg.norm(grad_x), info['forward_time'], info['backward_time']))
-        single_data = {}
-        single_data['loss'] = loss
-        single_data['grad'] = np.copy(grad)
-        single_data['x'] = np.copy(x)
-        single_data['forward_time'] = info['forward_time']
-        single_data['backward_time'] = info['backward_time']
-        data.append(single_data)
         return loss, grad_x
 
+    '''
     eps = 1e-8
     atol = 1e-4
     rtol = 1e-2
     grads_equal = check_gradients(loss_and_grad, x_init, eps, rtol=rtol, atol=atol, verbose=True)
     if not grads_equal:
         print_error('ForwardStateForce and BackwardStateForce do not match.')
+    '''
 
-    t0 = time.time()
-    result = scipy.optimize.minimize(loss_and_grad, np.copy(x_init),
-        method='L-BFGS-B', jac=True, bounds=bounds, options={ 'ftol': 1e-3, 'maxiter': 10 })
-    t1 = time.time()
-    print(result.success)
-    x_final = result.x
-    pickle.dump(data, open(folder / 'data_{:04d}_threads.bin'.format(thread_ct), 'wb'))
+    loss, grad = loss_and_grad(x_init)
+    opt_history = [(x_init.copy(), loss, grad.copy())]
+    pickle.dump(opt_history, open(folder / 'traj_opt_{:04d}.data'.format(0), 'wb'))
+    def callback(x):
+        loss, grad = loss_and_grad(x)
+        global opt_history
+        cnt = len(opt_history)
+        print_info('Summary of iteration {:4d}'.format(cnt))
+        opt_history.append((x.copy(), loss, grad.copy()))
+        print_info('loss: {:3.6e}, |grad|: {:3.6e}, |x|: {:3.6e}'.format(
+            loss, np.linalg.norm(grad), np.linalg.norm(x)))
+        # Save data to the folder.
+        pickle.dump(opt_history, open(folder / 'traj_opt_{:04d}.data'.format(cnt), 'wb'))
+
+    results = scipy.optimize.minimize(loss_and_grad, x_init.copy(), method='L-BFGS-B', jac=True, bounds=bounds,
+        callback=callback, options={ 'ftol': 1e-4, 'maxiter': 10 })
+    if not results.success:
+        print_warning('Local optimization fails to reach the optimal condition and will return the last solution.')
+    print_info('Data saved to {}/traj_opt_{:04d}.data.'.format(str(folder), len(opt_history) - 1))
+    x_final = results.x
 
     # Visualize results.
     a_final = variable_to_act(x_final)
-    env.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, a_final, f0, require_grad=False, vis_folder='final')
-    '''
+    env_final.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, a_final, f0, require_grad=False, vis_folder='final')
