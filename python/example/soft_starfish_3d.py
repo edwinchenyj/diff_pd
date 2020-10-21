@@ -102,13 +102,28 @@ def load_csv_data(csv_name):
     data['M2'] = []
     data['M3'] = []
     data['M4'] = []
+
+    init_dl = None
+    processed_begin_area = False
     for l in lines[1:]:
         l = l.strip()
         if l == '': continue
         item = [float(v) for v in l.split(',') if v != '']
         assert len(item) == 10
-        if np.isnan(item[1]) or item[1] == 0:
+        # Skip if dl is NaN.
+        if np.isnan(item[1]):
             continue
+        # Also, I notice that at the beginning dl tends to stay at the same location for a while.
+        # Skip those data too.
+        if not processed_begin_area:
+            if init_dl is None:
+                init_dl = item[1]
+                continue
+            elif item[1] == init_dl:
+                continue
+            else:
+                processed_begin_area = True
+
         t, dl, m1x, m1y, m2x, m2y, m3x, m3y, m4x, m4y = item
         data['time'].append(t)
         data['dl'].append(dl)
@@ -143,11 +158,54 @@ def load_csv_data(csv_name):
     del data['M4']
     return data
 
+def load_latest_data(folder, name_prefix):
+    cnt = 0
+    while True:
+        data_file_name = folder / '{}_{:04d}.data'.format(name_prefix, cnt)
+        if not os.path.exists(data_file_name):
+            cnt -= 1
+            break
+        cnt += 1
+    data_file_name = folder / '{}_{:04d}.data'.format(name_prefix, cnt)
+    print_info('Loading data from {}.'.format(data_file_name))
+    return pickle.load(open(data_file_name, 'rb'))
+
+def plot_opt_progress(opt_history, name, unit_loss=1):
+    # Plot the optimization progress.
+    plt.rc('pdf', fonttype=42)
+    plt.rc('font', size=18)
+    plt.rc('axes', titlesize=18)
+    plt.rc('axes', labelsize=18)
+
+    fig = plt.figure(figsize=(18, 12))
+    ax_loss = fig.add_subplot(121)
+    ax_grad = fig.add_subplot(122)
+
+    ax_loss.set_position((0.12, 0.2, 0.33, 0.6))
+    iterations = np.arange(len(opt_history))
+    ax_loss.plot(iterations, [l * unit_loss for _, l, _ in opt_history], color='tab:red')
+    ax_loss.set_xlabel('Iteration')
+    ax_loss.set_ylabel('Loss')
+    ax_loss.grid(True, which='both')
+
+    ax_grad.set_position((0.55, 0.2, 0.33, 0.6))
+    ax_grad.plot(iterations, [np.linalg.norm(g) * unit_loss + np.finfo(np.float).eps for _, _, g in opt_history],
+        color='tab:green')
+    ax_grad.set_xlabel('Iteration')
+    ax_grad.set_ylabel('|Gradient|')
+    ax_grad.set_yscale('log')
+    ax_grad.grid(True, which='both')
+
+    fig.savefig(name)
+
 if __name__ == '__main__':
     seed = 42
     np.random.seed(seed)
-    folder = Path('soft_starfish_3d')
-    measurement_data = load_csv_data(Path(root_path) / 'python/example' / folder / 'data_horizontal_cyclic1.csv')
+    round_iter = 1
+    create_folder('soft_starfish_3d/round{:d}'.format(round_iter), exist_ok=True)
+    folder = Path('soft_starfish_3d/round{:d}'.format(round_iter))
+    measurement_data = load_csv_data(
+        Path(root_path) / 'python/example/soft_starfish_3d/data_horizontal_cyclic{:d}.csv'.format(round_iter))
 
     youngs_modulus = 5e5
     poissons_ratio = 0.4
@@ -254,9 +312,8 @@ if __name__ == '__main__':
     loss_range = ndarray([0, np.mean(random_loss)])
     unit_loss = np.mean(random_loss)
     print_info('Loss range: {:3f}, {:3f}'.format(loss_range[0], loss_range[1]))
+    pickle.dump(loss_range, open(folder / 'loss_range.data', 'wb'))
 
-    data = { 'loss_range': loss_range }
-    data[pd_method] = []
     def loss_and_grad(x):
         E = np.exp(x[0])
         nu = np.exp(x[1])
@@ -328,45 +385,11 @@ if __name__ == '__main__':
     export_gif(folder / pd_method, '{}.gif'.format(pd_method), fps=int(1 / dt))
 
     # Visualize the progress.
-    cnt = 0
-    while True:
-        data_file_name = folder / 'sys_id_{:04d}.data'.format(cnt)
-        if not os.path.exists(data_file_name):
-            cnt -= 1
-            break
-        cnt += 1
-    data_file_name = folder / 'sys_id_{:04d}.data'.format(cnt)
-    print_info('Loading data from {}.'.format(data_file_name))
-    opt_history = pickle.load(open(data_file_name, 'rb'))
+    opt_history = load_latest_data(folder, 'sys_id')
+    loss_range = pickle.load(open(folder / 'loss_range.data', 'rb'))
 
     # Plot the optimization progress.
-    plt.rc('pdf', fonttype=42)
-    plt.rc('font', size=18)
-    plt.rc('axes', titlesize=18)
-    plt.rc('axes', labelsize=18)
-
-    fig = plt.figure(figsize=(18, 12))
-    ax_loss = fig.add_subplot(121)
-    ax_grad = fig.add_subplot(122)
-
-    ax_loss.set_position((0.12, 0.2, 0.33, 0.6))
-    iterations = np.arange(len(opt_history))
-    ax_loss.plot(iterations, [l for _, l, _ in opt_history], color='tab:red')
-    ax_loss.set_xlabel('Iteration')
-    ax_loss.set_ylabel('Loss')
-    ax_loss.set_yscale('log')
-    ax_loss.grid(True, which='both')
-
-    ax_grad.set_position((0.55, 0.2, 0.33, 0.6))
-    ax_grad.plot(iterations, [np.linalg.norm(g) + np.finfo(np.float).eps for _, _, g in opt_history],
-        color='tab:green')
-    ax_grad.set_xlabel('Iteration')
-    ax_grad.set_ylabel('|Gradient|')
-    ax_grad.set_yscale('log')
-    ax_grad.grid(True, which='both')
-
-    plt.show()
-    fig.savefig(folder / 'sys_id_progress.pdf')
+    plot_opt_progress(opt_history, folder / 'sys_id_progress.pdf', loss_range[1])
 
     ###########################################################################
     # Trajectory optimization
@@ -487,41 +510,7 @@ if __name__ == '__main__':
     env_final.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, a_final, f0, require_grad=False, vis_folder='final')
 
     # Visualize the progress.
-    cnt = 0
-    while True:
-        data_file_name = folder / 'traj_opt_{:04d}.data'.format(cnt)
-        if not os.path.exists(data_file_name):
-            cnt -= 1
-            break
-        cnt += 1
-    data_file_name = folder / 'traj_opt_{:04d}.data'.format(cnt)
-    print_info('Loading data from {}.'.format(data_file_name))
-    opt_history = pickle.load(open(data_file_name, 'rb'))
+    opt_history = load_latest_data(folder, 'traj_opt')
 
     # Plot the optimization progress.
-    plt.rc('pdf', fonttype=42)
-    plt.rc('font', size=18)
-    plt.rc('axes', titlesize=18)
-    plt.rc('axes', labelsize=18)
-
-    fig = plt.figure(figsize=(18, 12))
-    ax_loss = fig.add_subplot(121)
-    ax_grad = fig.add_subplot(122)
-
-    ax_loss.set_position((0.12, 0.2, 0.33, 0.6))
-    iterations = np.arange(len(opt_history))
-    ax_loss.plot(iterations, [l for _, l, _ in opt_history], color='tab:red')
-    ax_loss.set_xlabel('Iteration')
-    ax_loss.set_ylabel('Loss')
-    ax_loss.grid(True, which='both')
-
-    ax_grad.set_position((0.55, 0.2, 0.33, 0.6))
-    ax_grad.plot(iterations, [np.linalg.norm(g) + np.finfo(np.float).eps for _, _, g in opt_history],
-        color='tab:green')
-    ax_grad.set_xlabel('Iteration')
-    ax_grad.set_ylabel('|Gradient|')
-    ax_grad.set_yscale('log')
-    ax_grad.grid(True, which='both')
-
-    plt.show()
-    fig.savefig(folder / 'traj_opt_progress.pdf')
+    plot_opt_progress(opt_history, folder / 'traj_opt_progress.pdf')
