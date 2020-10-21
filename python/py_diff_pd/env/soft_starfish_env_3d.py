@@ -297,6 +297,7 @@ class SoftStarfishEnv3d(EnvBase):
         loss = 0
         grad_q = np.zeros(q.size)
         grad_v = np.zeros(v.size)
+        weights = { 'M1': 10.0, 'M2': 1.0, 'M3': 1.0, 'M4': 10.0 }
         for k in range(1, 5):
             name = 'M{:d}'.format(k)
             vi = self.__markers_info[name]
@@ -304,9 +305,10 @@ class SoftStarfishEnv3d(EnvBase):
             zi = q[3 * vi + 2]
             xi_target = self.__data[name + '_rel_x'][int(i // self.__substep)] + self._q0[3 * vi]
             zi_target = self.__data[name + '_rel_z'][int(i // self.__substep)] + self._q0[3 * vi + 2]
-            loss += (xi - xi_target) ** 2 + (zi - zi_target) ** 2
-            grad_q[3 * vi] += 2 * (xi - xi_target)
-            grad_q[3 * vi + 2] += 2 * (zi - zi_target)
+            w = weights[name]
+            loss += w * (xi - xi_target) ** 2 + w * (zi - zi_target) ** 2
+            grad_q[3 * vi] += 2 * w * (xi - xi_target)
+            grad_q[3 * vi + 2] += 2 * w * (zi - zi_target)
         return loss, grad_q, grad_v
 
     def _loss_and_grad(self, q, v):

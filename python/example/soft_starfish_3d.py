@@ -301,7 +301,7 @@ if __name__ == '__main__':
         pickle.dump(opt_history, open(folder / '{:04d}.data'.format(cnt), 'wb'))
 
     results = scipy.optimize.minimize(loss_and_grad, x_init.copy(), method='L-BFGS-B', jac=True, bounds=bounds,
-        callback=callback, options={ 'ftol': 1e-8, 'maxiter': 20 })
+        callback=callback, options={ 'ftol': 1e-4, 'maxiter': 10 })
     if not results.success:
         print_warning('Local optimization fails to reach the optimal condition and will return the last solution.')
     print_info('Data saved to {}/{:04d}.data.'.format(str(folder), len(opt_history) - 1))
