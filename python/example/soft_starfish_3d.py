@@ -212,7 +212,7 @@ def plot_opt_progress(opt_history, name, unit_loss=1):
 if __name__ == '__main__':
     seed = 42
     np.random.seed(seed)
-    round_iter = 2
+    round_iter = 3
     create_folder('soft_starfish_3d/round{:d}'.format(round_iter), exist_ok=True)
     folder = Path('soft_starfish_3d/round{:d}'.format(round_iter))
     last_folder = Path('soft_starfish_3d/round{:d}'.format(round_iter - 1))
