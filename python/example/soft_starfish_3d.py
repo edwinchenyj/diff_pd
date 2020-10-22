@@ -156,7 +156,18 @@ def load_csv_data(csv_name):
     del data['M2']
     del data['M3']
     del data['M4']
-    return data
+
+    info = {}
+    # Compute the velocity of each marker.
+    t = data['time']
+    for i in range(1, 5):
+        name = 'M{:d}'.format(i)
+        rel_x = data[name + '_rel_x']
+        rel_z = data[name + '_rel_z']
+        max_x_vel = np.max(np.abs(rel_x[1:] - rel_x[:-1])) / dt
+        max_z_vel = np.max(np.abs(rel_z[1:] - rel_z[:-1])) / dt
+        info[name + '_max_vel'] = np.max([max_x_vel, max_z_vel])
+    return data, info
 
 def load_latest_data(folder, name_prefix):
     cnt = 0
@@ -201,11 +212,19 @@ def plot_opt_progress(opt_history, name, unit_loss=1):
 if __name__ == '__main__':
     seed = 42
     np.random.seed(seed)
-    round_iter = 1
+    round_iter = 2
     create_folder('soft_starfish_3d/round{:d}'.format(round_iter), exist_ok=True)
     folder = Path('soft_starfish_3d/round{:d}'.format(round_iter))
-    measurement_data = load_csv_data(
+    last_folder = Path('soft_starfish_3d/round{:d}'.format(round_iter - 1))
+    measurement_data, _ = load_csv_data(
         Path(root_path) / 'python/example/soft_starfish_3d/data_horizontal_cyclic{:d}.csv'.format(round_iter))
+    if round_iter == 1:
+        max_vel = np.inf
+    else:
+        _, info = load_csv_data(
+            Path(root_path) / 'python/example/soft_starfish_3d/data_horizontal_cyclic{:d}.csv'.format(round_iter - 1))
+        max_vel = np.max([info['M{:d}_max_vel'.format(i)] for i in range(1, 5)]) * 2
+    print('Maximum allowable velocity:', max_vel)
 
     youngs_modulus = 5e5
     poissons_ratio = 0.4
@@ -246,7 +265,7 @@ if __name__ == '__main__':
     f0 = np.zeros(dofs)
     f0 = [f0 for _ in range(frame_num)]
     _, info = env.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, a0, f0, require_grad=False,
-        vis_folder='random')
+        vis_folder='random', velocity_bound=max_vel)
 
     # Uncomment the following lines to check gradients.
     '''
@@ -282,35 +301,43 @@ if __name__ == '__main__':
     bounds = scipy.optimize.Bounds(x_lb, x_ub)
 
     # Normalize the loss.
-    random_guess_num = 4
-    x_rands = [np.random.uniform(low=x_lb, high=x_ub) for _ in range(random_guess_num)]
-    random_loss = []
-    best_loss = np.inf
-    for x_rand in x_rands:
-        E = np.exp(x_rand[0])
-        nu = np.exp(x_rand[1])
-        env_opt = SoftStarfishEnv3d(seed, folder, {
-            'youngs_modulus': E,
-            'poissons_ratio': nu,
-            'act_stiffness': act_stiffness,
-            'y_actuator': False,
-            'z_actuator': True,
-            'fix_center_x': False,
-            'fix_center_y': True,
-            'fix_center_z': True,
-            'use_stepwise_loss': True,
-            'data': measurement_data,
-            'substep': substep
-        })
-        loss, _ = env_opt.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, actuator_signals, f0,
-            require_grad=False, vis_folder=None)
-        print('E: {:3e}, nu: {:3f}, loss: {:3f}'.format(E, nu, loss))
-        random_loss.append(loss)
-        if loss < best_loss:
-            best_loss = loss
-            x_init = np.copy(x_rand)
-    loss_range = ndarray([0, np.mean(random_loss)])
-    unit_loss = np.mean(random_loss)
+    if round_iter == 1:
+        random_guess_num = 4
+        x_rands = [np.random.uniform(low=x_lb, high=x_ub) for _ in range(random_guess_num)]
+        random_loss = []
+        best_loss = np.inf
+        for x_rand in x_rands:
+            E = np.exp(x_rand[0])
+            nu = np.exp(x_rand[1])
+            env_opt = SoftStarfishEnv3d(seed, folder, {
+                'youngs_modulus': E,
+                'poissons_ratio': nu,
+                'act_stiffness': act_stiffness,
+                'y_actuator': False,
+                'z_actuator': True,
+                'fix_center_x': False,
+                'fix_center_y': True,
+                'fix_center_z': True,
+                'use_stepwise_loss': True,
+                'data': measurement_data,
+                'substep': substep
+            })
+            loss, _ = env_opt.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, actuator_signals, f0,
+                require_grad=False, vis_folder=None, velocity_bound=max_vel)
+            print('E: {:3e}, nu: {:3f}, loss: {:3f}'.format(E, nu, loss))
+            random_loss.append(loss)
+            if loss < best_loss:
+                best_loss = loss
+                x_init = np.copy(x_rand)
+        loss_range = ndarray([0, np.mean(random_loss)])
+        unit_loss = np.mean(random_loss)
+    else:
+        last_opt_history = load_latest_data(last_folder, 'sys_id')
+        x_init = last_opt_history[-1][0]
+        # Read data from last iteration.
+        loss_range = ndarray([0, 1])
+        unit_loss = 1
+
     print_info('Loss range: {:3f}, {:3f}'.format(loss_range[0], loss_range[1]))
     pickle.dump(loss_range, open(folder / 'loss_range.data', 'wb'))
 
@@ -331,7 +358,7 @@ if __name__ == '__main__':
             'substep': substep
         })
         loss, _, info = env_opt.simulate(dt, frame_num, (pd_method, newton_method),
-            (pd_opt, newton_opt), q0, v0, actuator_signals, f0, require_grad=True, vis_folder=None)
+            (pd_opt, newton_opt), q0, v0, actuator_signals, f0, require_grad=True, vis_folder=None, velocity_bound=max_vel)
         grad = info['material_parameter_gradients']
         grad = grad * np.exp(x)
         average_dist = np.sqrt(loss / 4 / frame_num) * 1000
@@ -381,7 +408,7 @@ if __name__ == '__main__':
         'substep': substep
     })
     env_opt.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, actuator_signals, f0,
-        require_grad=False, vis_folder=pd_method)
+        require_grad=False, vis_folder=pd_method, velocity_bound=max_vel)
     export_gif(folder / pd_method, '{}.gif'.format(pd_method), fps=int(1 / dt))
 
     # Visualize the progress.
@@ -422,7 +449,10 @@ if __name__ == '__main__':
     x_low = np.ones(var_dofs) * 0.75
     x_high = np.ones(var_dofs)
     bounds = scipy.optimize.Bounds(x_low, x_high)
-    x_init = np.random.uniform(x_low, x_high)
+    if round_iter == 1:
+        x_init = np.random.uniform(x_low, x_high)
+    else:
+        x_init = load_latest_data(last_folder, 'traj_opt')[-1][0]
     def variable_to_act(x):
         u_full = []
         for i in range(control_frame_num):
@@ -451,7 +481,7 @@ if __name__ == '__main__':
     def loss_and_grad(x):
         u_full = variable_to_act(x)
         loss, grad, info = env_final.simulate(dt, frame_num, (pd_method, newton_method), (pd_opt, newton_opt),
-            q0, v0, u_full, f0, require_grad=True, vis_folder=None)
+            q0, v0, u_full, f0, require_grad=True, vis_folder=None, velocity_bound=max_vel)
         grad_u_full = grad[2]
         grad_x = np.zeros(x.size)
         for i in range(control_frame_num):
@@ -507,7 +537,8 @@ if __name__ == '__main__':
 
     # Visualize results.
     a_final = variable_to_act(x_final)
-    env_final.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, a_final, f0, require_grad=False, vis_folder='final')
+    env_final.simulate(dt, frame_num, pd_method, pd_opt, q0, v0, a_final, f0,
+        require_grad=False, vis_folder='final', velocity_bound=max_vel)
 
     # Visualize the progress.
     opt_history = load_latest_data(folder, 'traj_opt')

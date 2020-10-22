@@ -112,7 +112,7 @@ class EnvBase:
     # If require_grad=True: loss, info;
     # if require_grad=False: loss, grad, info.
     def simulate(self, dt, frame_num, method, opt, q0=None, v0=None, act=None, f_ext=None,
-        require_grad=False, vis_folder=None):
+        require_grad=False, vis_folder=None, velocity_bound=np.inf):
         # Check input parameters.
         assert dt > 0
         assert frame_num > 0
@@ -169,18 +169,27 @@ class EnvBase:
         # Forward simulation.
         t_begin = time.time()
 
+        def clamp_velocity(unclamped_vel):
+            clamped_vel = np.clip(np.copy(ndarray(unclamped_vel)), -velocity_bound, velocity_bound)
+            return clamped_vel
+
         q = [sim_q0,]
         v = [sim_v0,]
+        v_clamped = []
+        # Computational graph:
+        # Clamp v[i] to get v_clamped[i].
+        # Forward sim(q[i], v_clamped[i]) to obtain q[i + 1] and v[i + 1].
         dofs = self._deformable.dofs()
         loss = 0
         grad_q = np.zeros(dofs)
         grad_v = np.zeros(dofs)
         active_contact_indices = [StdIntVector(0),]
         for i in range(frame_num):
+            v_clamped.append(clamp_velocity(v[-1]))
             q_next_array = StdRealVector(dofs)
             v_next_array = StdRealVector(dofs)
             active_contact_idx = copy_std_int_vector(active_contact_indices[-1])
-            self._deformable.PyForward(forward_method, q[-1], v[-1], sim_act[i], sim_f_ext[i], dt, forward_opt,
+            self._deformable.PyForward(forward_method, q[-1], v_clamped[-1], sim_act[i], sim_f_ext[i], dt, forward_opt,
                 q_next_array, v_next_array, active_contact_idx)
             q_next = ndarray(q_next_array)
             v_next = ndarray(v_next_array)
@@ -228,13 +237,19 @@ class EnvBase:
             for i in reversed(range(frame_num)):
                 # i -> i + 1.
                 dl_dq = StdRealVector(dofs)
-                dl_dv = StdRealVector(dofs)
+                dl_dv_clamped = StdRealVector(dofs)
                 dl_da = StdRealVector(act_dofs)
                 dl_df = StdRealVector(dofs)
                 dl_dwi = StdRealVector(2)
-                self._deformable.PyBackward(backward_method, q[i], v[i], sim_act[i], sim_f_ext[i], dt,
+                self._deformable.PyBackward(backward_method, q[i], v_clamped[i], sim_act[i], sim_f_ext[i], dt,
                     q[i + 1], v[i + 1], active_contact_indices[i + 1], dl_dq_next, dl_dv_next,
-                    backward_opt, dl_dq, dl_dv, dl_da, dl_df, dl_dwi)
+                    backward_opt, dl_dq, dl_dv_clamped, dl_da, dl_df, dl_dwi)
+                # Backpropagate v_clamped[i] = clip(v[i], -velocity_bound, velocity_bound).
+                dl_dv_clamped = ndarray(dl_dv_clamped)
+                dl_dv = np.copy(dl_dv_clamped)
+                for k in range(dofs):
+                    if v[i][k] == -velocity_bound or v[i][k] == velocity_bound:
+                        dl_dv[k] = 0
                 dl_dq_next = ndarray(dl_dq)
                 dl_dv_next = ndarray(dl_dv)
                 if self._stepwise_loss and i != 0:
