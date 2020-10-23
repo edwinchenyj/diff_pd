@@ -90,7 +90,7 @@ def visualize_hydro(deformable, bin_mesh_file, img_file, q, v):
 
     renderer.render()
 
-def load_csv_data(csv_name):
+def load_csv_data(csv_name, check=True):
     csv_name = Path(csv_name)
     data = {}
     with open(csv_name, 'r') as f:
@@ -137,7 +137,8 @@ def load_csv_data(csv_name):
     t /= 1000
     data['time'] = t    # Now t is in the unit of seconds.
     dt = t[1:] - t[:-1]
-    assert np.max(dt) - np.min(dt) < 1e-4 and np.abs(np.mean(dt) - 1 / 60) < 1e-4
+    if check:
+        assert np.max(dt) - np.min(dt) < 1e-4 and np.abs(np.mean(dt) - 1 / 60) < 1e-4
     data['dt'] = np.mean(dt)
     dl = ndarray(data['dl'])
     dl /= 1000

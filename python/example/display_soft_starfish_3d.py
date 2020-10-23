@@ -58,3 +58,71 @@ if __name__ == '__main__':
 
     plt.show()
     fig.savefig('soft_starfish_3d/cyclic.pdf')
+
+    #################################################
+    # Air test.
+    #################################################
+    def get_com(file_name):
+        measurement_data, info = load_csv_data('soft_starfish_3d/{}'.format(file_name), check=False)
+
+        t = measurement_data['time']
+        m1x = measurement_data['M1_rel_x']
+        m1z = measurement_data['M1_rel_z']
+        m2x = measurement_data['M2_rel_x']
+        m2z = measurement_data['M2_rel_z']
+        m3x = measurement_data['M3_rel_x']
+        m3z = measurement_data['M3_rel_z']
+        m4x = measurement_data['M4_rel_x']
+        m4z = measurement_data['M4_rel_z']
+        mx = (m1x + m2x + m3x + m4x) / 4
+        mz = (m1z + m2z + m3z + m4z) / 4
+        return mx, mz, measurement_data
+    mx_water, mz_water, _ = get_com('data_horizontal_cyclic3.csv')
+    mx_air, mz_air, _ = get_com('data_airtest.csv')
+
+    # Plot the optimization progress.
+    plt.rc('pdf', fonttype=42)
+    plt.rc('font', size=14)
+    plt.rc('axes', titlesize=14)
+    plt.rc('axes', labelsize=14)
+
+    fig = plt.figure(figsize=(12, 5))
+    ax = fig.add_subplot(111)
+    ax.plot(mx_water * 1000, mz_water * 1000, label='water test', color='tab:cyan')
+    ax.plot(mx_air * 1000, mz_air * 1000, label='air test', color='tab:orange')
+    ax.grid(True, which='both')
+    ax.set_xlabel('x position (mm)')
+    ax.set_ylabel('y position (mm)')
+    ax.legend()
+
+    plt.show()
+    fig.savefig('soft_starfish_3d/air.png')
+
+    ##############################
+    # Real experiments.
+    ##############################
+    # Plot the optimization progress.
+    plt.rc('pdf', fonttype=42)
+    plt.rc('font', size=14)
+    plt.rc('axes', titlesize=14)
+    plt.rc('axes', labelsize=14)
+
+    mx_baseline, _, measurement_baseline = get_com('data_baseline.csv')
+    mx_round2, _, measurement_round2 = get_com('data_horizontal_cyclic2.csv')
+    mx_round3, _, measurement_round3 = get_com('data_horizontal_cyclic3.csv')
+    t_baseline = measurement_baseline['time']
+    t_round2 = measurement_round2['time']
+    t_round3 = measurement_round3['time']
+
+    fig = plt.figure(figsize=(12, 5))
+    ax = fig.add_subplot(111)
+    ax.plot(t_baseline, -mx_baseline * 1000, label='round 0 (baseline)', color='tab:red')
+    ax.plot(t_round2, -mx_round2 * 1000, label='round 1', color='tab:green')
+    ax.plot(t_round3, -mx_round3 * 1000, label='round 2', color='tab:blue')
+    ax.grid(True, which='both')
+    ax.set_xlabel('time (s)')
+    ax.set_ylabel('distance traveled (mm)')
+    ax.legend()
+
+    plt.show()
+    fig.savefig('soft_starfish_3d/experiment_data.pdf')
