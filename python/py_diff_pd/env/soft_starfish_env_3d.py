@@ -34,6 +34,7 @@ class SoftStarfishEnv3d(EnvBase):
         self._stepwise_loss = bool(options['use_stepwise_loss']) if 'use_stepwise_loss' in options else True
         self.__data = options['data']
         self.__substep = int(options['substep'])
+        self.__render_markers = bool(options['render_markers']) if 'render_markers' in options else True
 
         # Mesh parameters.
         la = youngs_modulus * poissons_ratio / ((1 + poissons_ratio) * (1 - 2 * poissons_ratio))
@@ -258,40 +259,41 @@ class SoftStarfishEnv3d(EnvBase):
         )
 
         # Render markers.
-        frame_idx = int(mesh_file.split('.')[0].split('/')[-1])
-        for i in range(1, 5):
-            name = 'M{:d}'.format(i)
-            vi = self.__markers_info[name]
-            pos = ndarray(mesh.py_vertex(vi))
-            renderer.add_shape_mesh({
-                'name': 'sphere',
-                'center': pos,
-                'radius': 0.005
-            },
-            transforms=[
-                ('s', 1.5),
-                ('t', (0.2, 0.4, 0.4))
-            ],
-            color=(.2, .3, .7))
-            _, yi, _ = pos
-            xi_target = self.__data[name + '_rel_x'][int(frame_idx // self.__substep)] + self._q0[3 * vi]
-            zi_target = self.__data[name + '_rel_z'][int(frame_idx // self.__substep)] + self._q0[3 * vi + 2]
-            target_pos = ndarray([xi_target, yi, zi_target])
-            renderer.add_shape_mesh({
-                'name': 'sphere',
-                'center': target_pos,
-                'radius': 0.005
-            },
-            transforms=[
-                ('s', 1.5),
-                ('t', (0.2, 0.4, 0.4))
-            ],
-            color=(.2, .7, .3))
+        if self.__render_markers:
+            frame_idx = int(mesh_file.split('.')[0].split('/')[-1])
+            for i in range(1, 5):
+                name = 'M{:d}'.format(i)
+                vi = self.__markers_info[name]
+                pos = ndarray(mesh.py_vertex(vi))
+                renderer.add_shape_mesh({
+                    'name': 'sphere',
+                    'center': pos,
+                    'radius': 0.005
+                },
+                transforms=[
+                    ('s', 1.5),
+                    ('t', (0.2, 0.4, 0.4))
+                ],
+                color=(.2, .3, .7))
+                _, yi, _ = pos
+                xi_target = self.__data[name + '_rel_x'][int(frame_idx // self.__substep)] + self._q0[3 * vi]
+                zi_target = self.__data[name + '_rel_z'][int(frame_idx // self.__substep)] + self._q0[3 * vi + 2]
+                target_pos = ndarray([xi_target, yi, zi_target])
+                renderer.add_shape_mesh({
+                    'name': 'sphere',
+                    'center': target_pos,
+                    'radius': 0.005
+                },
+                transforms=[
+                    ('s', 1.5),
+                    ('t', (0.2, 0.4, 0.4))
+                ],
+                color=(.2, .7, .3))
 
         renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj',
             texture_img='chkbd_24_0.7', transforms=[('s', 2)])
 
-        renderer.render()
+        renderer.render(verbose=True)
 
     def _stepwise_loss_and_grad(self, q, v, i):
         loss = 0

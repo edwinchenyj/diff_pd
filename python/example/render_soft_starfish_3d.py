@@ -112,7 +112,7 @@ if __name__ == '__main__':
     seed = 42
     np.random.seed(seed)
     round_iters = 3
-    spp = 4 #CHANGE THIS WHEN RENDERING FOR REAL
+    spp = 128 #CHANGE THIS WHEN RENDERING FOR REAL
     for i in range(round_iters):
         round_iter = i + 1
         print("Rendering Videos for Round {}.".format(round_iter))
@@ -169,7 +169,7 @@ if __name__ == '__main__':
         ###########################################################################
         # Conmpute actuation signals.
         actuator_signals = []
-        frame_num = 1 * substep
+        frame_num = 60 * substep
         f0 = np.zeros(dofs)
         f0 = [f0 for _ in range(frame_num)]
         for i in range(frame_num):
