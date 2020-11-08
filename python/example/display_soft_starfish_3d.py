@@ -77,8 +77,10 @@ if __name__ == '__main__':
         mx = (m1x + m2x + m3x + m4x) / 4
         mz = (m1z + m2z + m3z + m4z) / 4
         return mx, mz, measurement_data
-    mx_water, mz_water, _ = get_com('data_horizontal_cyclic3.csv')
-    mx_air, mz_air, _ = get_com('data_airtest.csv')
+    mx_water, mz_water, measurement_water = get_com('data_horizontal_cyclic3.csv')
+    mx_air, mz_air, measurement_air = get_com('data_airtest.csv')
+    t_water = measurement_water['time']
+    t_air = measurement_air['time']
 
     # Plot the optimization progress.
     plt.rc('pdf', fonttype=42)
@@ -86,14 +88,22 @@ if __name__ == '__main__':
     plt.rc('axes', titlesize=14)
     plt.rc('axes', labelsize=14)
 
-    fig = plt.figure(figsize=(12, 5))
-    ax = fig.add_subplot(111)
-    ax.plot(mx_water * 1000, mz_water * 1000, label='water test', color='tab:cyan')
-    ax.plot(mx_air * 1000, mz_air * 1000, label='air test', color='tab:orange')
-    ax.grid(True, which='both')
-    ax.set_xlabel('x position (mm)')
-    ax.set_ylabel('y position (mm)')
-    ax.legend()
+    fig = plt.figure(figsize=(12, 10))
+    ax_x = fig.add_subplot(211)
+    ax_x.plot(t_water, mx_water * 1000, label='water test', color='tab:cyan')
+    ax_x.plot(t_air, mx_air * 1000, label='air test', color='tab:orange')
+    ax_x.grid(True, which='both')
+    ax_x.set_xlabel('time (s)')
+    ax_x.set_ylabel('x position (mm)')
+    ax_x.legend()
+
+    ax_y = fig.add_subplot(212)
+    ax_y.plot(t_water, mz_water * 1000, label='water test', color='tab:cyan')
+    ax_y.plot(t_air, mz_air * 1000, label='air test', color='tab:orange')
+    ax_y.grid(True, which='both')
+    ax_y.set_xlabel('time (s)')
+    ax_y.set_ylabel('y position (mm)')
+    ax_y.legend()
 
     plt.show()
     fig.savefig('soft_starfish_3d/air.png')
