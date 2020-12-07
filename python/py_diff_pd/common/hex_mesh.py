@@ -208,7 +208,7 @@ def get_boundary_face(hex_mesh):
     element_num = hex_mesh.NumOfElements()
 
     def hex_element_to_faces(vid):
-        faces = [[vid[0], vid[1], vid[2], vid[3]],
+        faces = [[vid[0], vid[1], vid[3], vid[2]],
             [vid[4], vid[6], vid[7], vid[5]],
             [vid[0], vid[4], vid[5], vid[1]],
             [vid[2], vid[3], vid[7], vid[6]],
