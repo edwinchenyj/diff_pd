@@ -138,8 +138,8 @@ const VectorXr HydrodynamicsStateForce<2, 3>::ForwardForce(const VectorXr& q, co
         const Vector2r n = An / A;
         // Compute the angle of attack.
         const real nd = n.dot(d);
-        if (nd < 0.0) continue;
-        const real phi = Pi() / 2 - std::acos(nd);
+        if (nd >= 0.0) continue;
+        const real phi = std::acos(nd) - Pi() / 2;
         const Vector2r f_drag = 0.5 * rho_ * A * Cd(phi) * v_rel_len * v_rel;
         const Vector2r f_thrust = -0.5 * rho_ * Ct(phi) * v_rel_len * v_rel_len * An;
         // Added f_drag and f_thrust back to i0 and i1.
@@ -175,8 +175,8 @@ const VectorXr HydrodynamicsStateForce<2, 4>::ForwardForce(const VectorXr& q, co
         const Vector2r n = An / A;
         // Compute the angle of attack.
         const real nd = n.dot(d);
-        if (nd < 0.0) continue;
-        const real phi = Pi() / 2 - std::acos(nd);
+        if (nd >= 0.0) continue;
+        const real phi = std::acos(nd) - Pi() / 2;
         const Vector2r f_drag = 0.5 * rho_ * A * Cd(phi) * v_rel_len * v_rel;
         const Vector2r f_thrust = -0.5 * rho_ * Ct(phi) * v_rel_len * v_rel_len * An;
         // Added f_drag and f_thrust back to i0 and i1.
@@ -231,14 +231,14 @@ void HydrodynamicsStateForce<2, 3>::BackwardForce(const VectorXr& q, const Vecto
 
         // Compute the angle of attack.
         const real nd = n.dot(d);
-        if (nd < 0.0) continue;
+        if (nd >= 0.0) continue;
         const real nd2 = nd * nd;
-        const real phi = Pi() / 2 - std::acos(nd);
+        const real phi = std::acos(nd) - Pi() / 2;
         const real dacos = -1 / std::sqrt(1 - nd2);
-        const RowVector2r dphi_dp0 = -dacos * d.transpose() * dn_dp0;
-        const RowVector2r dphi_dp1 = -dacos * d.transpose() * dn_dp1;
-        const RowVector2r dphi_dv0 = -dacos * n.transpose() * dd_dv0;
-        const RowVector2r dphi_dv1 = -dacos * n.transpose() * dd_dv1;
+        const RowVector2r dphi_dp0 = dacos * d.transpose() * dn_dp0;
+        const RowVector2r dphi_dp1 = dacos * d.transpose() * dn_dp1;
+        const RowVector2r dphi_dv0 = dacos * n.transpose() * dd_dv0;
+        const RowVector2r dphi_dv1 = dacos * n.transpose() * dd_dv1;
 
         const real Cd_phi = Cd(phi);
         const real Cd_derivative = CdDerivative(phi);
@@ -320,14 +320,14 @@ void HydrodynamicsStateForce<2, 4>::BackwardForce(const VectorXr& q, const Vecto
 
         // Compute the angle of attack.
         const real nd = n.dot(d);
-        if (nd < 0.0) continue;
+        if (nd >= 0.0) continue;
         const real nd2 = nd * nd;
-        const real phi = Pi() / 2 - std::acos(nd);
+        const real phi = std::acos(nd) - Pi() / 2;
         const real dacos = -1 / std::sqrt(1 - nd2);
-        const RowVector2r dphi_dp0 = -dacos * d.transpose() * dn_dp0;
-        const RowVector2r dphi_dp1 = -dacos * d.transpose() * dn_dp1;
-        const RowVector2r dphi_dv0 = -dacos * n.transpose() * dd_dv0;
-        const RowVector2r dphi_dv1 = -dacos * n.transpose() * dd_dv1;
+        const RowVector2r dphi_dp0 = dacos * d.transpose() * dn_dp0;
+        const RowVector2r dphi_dp1 = dacos * d.transpose() * dn_dp1;
+        const RowVector2r dphi_dv0 = dacos * n.transpose() * dd_dv0;
+        const RowVector2r dphi_dv1 = dacos * n.transpose() * dd_dv1;
 
         const real Cd_phi = Cd(phi);
         const real Cd_derivative = CdDerivative(phi);
@@ -391,8 +391,8 @@ const VectorXr HydrodynamicsStateForce<3, 4>::ForwardForce(const VectorXr& q, co
         const Vector3r n = unnormalized_n / A;
         // Compute the angle of attack.
         const real nd = n.dot(d);
-        if (nd < 0.0) continue;
-        const real phi = Pi() / 2 - std::acos(nd);
+        if (nd >= 0.0) continue;
+        const real phi = std::acos(nd) - Pi() / 2;
         const Vector3r f_drag = 0.5 * rho_ * A * Cd(phi) * v_rel_len * v_rel;
         const Vector3r f_thrust = -0.5 * rho_ * A * Ct(phi) * v_rel_len * v_rel_len * n;
         // Added f_drag and f_thrust back to i0 and i1.
@@ -448,8 +448,8 @@ const VectorXr HydrodynamicsStateForce<3, 8>::ForwardForce(const VectorXr& q, co
         if (n_norm > eps) n = unnormalized_n / n_norm;
         // Compute the angle of attack.
         const real nd = n.dot(d);
-        if (nd < 0.0) continue;
-        const real phi = Pi() / 2 - std::acos(nd);
+        if (nd >= 0.0) continue;
+        const real phi = std::acos(nd) - Pi() / 2;
         const Vector3r f_drag = 0.5 * rho_ * A * Cd(phi) * v_rel_len * v_rel;
         const Vector3r f_thrust = -0.5 * rho_ * A * Ct(phi) * v_rel_len * v_rel_len * n;
         // Added f_drag and f_thrust back to i0 and i1.
@@ -513,14 +513,14 @@ void HydrodynamicsStateForce<3, 4>::BackwardForce(const VectorXr& q, const Vecto
 
         // Compute the angle of attack.
         const real nd = n.dot(d);
-        if (nd < 0.0) continue;
+        if (nd >= 0.0) continue;
         const real nd2 = nd * nd;
-        const real phi = Pi() / 2 - std::acos(nd);
+        const real phi = std::acos(nd) - Pi() / 2;
         const real dacos = -1 / std::sqrt(1 - nd2);
-        const RowVector3r dphi_dp0 = -dacos * d.transpose() * dn_dp0;
-        const RowVector3r dphi_dp1 = -dacos * d.transpose() * dn_dp1;
-        const RowVector3r dphi_dp2 = -dacos * d.transpose() * dn_dp2;
-        const RowVector3r dphi_dv = -dacos * n.transpose() * dd_dv;
+        const RowVector3r dphi_dp0 = dacos * d.transpose() * dn_dp0;
+        const RowVector3r dphi_dp1 = dacos * d.transpose() * dn_dp1;
+        const RowVector3r dphi_dp2 = dacos * d.transpose() * dn_dp2;
+        const RowVector3r dphi_dv = dacos * n.transpose() * dd_dv;
 
         const real Cd_phi = Cd(phi);
         const real Cd_derivative = CdDerivative(phi);
@@ -647,15 +647,15 @@ void HydrodynamicsStateForce<3, 8>::BackwardForce(const VectorXr& q, const Vecto
 
         // Compute the angle of attack.
         const real nd = n.dot(d);
-        if (nd < 0.0) continue;
+        if (nd >= 0.0) continue;
         const real nd2 = nd * nd;
-        const real phi = Pi() / 2 - std::acos(nd);
+        const real phi = std::acos(nd) - Pi() / 2;
         const real dacos = -1 / std::sqrt(1 - nd2);
-        const RowVector3r dphi_dp0 = -dacos * d.transpose() * dn_dp0;
-        const RowVector3r dphi_dp1 = -dacos * d.transpose() * dn_dp1;
-        const RowVector3r dphi_dp2 = -dacos * d.transpose() * dn_dp2;
-        const RowVector3r dphi_dp3 = -dacos * d.transpose() * dn_dp3;
-        const RowVector3r dphi_dv = -dacos * n.transpose() * dd_dv;
+        const RowVector3r dphi_dp0 = dacos * d.transpose() * dn_dp0;
+        const RowVector3r dphi_dp1 = dacos * d.transpose() * dn_dp1;
+        const RowVector3r dphi_dp2 = dacos * d.transpose() * dn_dp2;
+        const RowVector3r dphi_dp3 = dacos * d.transpose() * dn_dp3;
+        const RowVector3r dphi_dv = dacos * n.transpose() * dd_dv;
 
         const real Cd_phi = Cd(phi);
         const real Cd_derivative = CdDerivative(phi);
