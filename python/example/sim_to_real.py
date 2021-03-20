@@ -351,39 +351,33 @@ if __name__ == '__main__':
             info['grid_bd'] = ndarray(grid_bd).copy()
             # Save data.
             pickle.dump(info, open(f, 'wb'))
-        else:
-            info = pickle.load(open(f, 'rb'))
-            obj_pxl = info['obj_pxl']
-            obj_bd = info['obj_bd']
-            grid_pxl = info['grid_pxl']
-            grid_bd = info['grid_bd']
 
-        # The pixel space in matplotlib is different from the pixel space in the calibration algorithm.
-        camera_info = solve_camera(pxl_to_cal(obj_pxl), obj_bd)
-        K = camera_info['K']
-        R = camera_info['R']
-        T = camera_info['T']
-        print('Camera information: alpha: {:2.2f}, beta: {:2.2f}, theta: {:2.2f}, cx: {:4.1f}, cy: {:4.1f}'.format(
-            camera_info['alpha'], camera_info['beta'], np.rad2deg(camera_info['theta']), camera_info['cx'], camera_info['cy']
-        ))
-        # Now R and t are the orientation and location of the object in the camera space.
-        # Verification:
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.imshow(img_data[i - frame_start_idx])
-        # Now plot the predicted object location.
-        obj_predicted_camera = (obj_bd @ R.T + T) @ K.T
-        obj_predicted_calib = obj_predicted_camera[:, :2] / obj_predicted_camera[:, 2][:, None]
-        obj_predicted_pixl = cal_to_pxl(obj_predicted_calib)
-        ax.plot(obj_predicted_pixl[:, 0], obj_predicted_pixl[:, 1], 'y+')
-        plt.show()
-        fig.savefig(folder / 'sample_data' / '{:04d}.png'.format(i))
-        plt.close('all')
-        for k, v in camera_info.items():
-            info[k] = v
-        # Save data.
-        pickle.dump(info, open(f, 'wb'))
-        print('Data saved to', f)
+            # The pixel space in matplotlib is different from the pixel space in the calibration algorithm.
+            camera_info = solve_camera(pxl_to_cal(obj_pxl), obj_bd)
+            K = camera_info['K']
+            R = camera_info['R']
+            T = camera_info['T']
+            print('Camera information: alpha: {:2.2f}, beta: {:2.2f}, theta: {:2.2f}, cx: {:4.1f}, cy: {:4.1f}'.format(
+                camera_info['alpha'], camera_info['beta'], np.rad2deg(camera_info['theta']), camera_info['cx'], camera_info['cy']
+            ))
+            # Now R and t are the orientation and location of the object in the camera space.
+            # Verification:
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            ax.imshow(img_data[i - frame_start_idx])
+            # Now plot the predicted object location.
+            obj_predicted_camera = (obj_bd @ R.T + T) @ K.T
+            obj_predicted_calib = obj_predicted_camera[:, :2] / obj_predicted_camera[:, 2][:, None]
+            obj_predicted_pixl = cal_to_pxl(obj_predicted_calib)
+            ax.plot(obj_predicted_pixl[:, 0], obj_predicted_pixl[:, 1], 'y+')
+            plt.show()
+            fig.savefig(folder / 'sample_data' / '{:04d}.png'.format(i))
+            plt.close('all')
+            for k, v in camera_info.items():
+                info[k] = v
+            # Save data.
+            pickle.dump(info, open(f, 'wb'))
+            print('Data saved to', f)
 
 
 
