@@ -14,6 +14,19 @@ from re import split
 from py_diff_pd.common.project_path import root_path
 from py_diff_pd.common.common import ndarray, create_folder, print_info, print_warning
 
+def extract_intrinsic_parameters(K):
+    K = ndarray(K).copy()
+    cx = K[0, 2]
+    cy = K[1, 2]
+    alpha = K[0, 0]
+    cot_theta = K[0, 1] / -alpha
+    tan_theta = 1 / cot_theta
+    theta = np.arctan(tan_theta)
+    if theta < 0:
+        theta += np.pi
+    beta = K[1, 1] * np.sin(theta)
+    return { 'alpha': alpha, 'beta': beta, 'theta': theta, 'cx': cx, 'cy': cy }
+
 def solve_camera(points_in_pixel, points_in_world):
     # This is a better reference: https://web.stanford.edu/class/cs231a/course_notes/01-camera-models.pdf
     #
@@ -379,8 +392,53 @@ if __name__ == '__main__':
             pickle.dump(info, open(f, 'wb'))
             print('Data saved to', f)
 
-
-
+    # Now compute the best k and (R, T) for each frame.
+    all_K = []
+    for i in range(frame_start_idx, frame_end_idx + 1):
+        f = folder / 'sample_data' / '{:04d}.data'.format(i)
+        info = pickle.load(open(f, 'rb'))
+        K = info['K']
+        all_K.append(K)
+    all_K = ndarray(all_K)
+    best_K = np.median(all_K, axis=0)
+    best_K_inv = np.linalg.inv(best_K)
+    best_intrinsic_param = extract_intrinsic_parameters(best_K)
+    print_info('Estimated intrinsic camera parameters:')
+    for k in best_intrinsic_param:
+        print('{}: {}'.format(k, best_intrinsic_param[k]))
+    # Now correct (R, T) for each frame.
+    create_folder(folder / 'motion_estimation', exist_ok=True)
+    all_T = []
+    for i in range(frame_start_idx, frame_end_idx + 1):
+        f = folder / 'sample_data' / '{:04d}.data'.format(i)
+        info = pickle.load(open(f, 'rb'))
+        R = info['R']
+        T = info['T']
+        K = info['K']
+        all_T.append(T)
+        '''
+        obj_bd = info['obj_bd']
+        # best_K * best_R = K @ R
+        U, Sigma, Vt = np.linalg.svd(best_K_inv @ K @ R)
+        best_R = U @ Vt
+        # best_K * best_T = K @ T
+        best_T = best_K_inv @ K @ T
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.imshow(img_data[i - frame_start_idx])
+        # Now plot the predicted object location.
+        obj_predicted_camera = (obj_bd @ best_R.T + best_T) @ best_K.T
+        obj_predicted_calib = obj_predicted_camera[:, :2] / obj_predicted_camera[:, 2][:, None]
+        obj_predicted_pixl = cal_to_pxl(obj_predicted_calib)
+        ax.plot(obj_predicted_pixl[:, 0], obj_predicted_pixl[:, 1], 'y+')
+        fig.savefig(folder / 'motion_estimation' / '{:04d}.png'.format(i))
+        plt.close('all')
+        '''
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d', proj_type='ortho')
+    all_T = ndarray(all_T)
+    ax.plot(all_T[:, 0], all_T[:, 1], all_T[:, 2])
+    plt.show()
 
 
     '''
