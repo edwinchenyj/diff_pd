@@ -305,19 +305,8 @@ def select_corners(image_data):
     return ndarray(object_corners_in_pixel).copy(), ndarray(object_corners_in_body).copy(), \
         ndarray(grid_corners_in_pixel).copy(), ndarray(grid_corners_in_body).copy()
 
-if __name__ == '__main__':
-    # This is a script for calibrating the intrinsic camera parameters as well as the states of cube.
-    np.random.seed(42)
-
-    folder = Path(root_path) / 'python/example/sim_to_real_calibration'
-    create_folder(folder, exist_ok=True)
-
-    # Step 1: extract the video frames.
-    video_name = Path(root_path) / 'asset/video/sim_to_real_calibration.mov'
-    video_data_folder = folder / 'video_data'
-    create_folder(video_data_folder, exist_ok=True)
-    if not (video_data_folder / '0001.png').is_file():
-        os.system('ffmpeg -i {} -f image2 "{}/%04d.png"'.format(str(video_name), str(video_data_folder)))
+def convert_video_to_images(video_name, folder):
+    os.system('ffmpeg -i {} -f image2 "{}/%04d.png"'.format(str(video_name), str(folder)))
     # Get the frame rate.
     os.system('ffprobe -v quiet -show_streams -select_streams v:0 {} | grep "r_frame_rate" > {}/frame_rate.txt'.format(video_name, folder))
     with open(folder / 'frame_rate.txt', 'r') as f:
@@ -331,65 +320,97 @@ if __name__ == '__main__':
     print('fps: {:2.2f}'.format(fps))
     print('dt: {:2.4f}s'.format(dt))
 
-    # Manually specify the frames we plan to use for camera calibration.
-    frame_indices = [800, 1200, 1600, 1900, 2200, 2700]
-    create_folder(folder / 'intrinsic_calibration', exist_ok=True)
-    def pxl_to_cal(pxl):
-        pxl = ndarray(pxl).copy()
-        pxl[:, 1] *= -1
-        pxl[:, 1] += img_height
-        return pxl
-    def cal_to_pxl(cal):
-        cal = ndarray(cal).copy()
-        cal[:, 1] -= img_height
-        cal[:, 1] *= -1
-        return cal
-    for i in frame_indices:
-        with cbook.get_sample_data(video_data_folder / '{:04d}.png'.format(i)) as f:
-            img = plt.imread(f)
-        img = ndarray(img)
-        # Dimension of img: (height, width, channel).
-        img_height, img_width, num_channels = img.shape
-        assert img_height == 720 and img_width == 1280
-        assert num_channels == 3
-        # Call the label program.
-        f = folder / 'intrinsic_calibration' / '{:04d}.data'.format(i)
-        if not f.is_file():
-            print('Labeling image {:04d}.png...'.format(i))
-            samples = select_corners(img)
-            # Calibrate the camera system.
-            obj_pxl, obj_bd, grid_pxl, grid_bd = samples
-            info = {}
-            info['obj_pxl'] = ndarray(obj_pxl).copy()
-            info['obj_bd'] = ndarray(obj_bd).copy()
-            info['grid_pxl'] = ndarray(grid_pxl).copy()
-            info['grid_bd'] = ndarray(grid_bd).copy()
-            # Save data.
-            pickle.dump(info, open(f, 'wb'))
+img_height, img_width = 720, 1280
+def pxl_to_cal(pxl):
+    pxl = ndarray(pxl).copy()
+    pxl[:, 1] *= -1
+    pxl[:, 1] += img_height
+    return pxl
+def cal_to_pxl(cal):
+    cal = ndarray(cal).copy()
+    cal[:, 1] -= img_height
+    cal[:, 1] *= -1
+    return cal
 
-            # The pixel space in matplotlib is different from the pixel space in the calibration algorithm.
-            camera_info = solve_camera(pxl_to_cal(obj_pxl), obj_bd)
-            K = camera_info['K']
-            R = camera_info['R']
-            T = camera_info['T']
-            print('Camera information: alpha: {:2.2f}, beta: {:2.2f}, theta: {:2.2f}, cx: {:4.1f}, cy: {:4.1f}'.format(
-                camera_info['alpha'], camera_info['beta'], np.rad2deg(camera_info['theta']), camera_info['cx'], camera_info['cy']
-            ))
-            # Now R and t are the orientation and location of the object in the camera space.
-            # Verification:
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-            ax.imshow(img)
-            # Now plot the predicted object location.
-            obj_predicted_camera = (obj_bd @ R.T + T) @ K.T
-            obj_predicted_calib = obj_predicted_camera[:, :2] / obj_predicted_camera[:, 2][:, None]
-            obj_predicted_pixl = cal_to_pxl(obj_predicted_calib)
-            ax.plot(obj_predicted_pixl[:, 0], obj_predicted_pixl[:, 1], 'y+')
-            plt.show()
-            fig.savefig(folder / 'intrinsic_calibration' / '{:04d}.png'.format(i))
-            plt.close('all')
-            for k, v in camera_info.items():
-                info[k] = v
-            # Save data.
-            pickle.dump(info, open(f, 'wb'))
-            print('Data saved to', f)
+def load_image(image_file):
+    with cbook.get_sample_data(image_file) as f:
+        img = plt.imread(f)
+    return ndarray(img)
+
+if __name__ == '__main__':
+    # This is a script for calibrating the intrinsic camera parameters as well as the states of cube.
+    np.random.seed(42)
+
+    folder = Path(root_path) / 'python/example/sim_to_real_calibration'
+    create_folder(folder, exist_ok=True)
+
+    # Step 1: extract video information.
+    calibration_video_name = Path(root_path) / 'asset/video/sim_to_real_calibration.mov'
+    calibration_video_data_folder = folder / 'intrinsic_calibration_video'
+    create_folder(calibration_video_data_folder, exist_ok=True)
+    if not (calibration_video_data_folder / '0001.png').is_file():
+        convert_video_to_images(calibration_video_name, calibration_video_data_folder)
+
+    experiment_video_name = Path(root_path) / 'asset/video/sim_to_real_experiment.mov'
+    experiment_video_data_folder = folder / 'experiment_video'
+    create_folder(experiment_video_data_folder, exist_ok=True)
+    if not (experiment_video_data_folder / '0001.png').is_file():
+        convert_video_to_images(experiment_video_name, experiment_video_data_folder)
+
+    # Step 2: calibration.
+    calibration_folder = folder / 'intrinsic_calibration'
+    create_folder(calibration_folder, exist_ok=True)
+    experiment_folder = folder / 'experiment'
+    create_folder(experiment_folder, exist_ok=True)
+
+    calibration_tasks = [
+        (calibration_video_data_folder, calibration_folder, [800, 1200, 1600, 1900, 2200, 2700]),
+        (experiment_video_data_folder, experiment_folder, [180, 190, 200, 210, 220, 230, 240, 250, 260])
+    ]
+    for data_folder, output_folder, frames in calibration_tasks:
+        for i in frames:
+            img = load_image(data_folder / '{:04d}.png'.format(i))
+            # Dimension of img: (height, width, channel).
+            # img_height, img_width, num_channels = img.shape
+            assert img.shape[0] == img_height and img.shape[1] == img_width and img.shape[2] == 3
+            # Call the label program.
+            f = output_folder / '{:04d}.data'.format(i)
+            if not f.is_file():
+                print('Labeling image {:04d}.png...'.format(i))
+                samples = select_corners(img)
+                # Calibrate the camera system.
+                obj_pxl, obj_bd, grid_pxl, grid_bd = samples
+                info = {}
+                info['obj_pxl'] = ndarray(obj_pxl).copy()
+                info['obj_bd'] = ndarray(obj_bd).copy()
+                info['grid_pxl'] = ndarray(grid_pxl).copy()
+                info['grid_bd'] = ndarray(grid_bd).copy()
+                # Save data.
+                pickle.dump(info, open(f, 'wb'))
+
+                # The pixel space in matplotlib is different from the pixel space in the calibration algorithm.
+                camera_info = solve_camera(pxl_to_cal(obj_pxl), obj_bd)
+                K = camera_info['K']
+                R = camera_info['R']
+                T = camera_info['T']
+                print('Camera information: alpha: {:2.2f}, beta: {:2.2f}, theta: {:2.2f}, cx: {:4.1f}, cy: {:4.1f}'.format(
+                    camera_info['alpha'], camera_info['beta'], np.rad2deg(camera_info['theta']), camera_info['cx'], camera_info['cy']
+                ))
+                # Now R and t are the orientation and location of the object in the camera space.
+                # Verification:
+                fig = plt.figure()
+                ax = fig.add_subplot(111)
+                ax.imshow(img)
+                # Now plot the predicted object location.
+                obj_predicted_camera = (obj_bd @ R.T + T) @ K.T
+                obj_predicted_calib = obj_predicted_camera[:, :2] / obj_predicted_camera[:, 2][:, None]
+                obj_predicted_pixl = cal_to_pxl(obj_predicted_calib)
+                ax.plot(obj_predicted_pixl[:, 0], obj_predicted_pixl[:, 1], 'y+')
+                plt.show()
+                fig.savefig(output_folder / '{:04d}.png'.format(i))
+                plt.close('all')
+                for k, v in camera_info.items():
+                    info[k] = v
+                # Save data.
+                pickle.dump(info, open(f, 'wb'))
+                print('Data saved to', f)
