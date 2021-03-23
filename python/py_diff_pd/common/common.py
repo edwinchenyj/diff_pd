@@ -46,6 +46,9 @@ def create_folder(folder_name, exist_ok=False):
         shutil.rmtree(folder_name)
     os.makedirs(folder_name, exist_ok=exist_ok)
 
+def delete_folder(folder_name):
+    shutil.rmtree(folder_name)
+
 from py_diff_pd.core.py_diff_pd_core import StdRealVector
 def to_std_real_vector(v):
     v = ndarray(v).ravel()

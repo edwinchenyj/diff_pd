@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import shutil
 from pathlib import Path
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -9,7 +10,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.proj3d import proj_transform
 import matplotlib.animation as animation
 from py_diff_pd.core.py_diff_pd_core import QuadMesh2d
-from py_diff_pd.common.common import ndarray
+from py_diff_pd.common.common import ndarray, create_folder, delete_folder
 
 # transforms is a list of:
 # ('s', s)
@@ -210,6 +211,22 @@ def export_gif(folder_name, gif_name, fps, name_prefix=''):
         imageio.mimsave(gif_name, images, fps=fps)
     else:
         imageio.mimsave(gif_name, images)
+
+def export_mp4(folder_name, mp4_name, fps, name_prefix=''):
+    frame_names = [os.path.join(folder_name, f) for f in os.listdir(folder_name)
+        if os.path.isfile(os.path.join(folder_name, f)) and f.startswith(name_prefix) and f.endswith('.png')]
+    frame_names = sorted(frame_names)
+
+    # Create a temporary folder.
+    tmp_folder = Path('_export_mp4')
+    create_folder(tmp_folder, exist_ok=False)
+    for i, f in enumerate(frame_names):
+        shutil.copyfile(f, tmp_folder / '{:08d}.png'.format(i))
+
+    os.system('ffmpeg -r ' + str(fps) + ' -i ' + str(tmp_folder / '%08d.png') + ' -vcodec mpeg4 -y ' + str(mp4_name))
+
+    # Delete temporary folder.
+    delete_folder(tmp_folder)
 
 # The input argument transforms is a list of rotation, translation, and scaling applied to the mesh.
 # transforms = [rotation, translation, scaling, ...]

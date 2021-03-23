@@ -5,7 +5,7 @@ import numpy as np
 
 from py_diff_pd.core.py_diff_pd_core import StdRealVector, StdIntVector
 from py_diff_pd.common.common import ndarray, create_folder, copy_std_int_vector
-from py_diff_pd.common.display import export_gif
+from py_diff_pd.common.display import export_gif, export_mp4
 from py_diff_pd.common.project_path import root_path
 from py_diff_pd.common.renderer import PbrtRenderer
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d
@@ -112,7 +112,7 @@ class EnvBase:
     # If require_grad=True: loss, info;
     # if require_grad=False: loss, grad, info.
     def simulate(self, dt, frame_num, method, opt, q0=None, v0=None, act=None, f_ext=None,
-        require_grad=False, vis_folder=None, velocity_bound=np.inf):
+        require_grad=False, vis_folder=None, velocity_bound=np.inf, render_frame_skip=1):
         # Check input parameters.
         assert dt > 0
         assert frame_num > 0
@@ -216,10 +216,11 @@ class EnvBase:
         if vis_folder is not None:
             t_begin = time.time()
             for i, qi in enumerate(q):
+                if i % render_frame_skip != 0: continue
                 mesh_file = str(self._folder / vis_folder / '{:04d}.bin'.format(i))
                 self._deformable.PySaveToMeshFile(qi, mesh_file)
                 self._display_mesh(mesh_file, self._folder / vis_folder / '{:04d}.png'.format(i))
-            export_gif(self._folder / vis_folder, self._folder / '{}.gif'.format(vis_folder), 20)
+            export_mp4(self._folder / vis_folder, self._folder / '{}.mp4'.format(vis_folder), 20)
 
             t_vis = time.time() - t_begin
             info['visualize_time'] = t_vis
