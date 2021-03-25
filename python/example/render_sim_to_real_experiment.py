@@ -4,15 +4,33 @@ sys.path.append('../')
 from pathlib import Path
 import time
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.cbook as cbook
 import scipy.optimize
 import pickle
 
 from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.common import print_info, print_ok, print_error, print_warning
+from py_diff_pd.common.display import export_mp4
 from py_diff_pd.common.grad_check import check_gradients
 from py_diff_pd.core.py_diff_pd_core import StdRealVector
 from py_diff_pd.env.sim_to_real_env_3d import SimToRealEnv3d
 from py_diff_pd.common.project_path import root_path
+
+def overlap(photo_sequence, rendering_sequence, photo_alpha, rendering_alpha, output_sequence):
+    photo_data = []
+    rendering_data = []
+    for photo_name in photo_sequence:
+        with cbook.get_sample_data(photo_name) as f:
+            img = plt.imread(f)
+        photo_data.append(ndarray(img[:, :, :3]))
+    for rendering_name in rendering_sequence:
+        with cbook.get_sample_data(rendering_name) as f:
+            img = plt.imread(f)
+        rendering_data.append(ndarray(img[:, :, :3]))
+    for p, r, f in zip(photo_data, rendering_data, output_sequence):
+        output_img = photo_alpha * p + rendering_alpha * r
+        plt.imsave(f, output_img)
 
 if __name__ == '__main__':
     seed = 42
@@ -165,99 +183,41 @@ if __name__ == '__main__':
         [init_camera_pos[0], init_camera_pos[1] + 0.05, init_camera_pos[2] + 0.05],
         [init_camera_yaw + 0.2, init_camera_pitch + 0.2, init_camera_alpha + 300]
     ]))
-    x_fixed = np.array([False, False, True, False, False, False, True, True, False, False, False, False, False])
+    x_fixed = np.array([True, True, True, True, True, True, True, False, False, False, False, False, False])
 
-    # Define the loss and grad function.
-    data = {}
-    data[method] = []
-    def loss_and_grad(x_reduced):
+    def render_x(x_reduced, vis_folder, render_frame_skip):
+        # Visualize initial guess.
         x_full = ndarray(x_ref).copy().ravel()
         x_full[~x_fixed] = x_reduced
         env = get_env(x_full[7:13])
         init_q = get_init_q(x_full)
         init_f = get_external_f(x_full)
-        loss, grad, info = env.simulate(dt, frame_num, method, opt, init_q, v0, a0, init_f, require_grad=True, vis_folder=None)
-        # Assemble the gradients.
-        grad_init_q = grad[0]
-        grad_f = grad[3]
-        grad_x_full = np.zeros(x_full.size)
-        grad_x_full += get_init_q_gradient(x_full, grad_init_q)
-        grad_x_full += get_external_f_gradient(x_full, grad_f)
-        grad_x_full[7:10] = info['grad_custom']['camera_loc']
-        grad_x_full[10] = info['grad_custom']['camera_yaw']
-        grad_x_full[11] = info['grad_custom']['camera_pitch']
-        grad_x_full[12] = info['grad_custom']['camera_alpha']
-        grad_x_reduced = grad_x_full[~x_fixed]
-        print('loss: {:8.3f}, |grad|: {:8.3f}, forward time: {:6.3f}s, backward time: {:6.3f}s'.format(
-            loss, np.linalg.norm(grad_x_reduced), info['forward_time'], info['backward_time']))
-        single_data = {}
-        single_data['loss'] = loss
-        single_data['grad'] = np.copy(grad_x_reduced)
-        single_data['x'] = np.copy(x_reduced)
-        single_data['forward_time'] = info['forward_time']
-        single_data['backward_time'] = info['backward_time']
-        data[method].append(single_data)
-        return loss, np.copy(grad_x_reduced)
+        env.simulate(dt, frame_num, method, opt, init_q, v0, a0, init_f, require_grad=False, vis_folder=vis_folder,
+            render_frame_skip=render_frame_skip)
 
-    # Sanity check the gradients.
-    #check_gradients(loss_and_grad, x_ref[~x_fixed], eps=1e-6, skip_var=lambda i: i <= 4)
+    data = pickle.load(open(folder / 'data_{:04d}_threads.bin'.format(thread_ct), 'rb'))
+    data = data[method]
 
-    # Optimization starts here.
-    x_lb_reduced = x_lb[~x_fixed]
-    x_ub_reduced = x_ub[~x_fixed]
-    bounds = scipy.optimize.Bounds(x_lb_reduced, x_ub_reduced)
+    # Visualize the initial and best results.
+    x_best_idx = np.argmin([d['loss'] for d in data])
+    print_info('Initial loss: {:3.6f}; best loss: {:3.6f}'.format(data[0]['loss'], data[x_best_idx]['loss']))
+    render_x(data[0]['x'], 'init', substeps)
+    render_x(data[x_best_idx]['x'], 'best', substeps)
 
-    # Normalize the loss.
-    rand_state = np.random.get_state()
-    random_guess_num = 16
-    random_loss = []
-    best_loss = np.inf
-    best_x_init = None
-    for _ in range(random_guess_num):
-        x_rand = np.random.uniform(low=x_lb_reduced, high=x_ub_reduced)
-        x_full = ndarray(x_ref).copy().ravel()
-        x_full[~x_fixed] = x_rand
-        env = get_env(x_full[7:13])
-        init_q = get_init_q(x_full)
-        init_f = get_external_f(x_full)
-        loss, _ = env.simulate(dt, frame_num, method, opt, init_q, v0, a0, init_f, require_grad=False, vis_folder=None)
-        print('loss: {:3f}'.format(loss))
-        random_loss.append(loss)
-        if loss < best_loss:
-            best_loss = loss
-            best_x_init = x_rand
-    loss_range = ndarray([0, np.mean(random_loss)])
-    data['loss_range'] = loss_range
-    print_info('Loss range: {:3f}, {:3f}'.format(loss_range[0], loss_range[1]))
-    np.random.set_state(rand_state)
-    x_init = best_x_init
-    print('x_init:', x_init)
-
-    # Visualize initial guess.
-    x_full = ndarray(x_ref).copy().ravel()
-    x_full[~x_fixed] = best_x_init
-    env = get_env(x_full[7:13])
-    init_q = get_init_q(x_full)
-    init_f = get_external_f(x_full)
-    env.simulate(dt, frame_num, method, opt, init_q, v0, a0, init_f, require_grad=False, vis_folder='init',
-        render_frame_skip=substeps)
-
-    # Optimization.
-    t0 = time.time()
-    result = scipy.optimize.minimize(loss_and_grad, np.copy(x_init),
-        method='L-BFGS-B', jac=True, bounds=bounds, options={ 'ftol': 1e-3 })
-    t1 = time.time()
-    if not result.success:
-        print_warning('Optimization is not successful. Using the last iteration results.')
-    x_final = result.x
-    print_info('Optimizing with {} finished in {:6.3f} seconds'.format(method, t1 - t0))
-    pickle.dump(data, open(folder / 'data_{:04d}_threads.bin'.format(thread_ct), 'wb'))
-
-    # Visualize results.
-    x_full = ndarray(x_ref).copy().ravel()
-    x_full[~x_fixed] = x_final
-    env = get_env(x_full[7:13])
-    init_q = get_init_q(x_full)
-    init_f = get_external_f(x_full)
-    env.simulate(dt, frame_num, method, opt, init_q, v0, a0, init_f, require_grad=False, vis_folder=method,
-        render_frame_skip=substeps)
+    # Overlap it with the real photos.
+    photo_folder = Path(root_path) / 'python/example/sim_to_real_calibration/experiment_video'
+    photo_sequence = [photo_folder / '{:04d}.png'.format(i) for i in range(start_frame, end_frame + 1)]
+    init_sequence = [Path(root_path) / 'python/example' / folder / 'init' / '{:04d}.png'.format(i)
+        for i in range(0, (end_frame - start_frame) * substeps, substeps)]
+    best_sequence = [Path(root_path) / 'python/example' / folder / 'best' / '{:04d}.png'.format(i)
+        for i in range(0, (end_frame - start_frame + 1) * substeps, substeps)]
+    create_folder(folder / 'init_overlap', exist_ok=True)
+    create_folder(folder / 'best_overlap', exist_ok=True)
+    init_output_sequence = [Path(root_path) / 'python/example' / folder / 'init_overlap' / '{:04d}.png'.format(i)
+        for i in range(start_frame, end_frame + 1)]
+    best_output_sequence = [Path(root_path) / 'python/example' / folder / 'best_overlap' / '{:04d}.png'.format(i)
+        for i in range(start_frame, end_frame + 1)]
+    overlap(photo_sequence, init_sequence, 0.5, 0.5, init_output_sequence)
+    overlap(photo_sequence, best_sequence, 0.5, 0.5, best_output_sequence)
+    export_mp4(folder / 'init_overlap', folder / 'init_overlap.mp4', fps=10)
+    export_mp4(folder / 'best_overlap', folder / 'best_overlap.mp4', fps=10)
