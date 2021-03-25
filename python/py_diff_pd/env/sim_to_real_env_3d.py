@@ -6,7 +6,7 @@ import pickle
 import numpy as np
 
 from py_diff_pd.env.env_base import EnvBase
-from py_diff_pd.common.common import create_folder, ndarray
+from py_diff_pd.common.common import create_folder, ndarray, print_info
 from py_diff_pd.common.hex_mesh import generate_hex_mesh, get_contact_vertex
 from py_diff_pd.common.display import render_hex_mesh, export_gif
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector
@@ -15,10 +15,9 @@ from py_diff_pd.common.project_path import root_path
 
 class SimToRealEnv3d(EnvBase):
     # Refinement is an integer controlling the resolution of the mesh.
-    def __init__(self, seed, folder, options):
+    def __init__(self, folder, options):
         EnvBase.__init__(self, folder)
 
-        np.random.seed(seed)
         create_folder(folder, exist_ok=True)
 
         # A 30mm x 30mm x 30mm cube discretized into 10 x 10 x 10 voxels.
@@ -199,18 +198,24 @@ class SimToRealEnv3d(EnvBase):
         mesh.Initialize(mesh_file)
         renderer.add_hex_mesh(mesh, render_voxel_edge=True, color=[.1, .7, .3])
         renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj',
-            texture_img='chkbd_24_0.7', transforms=[('t', (0, 0, -self.__radius))])
+            texture_img='chkbd_24_0.7', transforms=[('t', (0, 0.2, -self.__radius))])
 
         renderer.render()
 
     def _stepwise_loss_and_grad(self, q, v, i):
+        idx = i
         q = ndarray(q).copy().ravel()
         v = ndarray(v).copy().ravel()
         if i not in self.__data:
-            return 0, ndarray(np.zeros(q.size)), ndarray(np.zeros(v.size))
+            return 0, ndarray(np.zeros(q.size)), ndarray(np.zeros(v.size)), {
+                'camera_loc': ndarray([0, 0, 0]),
+                'camera_yaw': 0,
+                'camera_pitch': 0,
+                'camera_alpha': 0
+            }
 
         # Now compute the loss.
-        pixel_loc, body_idx = self.__data[i]
+        pixel_loc, body_idx = self.__data[idx]
         pixel_num = pixel_loc.shape[0]
         assert pixel_loc.shape == (pixel_num, 2) and len(body_idx) == pixel_num
         world_loc = q.reshape((-1, 3))[body_idx]
@@ -223,6 +228,11 @@ class SimToRealEnv3d(EnvBase):
             [0, c_pitch, -s_pitch],
             [0, s_pitch, c_pitch]
         ])
+        dR_pitch = ndarray([
+            [0, 0, 0],
+            [0, -s_pitch, -c_pitch],
+            [0, c_pitch, -s_pitch]
+        ])
         yaw = self.__camera_yaw
         c_yaw, s_yaw = np.cos(yaw), np.sin(yaw)
         R_yaw = ndarray([
@@ -230,11 +240,21 @@ class SimToRealEnv3d(EnvBase):
             [s_yaw, c_yaw, 0],
             [0, 0, 1]
         ])
+        dR_yaw = ndarray([
+            [-s_yaw, -c_yaw, 0],
+            [c_yaw, -s_yaw, 0],
+            [0, 0, 0]
+        ])
         R_camera = R_yaw @ R_pitch
+        dR_camera_dyaw = dR_yaw @ R_pitch
+        dR_camera_dpitch = R_yaw @ dR_pitch
         t_camera = ndarray(self.__camera_pos)
         # camera_loc = R.T * (world_loc - t_camera).
         camera_loc = (world_loc - t_camera) @ R_camera
+        dcamera_loc_dyaw = (world_loc - t_camera) @ dR_camera_dyaw
+        dcamera_loc_dpitch = (world_loc - t_camera) @ dR_camera_dpitch
         # Dimension of camera_loc: M x 2.
+        dcamera_loc_dt = [np.tile(-R_camera[i], (pixel_num, 1)) for i in range(3)]
 
         # Now convert camera_loc to pixel_loc.
         camera_loc_x = camera_loc[:, 0]
@@ -242,7 +262,26 @@ class SimToRealEnv3d(EnvBase):
         camera_loc_z = camera_loc[:, 2]
 
         alpha = self.__camera_alpha
-        predicted_pixel_loc = ndarray(np.vstack([camera_loc_x / camera_loc_y, camera_loc_z / camera_loc_y])).T * alpha
+        predicted_pixel_loc = ndarray(np.vstack([
+            camera_loc_x / camera_loc_y * alpha + self.__img_width / 2,
+            self.__img_height / 2 - camera_loc_z / camera_loc_y * alpha])).T
+        dpredicted_dalpha = ndarray(np.vstack([
+            camera_loc_x / camera_loc_y,
+            -camera_loc_z / camera_loc_y])).T
+        dpredicted_dyaw = ndarray(np.vstack([
+            alpha * (dcamera_loc_dyaw[:, 0] * camera_loc_y - camera_loc_x * dcamera_loc_dyaw[:, 1]) / (camera_loc_y ** 2),
+            -alpha * (dcamera_loc_dyaw[:, 2] * camera_loc_y - camera_loc_z * dcamera_loc_dyaw[:, 1]) / (camera_loc_y ** 2)
+        ]).T)
+        dpredicted_dpitch = ndarray(np.vstack([
+            alpha * (dcamera_loc_dpitch[:, 0] * camera_loc_y - camera_loc_x * dcamera_loc_dpitch[:, 1]) / (camera_loc_y ** 2),
+            -alpha * (dcamera_loc_dpitch[:, 2] * camera_loc_y - camera_loc_z * dcamera_loc_dpitch[:, 1]) / (camera_loc_y ** 2)
+        ]).T)
+        dpredicted_dt = []
+        for i in range(3):
+            dpredicted_dt.append(ndarray(np.vstack([
+                alpha * (dcamera_loc_dt[i][:, 0] * camera_loc_y - camera_loc_x * dcamera_loc_dt[i][:, 1]) / (camera_loc_y ** 2),
+                -alpha * (dcamera_loc_dt[i][:, 2] * camera_loc_y - camera_loc_z * dcamera_loc_dt[i][:, 1]) / (camera_loc_y ** 2)
+            ])).T)
         loss = 0.5 * np.sum((predicted_pixel_loc - pixel_loc) ** 2)
 
         # Compute gradients w.r.t q and v.
@@ -269,4 +308,18 @@ class SimToRealEnv3d(EnvBase):
         loss /= scale
         grad_q /= scale
         grad_v /= scale
-        return loss, grad_q, grad_v
+
+        # Custom gradients:
+        # predicted_pixel_loc = ndarray(np.vstack([camera_loc_x / camera_loc_y, camera_loc_z / camera_loc_y])).T * alpha
+        # loss = 0.5 * np.sum((predicted_pixel_loc - pixel_loc) ** 2)
+        grad_camera_loc = [(predicted_pixel_loc - pixel_loc).ravel().dot(dp_dt.ravel()) for dp_dt in dpredicted_dt]
+        grad_camera_yaw = (predicted_pixel_loc - pixel_loc).ravel().dot(dpredicted_dyaw.ravel())
+        grad_camera_pitch = (predicted_pixel_loc - pixel_loc).ravel().dot(dpredicted_dpitch.ravel())
+        grad_camera_alpha = (predicted_pixel_loc - pixel_loc).ravel().dot(dpredicted_dalpha.ravel() / alpha)
+        custom_grad = {
+            'camera_loc': ndarray(grad_camera_loc).copy() / scale,
+            'camera_yaw': float(grad_camera_yaw) / scale,
+            'camera_pitch': float(grad_camera_pitch) / scale,
+            'camera_alpha': float(grad_camera_alpha) / scale
+        }
+        return loss, grad_q, grad_v, custom_grad

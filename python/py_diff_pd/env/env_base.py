@@ -183,6 +183,7 @@ class EnvBase:
         loss = 0
         grad_q = np.zeros(dofs)
         grad_v = np.zeros(dofs)
+        grad_custom = {}
         active_contact_indices = [StdIntVector(0),]
         for i in range(frame_num):
             v_clamped.append(clamp_velocity(v[-1]))
@@ -195,19 +196,36 @@ class EnvBase:
             v_next = ndarray(v_next_array)
             active_contact_indices.append(active_contact_idx)
             if self._stepwise_loss:
-                l, grad_q, grad_v = self._stepwise_loss_and_grad(q_next, v_next, i + 1)
+                # See if a custom grad is provided.
+                ret = self._stepwise_loss_and_grad(q_next, v_next, i + 1)
+                l, grad_q, grad_v = ret[:3]
+                if len(ret) > 3:
+                    grad_c = ret[3]
+                    for grad_c_key, grad_c_val in grad_c.items():
+                        if grad_c_key in grad_custom:
+                            grad_custom[grad_c_key] += grad_c_val
+                        else:
+                            grad_custom[grad_c_key] = grad_c_val
                 loss += l
             elif i == frame_num - 1:
-                l, grad_q, grad_v = self._loss_and_grad(q_next, v_next)
+                ret = self._loss_and_grad(q_next, v_next)
+                l, grad_q, grad_v = ret[:3]
+                if len(ret) > 3:
+                    grad_c = ret[3]
+                    for grad_c_key, grad_c_val in grad_c.items():
+                        if grad_c_key in grad_custom:
+                            grad_custom[grad_c_key] += grad_c_val
+                        else:
+                            grad_custom[grad_c_key] = grad_c_val
                 loss += l
             q.append(q_next)
             v.append(v_next)
 
         # Save data.
-        info = {}
+        info = { 'grad_custom': grad_custom }
         info['q'] = q
         info['v'] = v
-        info['active_contact_indices'] = active_contact_indices
+        info['active_contact_indices'] = [list(a) for a in active_contact_indices]
 
         # Compute loss.
         t_loss = time.time() - t_begin
@@ -254,7 +272,8 @@ class EnvBase:
                 dl_dq_next = ndarray(dl_dq)
                 dl_dv_next = ndarray(dl_dv)
                 if self._stepwise_loss and i != 0:
-                    _, dqi, dvi = self._stepwise_loss_and_grad(q[i], v[i], i)
+                    ret = self._stepwise_loss_and_grad(q[i], v[i], i)
+                    dqi, dvi = ret[1], ret[2]
                     dl_dq_next += ndarray(dqi)
                     dl_dv_next += ndarray(dvi)
                 dl_act[i] = ndarray(dl_da)
