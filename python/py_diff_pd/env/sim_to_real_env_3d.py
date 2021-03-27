@@ -4,10 +4,11 @@ import matplotlib.pyplot as plt
 import matplotlib.cbook as cbook
 import pickle
 import numpy as np
+import os
 
 from py_diff_pd.env.env_base import EnvBase
 from py_diff_pd.common.common import create_folder, ndarray, print_info
-from py_diff_pd.common.hex_mesh import generate_hex_mesh, get_contact_vertex
+from py_diff_pd.common.hex_mesh import generate_hex_mesh, get_contact_vertex, filter_hex, hex2obj_with_textures
 from py_diff_pd.common.display import render_hex_mesh, export_gif
 from py_diff_pd.core.py_diff_pd_core import HexMesh3d, HexDeformable, StdRealVector
 from py_diff_pd.common.renderer import PbrtRenderer
@@ -57,6 +58,44 @@ class SimToRealEnv3d(EnvBase):
         generate_hex_mesh(voxels, dx, origin, bin_file_name)
         mesh = HexMesh3d()
         mesh.Initialize(str(bin_file_name))
+
+        # Decompose the mesh into 7 pieces:
+        mesh_parts = { 'red': [], 'green': [], 'blue': [],
+            'orange': [], 'black': [], 'white': [], 'body': [] }
+        ele_nums = mesh.NumOfElements()
+        for ei in range(ele_nums):
+            vis = list(mesh.py_element(ei))
+            v_mean = 0
+            for vi in vis:
+                v_mean += ndarray(mesh.py_vertex(vi))
+            v_mean /= len(vis) * dx
+            vx, vy, vz = v_mean
+            # - origin: center of the object.
+            # - x: red (positive) and blue (negative).
+            # - y: orange (positive) and green (negative).
+            # - z: white (positive) and black (negative).
+            if vx > refinement / 2 - 1:
+                # +x direction.
+                mesh_parts['red'].append(ei)
+            elif vx < -(refinement / 2 - 1):
+                # -x direction.
+                mesh_parts['blue'].append(ei)
+            elif vy > refinement / 2 - 1:
+                # +y direction.
+                mesh_parts['orange'].append(ei)
+            elif vy < -(refinement / 2 - 1):
+                # -y direction.
+                mesh_parts['green'].append(ei)
+            elif vz > refinement / 2 - 1:
+                # +z direction.
+                mesh_parts['white'].append(ei)
+            elif vz < -(refinement / 2 - 1):
+                # -z direction.
+                mesh_parts['black'].append(ei)
+            else:
+                # Body.
+                mesh_parts['body'].append(ei)
+        self.__mesh_parts = mesh_parts
 
         deformable = HexDeformable()
         deformable.Initialize(str(bin_file_name), density, 'none', youngs_modulus, poissons_ratio)
@@ -190,17 +229,27 @@ class SimToRealEnv3d(EnvBase):
             'camera_lookat': R_camera[:, 1] + ndarray(self.__camera_pos),
             'camera_up': R_camera[:, 2],
             'resolution': (self.__img_width, self.__img_height),
-            'fov': np.rad2deg(self.__fov)
+            'fov': np.rad2deg(self.__fov),
+            'sample': self.__spp
         }
         renderer = PbrtRenderer(options)
 
         mesh = HexMesh3d()
         mesh.Initialize(mesh_file)
-        renderer.add_hex_mesh(mesh, render_voxel_edge=True, color=[.1, .7, .3])
+
+        for color, voxel_idx in self.__mesh_parts.items():
+            obj_file_name = self._folder / '{}.obj'.format(color)
+            sub_mesh = filter_hex(mesh, voxel_idx)
+            texture_map = ((0, 0), (1, 0), (1, 1), (0, 1))
+            hex2obj_with_textures(sub_mesh, obj_file_name, None, texture_map)
+            renderer.add_tri_mesh(obj_file_name, texture_img='{}.png'.format('white' if color == 'body' else color))
+
         renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj',
             texture_img='chkbd_24_0.7', transforms=[('t', (0, 0.2, -self.__radius))])
-
         renderer.render()
+
+        for color in self.__mesh_parts:
+            os.remove(self._folder / '{}.obj'.format(color))
 
     def _stepwise_loss_and_grad(self, q, v, i):
         idx = i
