@@ -347,7 +347,7 @@ class SimToRealEnv3d(EnvBase):
             # (f/g)' = f'/g - fg'/g^2 = (f'g - fg') / g2.
             cx, cy, cz = camera_loc[row_idx]
             d_predicted_xy = (d_camera_x * cy - cx * d_camera_y) / (cy ** 2) * alpha
-            d_predicted_zy = (d_camera_z * cy - cz * d_camera_y) / (cy ** 2) * alpha
+            d_predicted_zy = -(d_camera_z * cy - cz * d_camera_y) / (cy ** 2) * alpha
             d_pixel = predicted_pixel_loc[row_idx] - pixel_loc[row_idx]
             grad_q[node_idx] = d_pixel[0] * d_predicted_xy + d_pixel[1] * d_predicted_zy
         grad_q = ndarray(grad_q).ravel()
@@ -364,7 +364,7 @@ class SimToRealEnv3d(EnvBase):
         grad_camera_loc = [(predicted_pixel_loc - pixel_loc).ravel().dot(dp_dt.ravel()) for dp_dt in dpredicted_dt]
         grad_camera_yaw = (predicted_pixel_loc - pixel_loc).ravel().dot(dpredicted_dyaw.ravel())
         grad_camera_pitch = (predicted_pixel_loc - pixel_loc).ravel().dot(dpredicted_dpitch.ravel())
-        grad_camera_alpha = (predicted_pixel_loc - pixel_loc).ravel().dot(dpredicted_dalpha.ravel() / alpha)
+        grad_camera_alpha = (predicted_pixel_loc - pixel_loc).ravel().dot(dpredicted_dalpha.ravel())
         custom_grad = {
             'camera_loc': ndarray(grad_camera_loc).copy() / scale,
             'camera_yaw': float(grad_camera_yaw) / scale,

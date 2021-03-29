@@ -65,6 +65,12 @@ def copy_std_int_vector(v):
         v2[i] = a
     return v2
 
+def to_std_int_vector(v):
+    v2 = StdIntVector(len(v))
+    for i, a in enumerate(v):
+        v2[i] = a
+    return v2
+
 from py_diff_pd.core.py_diff_pd_core import StdMap
 def to_std_map(opt):
     opt_map = StdMap()

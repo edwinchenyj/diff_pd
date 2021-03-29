@@ -32,7 +32,7 @@ if __name__ == '__main__':
     init_force_frame_num = 10 * substeps
     # Optimization parameters.
     thread_ct = 6
-    opt = { 'max_pd_iter': 500, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': thread_ct,
+    opt = { 'max_pd_iter': 500, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-9, 'verbose': 0, 'thread_ct': thread_ct,
         'use_bfgs': 1, 'bfgs_history_size': 10 }
     method = 'pd_eigen'
 
@@ -150,22 +150,22 @@ if __name__ == '__main__':
     # - camera_yaw: 1D.
     # - camera_pitch: 1D.
     # - camera_alpha: 1D.
+    x_lb = ndarray(np.concatenate([
+        [0.05, 0.15, 0.0, np.pi / 2 - 0.2, -3.5, -0.1, -0.1],
+        [init_camera_pos[0] - 0.1, init_camera_pos[1] - 0.1, init_camera_pos[2] - 0.1],
+        [init_camera_yaw - 0.2, init_camera_pitch - 0.2, init_camera_alpha - 300]
+    ]))
     x_ref = ndarray(np.concatenate([
-        [0.1, 0.2, 0.0, np.pi / 2, -3, 0, 0],
+        [0.1, 0.2, 0.001, np.pi / 2, -3, 0, 0],
         init_camera_pos,
         [init_camera_yaw, init_camera_pitch, init_camera_alpha]
     ]))
-    x_lb = ndarray(np.concatenate([
-        [0.05, 0.15, 0.0, np.pi / 2 - 0.2, -3.5, -0.1, 0],
-        [init_camera_pos[0], init_camera_pos[1] - 0.05, init_camera_pos[2] - 0.05],
-        [init_camera_yaw - 0.2, init_camera_pitch - 0.2, init_camera_alpha - 300]
-    ]))
     x_ub = ndarray(np.concatenate([
-        [0.15, 0.25, 0.0, np.pi / 2 + 0.2, -2.5, 0.1, 0],
-        [init_camera_pos[0], init_camera_pos[1] + 0.05, init_camera_pos[2] + 0.05],
+        [0.15, 0.25, 0.002, np.pi / 2 + 0.2, -2.5, 0.1, 0.1],
+        [init_camera_pos[0] + 0.1, init_camera_pos[1] + 0.1, init_camera_pos[2] + 0.1],
         [init_camera_yaw + 0.2, init_camera_pitch + 0.2, init_camera_alpha + 300]
     ]))
-    x_fixed = np.array([False, False, True, False, False, False, True, True, False, False, False, False, False])
+    x_fixed = np.array([True, True, False, False, False, False, False, False, False, False, False, False, False])
 
     # Define the loss and grad function.
     data = {}
@@ -200,7 +200,8 @@ if __name__ == '__main__':
         return loss, np.copy(grad_x_reduced)
 
     # Sanity check the gradients.
-    #check_gradients(loss_and_grad, x_ref[~x_fixed], eps=1e-6, skip_var=lambda i: i <= 4)
+    # This works if we use pd_eigen_fixed_contact and end_frame = 180.
+    # check_gradients(loss_and_grad, x_ref[~x_fixed], eps=1e-3, skip_var=lambda i : False)
 
     # Optimization starts here.
     x_lb_reduced = x_lb[~x_fixed]

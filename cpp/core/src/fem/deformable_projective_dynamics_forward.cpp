@@ -11,7 +11,7 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
     if (pd_solver_ready_) return;
 
     CheckError(options.find("thread_ct") != options.end(), "Missing parameter thread_ct.");
-    CheckError(method == "pd_eigen" || method == "pd_pardiso", "Invalid PD method: " + method);
+    CheckError(BeginsWith(method, "pd_eigen") || BeginsWith(method, "pd_pardiso"), "Invalid PD method: " + method);
     const int thread_ct = static_cast<int>(options.at("thread_ct"));
     omp_set_num_threads(thread_ct);
 
@@ -137,8 +137,8 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
         for (const auto& pair : frictional_boundary_vertex_indices_) {
             VectorXr ej = VectorXr::Zero(vertex_num);
             ej(pair.first) = 1;
-            if (method == "pd_eigen") AinvIc_[d].col(pair.second) = pd_eigen_solver_[d].solve(ej);
-            else if (method == "pd_pardiso") AinvIc_[d].col(pair.second) = pd_pardiso_solver_[d].Solve(ej);
+            if (BeginsWith(method, "pd_eigen")) AinvIc_[d].col(pair.second) = pd_eigen_solver_[d].solve(ej);
+            else if (BeginsWith(method, "pd_pardiso")) AinvIc_[d].col(pair.second) = pd_pardiso_solver_[d].Solve(ej);
         }
     }
     pd_solver_ready_ = true;
@@ -484,6 +484,24 @@ void Deformable<vertex_dim, element_dim>::ForwardProjectiveDynamics(const std::s
     const real mass = element_volume_ * density_;
     const real h2m = dt * dt / mass;
     const VectorXr rhs = q + h * v + h2m * f_ext + h2m * ForwardStateForce(q, v);
+
+    // This is for debugging purpose only.
+    // If the method name ends with 'fixed_contact', we will skip the active set algorithm.
+    if (EndsWith(method, "fixed_contact")) {
+        // Fix dirichlet_ + active_contact_nodes.
+        std::map<int, real> additional_dirichlet;
+        for (const int idx : active_contact_idx) {
+            for (int i = 0; i < vertex_dim; ++i)
+                additional_dirichlet[idx * vertex_dim + i] = q(idx * vertex_dim + i);
+        }
+        // Initial guess.
+        const VectorXr q_sol = PdNonlinearSolve(method, q, a, h2m, rhs, additional_dirichlet, options);
+        const VectorXr force_sol = PdEnergyForce(q_sol, use_bfgs) + ActuationForce(q_sol, a);
+        q_next = q_sol;
+        v_next = (q_next - q) / h;
+        return;
+    }
+
     const int max_contact_iter = 5;
     std::vector<std::set<int>> active_contact_idx_history;
     for (int contact_iter = 0; contact_iter < max_contact_iter; ++contact_iter) {
@@ -579,7 +597,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdLhsMatrixOp(const VectorXr
 template<int vertex_dim, int element_dim>
 const VectorXr Deformable<vertex_dim, element_dim>::PdLhsSolve(const std::string& method, const VectorXr& rhs,
     const std::map<int, real>& additional_dirichlet_boundary_condition, const bool use_acc) const {
-    CheckError(method == "pd_eigen" || method == "pd_pardiso", "Invalid PD method: " + method);
+    CheckError(BeginsWith(method, "pd_eigen") || BeginsWith(method, "pd_pardiso"), "Invalid PD method: " + method);
 
     const int vertex_num = mesh_.NumOfVertices();
     const Eigen::Matrix<real, vertex_dim, -1> rhs_reshape = Eigen::Map<
@@ -589,10 +607,10 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdLhsSolve(const std::string
     for (int j = 0; j < vertex_dim; ++j) rhs_reshape_rows[j] = rhs_reshape.row(j);
     #pragma omp parallel for
     for (int j = 0; j < vertex_dim; ++j) {
-        if (method == "pd_eigen") {
+        if (BeginsWith(method, "pd_eigen")) {
             sol_rows[j] = pd_eigen_solver_[j].solve(rhs_reshape_rows[j]);
             CheckError(pd_eigen_solver_[j].info() == Eigen::Success, "Cholesky solver failed.");
-        } else if (method == "pd_pardiso") {
+        } else if (BeginsWith(method, "pd_pardiso")) {
             sol_rows[j] = pd_pardiso_solver_[j].Solve(rhs_reshape_rows[j]);
         }
     }
@@ -699,8 +717,8 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdLhsSolve(const std::string
             for (const auto& pair_col : frozen_nodes) {
                 VectorXr ej = VectorXr::Zero(vertex_num);
                 ej(pair_col.first) = 1;
-                if (method == "pd_eigen") B1.col(col_cnt) = pd_eigen_solver_[d].solve(ej);
-                else if (method == "pd_pardiso") B1.col(col_cnt) = pd_pardiso_solver_[d].Solve(ej);
+                if (BeginsWith(method, "pd_eigen")) B1.col(col_cnt) = pd_eigen_solver_[d].solve(ej);
+                else if (BeginsWith(method, "pd_pardiso")) B1.col(col_cnt) = pd_pardiso_solver_[d].Solve(ej);
                 // Equivalent code in use_acc:
                 // B1.col(col_cnt) = AinvIc_[d].col(frictional_boundary_vertex_indices_.at(pair_col.first));
                 ++col_cnt;
