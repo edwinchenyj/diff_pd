@@ -2,6 +2,7 @@
 #include "fem/gravitational_state_force.h"
 #include "fem/planar_collision_state_force.h"
 #include "fem/hydrodynamics_state_force.h"
+#include "fem/billiard_ball_state_force.h"
 
 // Add state-based forces.
 template<int vertex_dim, int element_dim>
@@ -46,6 +47,14 @@ void Deformable<vertex_dim, element_dim>::AddStateForce(const std::string& force
                 surface_faces(j, i) = static_cast<int>(params[1 + vertex_dim + 8 * 2 + i * face_dim + j]);
         auto force = std::make_shared<HydrodynamicsStateForce<vertex_dim, element_dim>>();
         force->Initialize(rho, v_water, Cd_points, Ct_points, surface_faces);
+        state_forces_.push_back(force);
+    } else if (force_type == "billiard_ball") {
+        CheckError(param_size == 3, "Inconsistent params for BilliardBallStateForce.");
+        const real radius = params[0];
+        const int single_ball_vertex_num = static_cast<int>(params[1]);
+        const real stiffness = params[2];
+        auto force = std::make_shared<BilliardBallStateForce<vertex_dim>>();
+        force->Initialize(radius, single_ball_vertex_num, stiffness);
         state_forces_.push_back(force);
     } else {
         PrintError("Unsupported state force type: " + force_type);

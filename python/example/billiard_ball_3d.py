@@ -30,8 +30,8 @@ if __name__ == '__main__':
 
     # Build the environment.
     env = BilliardBallEnv3d(folder, {
-        'init_positions': [[0, 0, 0], [0.05, 0.05, 0]],
-        'init_angular_velocities': [[-5, 0, 0], [0, -5, 0]],
+        'init_positions': [[0, 0, 0], [0.05, 0.05, 0], [0.03, 0.12, 0]],
+        'init_angular_velocities': [[-5, 0, 0], [0, -5, 0], [0, 0, 0]],
     })
     deformable = env.deformable()
     # Initial state.
