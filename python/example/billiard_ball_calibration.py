@@ -350,7 +350,7 @@ if __name__ == '__main__':
         img_flag = np.logical_and(img_flag, np.sqrt(np.sum((img) ** 2, axis=2)) > 0.3)
 
         # Use k-means clustering to figure out the ball location (we only need the center.)
-        pixels = ndarray([(i, j) for i in range(img_height) for j in range(img_width) if img_flag[i, j]])
+        pixels = ndarray([(j, i) for i in range(img_height) for j in range(img_width) if img_flag[i, j]])
         centroid, label = kmeans2(pixels, num_balls, minit='points')
         assert centroid.shape == (num_balls, 2)
         assert label.shape == (pixels.shape[0],)
@@ -367,7 +367,7 @@ if __name__ == '__main__':
             centroid = new_centroid
         for c, cl in zip(centroid, num_ball_colors):
             ci, cj = int(c[0]), int(c[1])
-            img[ci - 3 : ci + 4, cj - 3 : cj + 4] = cl
+            img[cj - 3 : cj + 4, ci - 3 : ci + 4] = cl
 
         # Write filtered images.
         img_filtered = np.copy(img) * ndarray(img_flag)[:, :, None]
@@ -409,7 +409,7 @@ if __name__ == '__main__':
     for i in range(num_balls):
         p = [pos[i] for _, pos in ball_xy_positions]
         p = ndarray(p)
-        ax.plot(p[:, 0], p[:, 1], label='ball_{:d}'.format(i + 1))
+        ax.plot(p[:, 0], p[:, 1], label='ball_{:d}'.format(i + 1), color=num_ball_colors[i])
     ax.legend()
     ax.set_aspect('equal')
     ax.set_xlim([0, 1.1])
@@ -417,3 +417,5 @@ if __name__ == '__main__':
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     plt.show()
+    # Save the position data.
+    pickle.dump(ball_xy_positions, open(experiment_folder / 'ball_xy_positions.data', 'wb'))
