@@ -8,6 +8,7 @@ import numpy as np
 from py_diff_pd.core.py_diff_pd_core import QuadDeformable, QuadMesh2d, StdRealVector
 from py_diff_pd.core.py_diff_pd_core import StdRealVector, StdRealArray2d
 from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce2d, PlanarCollisionStateForce2d, QuadHydrodynamicsStateForce
+from py_diff_pd.core.py_diff_pd_core import BilliardBallStateForce2d
 from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.common import print_info, print_error, print_ok
 from py_diff_pd.common.quad_mesh import generate_rectangle_mesh, get_boundary_edge
@@ -104,6 +105,32 @@ def test_state_force_2d(verbose):
             if verbose:
                 print_error('StateForce2d gradients mismatch.')
             return False
+
+    # Test billiard.
+    billiard = BilliardBallStateForce2d()
+    single_ball_vertex_num = 16
+    radius = 0.1
+    stiffness = 1e1
+    billiard.Initialize(radius, single_ball_vertex_num, stiffness)
+    # Generate q0 and v0.
+    ball_num = 3
+    billiard_dofs = 2 * single_ball_vertex_num * ball_num
+    single_ball_q = [(np.cos(i * np.pi * 2 / single_ball_vertex_num) * radius,
+        np.sin(i * np.pi * 2 / single_ball_vertex_num) * radius) for i in range(single_ball_vertex_num)]
+    single_ball_q = ndarray(single_ball_q)
+    billiard_q0 = np.vstack([
+        single_ball_q,
+        single_ball_q + ndarray([1.9 * radius, 0]),
+        single_ball_q + ndarray([0, 1.9 * radius])
+    ]).ravel()
+    billiard_v0 = np.random.normal(size=billiard_dofs, scale=0.05)
+    billiard_weight = np.random.normal(size=billiard_dofs)
+    def l_and_g(x):
+        return loss_and_grad(x, billiard_weight, billiard, billiard_dofs)
+    if not check_gradients(l_and_g, np.concatenate([billiard_q0, billiard_v0]), eps, rtol, atol, verbose):
+        if verbose:
+            print_error('BilliardBallStateForce gradients mismatch.')
+        return False
 
     # Test it in Deformable.
     def forward_and_backward(qv):

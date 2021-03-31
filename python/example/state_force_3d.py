@@ -8,6 +8,7 @@ import numpy as np
 from py_diff_pd.core.py_diff_pd_core import HexDeformable, HexMesh3d, StdRealVector
 from py_diff_pd.core.py_diff_pd_core import StdRealVector, StdRealArray3d
 from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce3d, PlanarCollisionStateForce3d, HexHydrodynamicsStateForce
+from py_diff_pd.core.py_diff_pd_core import BilliardBallStateForce3d
 from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.common import print_info, print_ok, print_error
 from py_diff_pd.common.hex_mesh import generate_hex_mesh, get_boundary_face
@@ -84,6 +85,32 @@ def test_state_force_3d(verbose):
         if not check_gradients(l_and_g, np.concatenate([q0, v0]), eps, rtol, atol, verbose):
             print_error('StateForce3d gradients mismatch.')
             return False
+
+    # Test billiard.
+    billiard = BilliardBallStateForce3d()
+    single_ball_vertex_num = 16
+    radius = 0.1
+    stiffness = 1e1
+    billiard.Initialize(radius, single_ball_vertex_num, stiffness)
+    # Generate q0 and v0.
+    ball_num = 3
+    billiard_dofs = 2 * single_ball_vertex_num * ball_num
+    single_ball_q = [(np.cos(i * np.pi * 2 / single_ball_vertex_num) * radius,
+        np.sin(i * np.pi * 2 / single_ball_vertex_num) * radius, 0) for i in range(single_ball_vertex_num)]
+    single_ball_q = ndarray(single_ball_q)
+    billiard_q0 = np.vstack([
+        single_ball_q,
+        single_ball_q + ndarray([1.9 * radius, 0, 0]),
+        single_ball_q + ndarray([0, 1.9 * radius, 0])
+    ]).ravel()
+    billiard_v0 = np.random.normal(size=billiard_dofs, scale=0.05)
+    billiard_weight = np.random.normal(size=billiard_dofs)
+    def l_and_g(x):
+        return loss_and_grad(x, billiard_weight, billiard, billiard_dofs)
+    if not check_gradients(l_and_g, np.concatenate([billiard_q0, billiard_v0]), eps, rtol, atol, verbose):
+        if verbose:
+            print_error('BilliardBallStateForce gradients mismatch.')
+        return False
 
     # Test it in Deformable.
     def forward_and_backward(qv):
