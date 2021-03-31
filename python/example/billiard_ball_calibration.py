@@ -29,6 +29,16 @@ def extract_intrinsic_parameters(K):
     beta = K[1, 1] * np.sin(theta)
     return { 'alpha': alpha, 'beta': beta, 'theta': theta, 'cx': cx, 'cy': cy }
 
+def assemble_intrinsic_parameters(alpha, beta, theta, cx, cy):
+    K = np.zeros((3, 3))
+    K[0, 0] = alpha
+    K[0, 1] = -alpha / np.tan(theta)
+    K[0, 2] = cx
+    K[1, 1] = beta / np.sin(theta)
+    K[1, 2] = cy
+    K[2, 2] = 1
+    return ndarray(K).copy()
+
 def solve_camera(points_in_pixel, points_in_world):
     # This is a better reference: https://web.stanford.edu/class/cs231a/course_notes/01-camera-models.pdf
     #
@@ -279,35 +289,44 @@ if __name__ == '__main__':
         info['pts_world'] = ndarray(coordinates).copy()
         # Save data.
         pickle.dump(info, open(f, 'wb'))
+    else:
+        info_loaded = pickle.load(open(f, 'rb'))
+        pixels = info_loaded['pts_pixel']
+        coordinates = info_loaded['pts_world']
+        info = {}
+        info['pts_pixel'] = ndarray(pixels).copy()
+        info['pts_world'] = ndarray(coordinates).copy()
 
-        # The pixel space in matplotlib is different from the pixel space in the calibration algorithm.
-        camera_info = solve_camera(pxl_to_cal(pixels), coordinates)
-        K = camera_info['K']
-        R = camera_info['R']
-        T = camera_info['T']
-        print('Camera information: alpha: {:2.2f}, beta: {:2.2f}, theta: {:2.2f}, cx: {:4.1f}, cy: {:4.1f}'.format(
-            camera_info['alpha'], camera_info['beta'], np.rad2deg(camera_info['theta']), camera_info['cx'], camera_info['cy']
-        ))
-
-        # Now R and t are the orientation and location of the world frame in the camera space.
-        # Verification:
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.imshow(img)
-        # Now plot the predicted object location.
-        points_predicted_camera = (coordinates @ R.T + T) @ K.T
-        points_predicted_calib = points_predicted_camera[:, :2] / points_predicted_camera[:, 2][:, None]
-        points_predicted_pixl = cal_to_pxl(points_predicted_calib)
-        ax.plot(points_predicted_pixl[:, 0], points_predicted_pixl[:, 1], 'y+')
-        plt.show()
-        fig.savefig(experiment_folder / '0001.png')
-        plt.close('all')
-        for k, v in camera_info.items():
-            info[k] = v
-        # Save data.
-        pickle.dump(info, open(f, 'wb'))
-        print('Data saved to', f)
-
+    # The pixel space in matplotlib is different from the pixel space in the calibration algorithm.
+    camera_info = solve_camera(pxl_to_cal(pixels), coordinates)
+    K = camera_info['K']
+    R = camera_info['R']
+    T = camera_info['T']
+    alpha = camera_info['alpha']
+    beta = camera_info['beta']
+    cx = camera_info['cx']
+    cy = camera_info['cy']
+    print('Camera information: alpha: {:2.2f}, beta: {:2.2f}, theta: {:2.2f}, cx: {:4.1f}, cy: {:4.1f}'.format(
+        camera_info['alpha'], camera_info['beta'], np.rad2deg(camera_info['theta']), camera_info['cx'], camera_info['cy']
+    ))
+    # Now R and t are the orientation and location of the world frame in the camera space.
+    # Verification:
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.imshow(img)
+    # Now plot the predicted object location.
+    points_predicted_camera = (coordinates @ R.T + T) @ K.T
+    points_predicted_calib = points_predicted_camera[:, :2] / points_predicted_camera[:, 2][:, None]
+    points_predicted_pixl = cal_to_pxl(points_predicted_calib)
+    ax.plot(points_predicted_pixl[:, 0], points_predicted_pixl[:, 1], 'y+')
+    plt.show()
+    fig.savefig(experiment_folder / '0001.png')
+    plt.close('all')
+    for k, v in camera_info.items():
+        info[k] = v
+    # Save data.
+    pickle.dump(info, open(f, 'wb'))
+    print('Data saved to', f)
 
     # Step 2.2: filter out the billiard ball positions.
     # The following start and end frames are chosen manually by looking at each frame.
@@ -316,9 +335,12 @@ if __name__ == '__main__':
     x_range = [290, 950]
     y_range = [32, 270]
     ball_rgb = ndarray([150, 150, 20]) / 255
-    for i in range(start_frame, end_frame):
+    num_balls = 2
+    num_ball_colors = np.random.rand(num_balls, 3)
+    for idx in range(start_frame, end_frame):
+        if (experiment_folder / '{:04d}_centroid.data'.format(idx)).is_file(): continue
         # Load images.
-        img = load_image(experiment_video_data_folder / '{:04d}.png'.format(i))
+        img = load_image(experiment_video_data_folder / '{:04d}.png'.format(idx))
 
         # Extract the billiard balls.
         img_flag = np.full((img_height, img_width), False)
@@ -329,18 +351,69 @@ if __name__ == '__main__':
 
         # Use k-means clustering to figure out the ball location (we only need the center.)
         pixels = ndarray([(i, j) for i in range(img_height) for j in range(img_width) if img_flag[i, j]])
-        num_balls = 2
         centroid, label = kmeans2(pixels, num_balls, minit='points')
         assert centroid.shape == (num_balls, 2)
         assert label.shape == (pixels.shape[0],)
 
-        for c in centroid:
+        # Remap centroids so that it is consistent with the last frame.
+        if idx > start_frame:
+            last_centroid = pickle.load(open(experiment_folder / '{:04d}_centroid.data'.format(idx - 1), 'rb'))
+            new_idx = []
+            new_centroid = np.zeros(centroid.shape)
+            for c in centroid:
+                new_j = np.argmin(np.sum((last_centroid - c) ** 2, axis=1))
+                # c should be placed at centroid[new_j]
+                new_centroid[new_j] = c
+            centroid = new_centroid
+        for c, cl in zip(centroid, num_ball_colors):
             ci, cj = int(c[0]), int(c[1])
-            img[ci - 3 : ci + 4, cj - 3 : cj + 4] = (1, 0, 0)
+            img[ci - 3 : ci + 4, cj - 3 : cj + 4] = cl
 
         # Write filtered images.
         img_filtered = np.copy(img) * ndarray(img_flag)[:, :, None]
-        plt.imsave(experiment_folder / '{:04d}_filtered.png'.format(i), img_filtered)
+        plt.imsave(experiment_folder / '{:04d}_filtered.png'.format(idx), img_filtered)
 
         # Save data.
-        pickle.dump(centroid, open(experiment_folder / '{:04d}_centroid.data'.format(i), 'wb'))
+        pickle.dump(centroid, open(experiment_folder / '{:04d}_centroid.data'.format(idx), 'wb'))
+
+    # Step 2.3: reconstruct the 3D motion of the two billiard balls.
+    ball_xy_positions = []
+    ball_radius = 0.06858 / 2   # In meters and from measurement/googling the diameter of a tennis ball.
+    for i in range(start_frame, end_frame):
+        centroid = pickle.load(open(experiment_folder / '{:04d}_centroid.data'.format(i), 'rb'))
+        positions = []
+        assert len(centroid) == num_balls
+        centroid = pxl_to_cal(centroid)
+        for c in centroid:
+            # K @ (R @ loc + T) = rho * [centroid, 1]
+            # Now that we know loc[2] = ball_radius, we have 3 equations and 3 unknowns.
+            # KR[:, :2] @ loc[:2] + KR[:, 2] @ loc[2] - [centroid, 1] * rho = -KT.
+            # The sign of rho does not matter...
+            # KR[:, :2] @ loc[:2] + [centroid, 1] * rho = -KT - KR[:, 2] @ loc[2].
+            A = np.zeros((3, 3))
+            A[:, :2] = K @ R[:, :2]
+            A[:2, 2] = c
+            A[2, 2] = 1
+            b = -K @ T - K @ R[:, 2] * ball_radius
+            x = np.linalg.inv(A) @ b
+            pos = ndarray([x[0], x[1], ball_radius])
+            # Sanity check.
+            predicted = K @ (R @ pos + T)
+            predicted = predicted[:2] / predicted[2]
+            assert np.allclose(predicted, c)
+            positions.append(pos)
+        ball_xy_positions.append(('{:04d}'.format(i), ndarray(positions).copy()))
+    # Plot them in 2D.
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    for i in range(num_balls):
+        p = [pos[i] for _, pos in ball_xy_positions]
+        p = ndarray(p)
+        ax.plot(p[:, 0], p[:, 1], label='ball_{:d}'.format(i + 1))
+    ax.legend()
+    ax.set_aspect('equal')
+    ax.set_xlim([0, 1.1])
+    ax.set_ylim([0, 0.67])
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    plt.show()
