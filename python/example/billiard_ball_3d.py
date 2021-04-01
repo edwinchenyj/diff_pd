@@ -6,6 +6,7 @@ import time
 import numpy as np
 import scipy.optimize
 import pickle
+import matplotlib.pyplot as plt
 
 from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.common import print_info, print_ok, print_error, print_warning
@@ -34,7 +35,9 @@ if __name__ == '__main__':
     ball_radius = 0.06858 / 2   # In meters and from measurement/googling the diameter of a tennis ball.
     experiment_data_folder = Path(root_path) / 'python/example/billiard_ball_calibration/experiment'
     ball_xy_positions = pickle.load(open(experiment_data_folder / 'ball_xy_positions.data', 'rb'))
-    frame_num = (len(ball_xy_positions) - 1) * substeps
+    active_frame = np.min([(len(ball_xy_positions) - 1), 50])
+    ball_xy_positions = ball_xy_positions[:active_frame + 1]
+    frame_num = active_frame * substeps
     # Unlike in calibration, the height is set to be 0 here.
     ball_0_positions = [(pos[0, 0], pos[0, 1], 0) for _, pos in ball_xy_positions]
     ball_1_positions = [(pos[1, 0], pos[1, 1], 0) for _, pos in ball_xy_positions]
@@ -163,25 +166,54 @@ if __name__ == '__main__':
         info = get_init_state(x_init)
         e_init = info['env']
         v_init = info['v0']
-        e_init.simulate(dt, frame_num, pd_method, pd_opt, q0, v_init, a0, f0, require_grad=False, vis_folder='init', render_frame_skip=substeps)
+        _, info = e_init.simulate(dt, frame_num, pd_method, pd_opt, q0, v_init, a0, f0, require_grad=False, vis_folder='init',
+            render_frame_skip=substeps)
+        pickle.dump(info, open(folder / 'init/info.data', 'wb'))
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        q = info['q']
+        traj = ndarray([np.mean(qi.reshape((2, -1, 3)), axis=1) for qi in q])
+        ax.plot(traj[:, 0, 0], traj[:, 0, 1], 'r+', label='ball_0_sim')
+        ax.plot(traj[:, 1, 0], traj[:, 1, 1], 'b+', label='ball_1_sim')
+        ax.plot(ball_0_positions[:, 0], ball_0_positions[:, 1], 'tab:red', label='ball_0_real')
+        ax.plot(ball_1_positions[:, 0], ball_1_positions[:, 1], 'tab:blue', label='ball_1_real')
+        ax.legend()
+        plt.show()
+        fig.savefig(folder / 'init/compare.png')
 
     # Optimization.
     t0 = time.time()
     def callback(xk):
         print_info('Another iteration is finished.')
     result = scipy.optimize.minimize(loss_and_grad, np.copy(x_init),
-        method='L-BFGS-B', jac=True, bounds=bounds, options={ 'ftol': 1e-3, 'maxfun': 40, 'maxiter': 10,
-            'maxls': 5 }, callback=callback)
+        method='L-BFGS-B', jac=True, bounds=bounds, options={ 'ftol': 1e-3, 'maxfun': 40, 'maxiter': 10 }, callback=callback)
     t1 = time.time()
     if not result.success:
         print_warning('Optimization is not successful. Using the last iteration results.')
-    x_final = result.x
+        idx = np.argmin([d['loss'] for d in data])
+        print_warning('Using loss =', data[idx]['loss'])
+        x_final = data[idx]['x']
+    else:
+        x_final = result.x
     print_info('Optimizing with {} finished in {:6.3f} seconds'.format(pd_method, t1 - t0))
     pickle.dump(data, open(folder / 'data_{:04d}_threads.bin'.format(thread_ct), 'wb'))
 
     # Visualize the final results.
-    if not (folder / 'pd_eigen/0000.png').is_file():
+    if not (folder / pd_method / '0000.png').is_file():
         info = get_init_state(x_final)
-        e_final = info['env']
-        v_final = info['v0']
-        e_final.simulate(dt, frame_num, pd_method, pd_opt, q0, v_final, a0, f0, require_grad=False, vis_folder='pd_eigen', render_frame_skip=substeps)
+        e_init = info['env']
+        v_init = info['v0']
+        _, info = e_init.simulate(dt, frame_num, pd_method, pd_opt, q0, v_init, a0, f0, require_grad=False, vis_folder=pd_method,
+            render_frame_skip=substeps)
+        pickle.dump(info, open(folder / pd_method / 'info.data', 'wb'))
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        q = info['q']
+        traj = ndarray([np.mean(qi.reshape((2, -1, 3)), axis=1) for qi in q])
+        ax.plot(traj[:, 0, 0], traj[:, 0, 1], 'r+', label='ball_0_sim')
+        ax.plot(traj[:, 1, 0], traj[:, 1, 1], 'b+', label='ball_1_sim')
+        ax.plot(ball_0_positions[:, 0], ball_0_positions[:, 1], 'tab:red', label='ball_0_real')
+        ax.plot(ball_1_positions[:, 0], ball_1_positions[:, 1], 'tab:blue', label='ball_1_real')
+        ax.legend()
+        plt.show()
+        fig.savefig(folder / pd_method / 'compare.png')
