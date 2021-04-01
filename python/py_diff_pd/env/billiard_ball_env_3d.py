@@ -86,6 +86,23 @@ class BilliardBallEnv3d(EnvBase):
             all_velocities.append(verts @ W.T)
             all_center_indices.append(num_ball_vertices * i + center_idx)
             all_friction_node_indices += [idx + num_ball_vertices * i for idx in friction_node_idx]
+        # Compute gradients.
+        dWx = ndarray([
+            [0, 0, 0],
+            [0, 0, -1],
+            [0, 1, 0]
+        ])
+        dWy = ndarray([
+            [0, 0, 1],
+            [0, 0, 0],
+            [-1, 0, 0]
+        ])
+        dWz = ndarray([
+            [0, -1, 0],
+            [1, 0, 0],
+            [0, 0, 0]
+        ])
+        self.__grad_v_grad_w = ndarray([(verts @ dW.T).ravel() for dW in [dWx, dWy, dWz]]).T
 
         all_verts = np.vstack(all_verts)
         all_eles = np.vstack(all_eles)
@@ -102,15 +119,16 @@ class BilliardBallEnv3d(EnvBase):
         deformable.AddPdEnergy('volume', [la,], [])
         # State-based forces.
         deformable.AddStateForce('gravity', [0, 0, -9.81])
-        stiffness = 1e1
+        stiffness = 1e3
         deformable.AddStateForce('billiard_ball', [radius, num_ball_vertices, stiffness])
 
         # Friction_node_idx = all vertices on the edge.
         deformable.SetFrictionalBoundary('planar', [0.0, 0.0, 1.0, radius], all_friction_node_indices)
 
+        # Uncomment it if you prefer having Dirichlet boundary conditions.
         # Dirichlet boundary conditions: the z axis for the central point should be fixed.
-        for c in all_center_indices:
-            deformable.SetDirichletBoundaryCondition(3 * int(c) + 2, 0.0)
+        # for c in all_center_indices:
+        #     deformable.SetDirichletBoundaryCondition(3 * int(c) + 2, 0.0)
 
         # Initial states.
         dofs = deformable.dofs()
@@ -130,6 +148,14 @@ class BilliardBallEnv3d(EnvBase):
 
         self.__spp = options['spp'] if 'spp' in options else 4
         self.__center_idx = center_idx
+        self.__reference_positions = ndarray(options['reference_positions']).copy()
+        self.__substeps = int(options['substeps'])
+
+    def backprop_init_velocities(self, dl_dv):
+        # Input: dl_dv.
+        # Output: dl_domega.
+        dl_dv_reshaped = dl_dv.reshape((self.__num_balls, -1))
+        return ndarray(dl_dv_reshaped @ self.__grad_v_grad_w).ravel()
 
     def material_stiffness_differential(self, youngs_modulus, poissons_ratio):
         jac = self._material_jacobian(youngs_modulus, poissons_ratio)
@@ -147,8 +173,8 @@ class BilliardBallEnv3d(EnvBase):
             'light_map': 'uffizi-large.exr',
             'sample': self._spp,
             'max_depth': 2,
-            'camera_pos': ndarray([0, 0.001, 1]),
-            'camera_lookat': ndarray([0, 0, 0]),
+            'camera_pos': ndarray([0.55, 0.34, 1]),
+            'camera_lookat': ndarray([0.55, 0.33, 0]),
             'camera_up': ndarray([0, 1, 0]),
             'resolution': (800, 600),
             'fov': 30,
@@ -161,12 +187,22 @@ class BilliardBallEnv3d(EnvBase):
         tet2obj(mesh, obj_file_name=self._folder / '.tmp.obj')
         renderer.add_tri_mesh(self._folder / '.tmp.obj', color=[.1, .7, .2], render_tet_edge=True)
         renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj',
-            texture_img='chkbd_24_0.7', transforms=[('t', (0, 0, -self.__radius))])
+            texture_img='chkbd_24_0.7', transforms=[('t', (0.55, 0.33, -self.__radius))])
 
         renderer.render()
 
         os.remove(self._folder / '.tmp.obj')
 
     def _stepwise_loss_and_grad(self, q, v, i):
-        # TODO.
-        return 0, np.zeros(q.size), np.zeros(v.size)
+        if i % self.__substeps != 0:
+            return 0, ndarray(np.zeros(q.size)), ndarray(np.zeros(v.size))
+        reference_positions = ndarray([p[int(i // self.__substeps)] for p in self.__reference_positions]).copy()
+        offset = np.mean(q.reshape((self.__num_balls, self.__num_ball_vertices, 3)), axis=1) - reference_positions
+        loss = 0.5 * np.sum(offset ** 2)
+        grad_q = np.zeros((self.__num_balls, self.__num_ball_vertices, 3))
+        for b in range(self.__num_balls):
+            contribution = offset[b] / self.__num_ball_vertices
+            grad_q[b] += contribution
+        grad_q = ndarray(grad_q).ravel()
+        grad_v = ndarray(np.zeros(v.size))
+        return loss, grad_q, grad_v
