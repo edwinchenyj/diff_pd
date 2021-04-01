@@ -120,7 +120,8 @@ class BilliardBallEnv3d(EnvBase):
         # State-based forces.
         deformable.AddStateForce('gravity', [0, 0, -9.81])
         stiffness = 3e2
-        deformable.AddStateForce('billiard_ball', [radius, num_ball_vertices, stiffness])
+        coeff = 0.2
+        deformable.AddStateForce('billiard_ball', [radius, num_ball_vertices, stiffness, coeff])
 
         # Friction_node_idx = all vertices on the edge.
         deformable.SetFrictionalBoundary('planar', [0.0, 0.0, 1.0, radius], all_friction_node_indices)

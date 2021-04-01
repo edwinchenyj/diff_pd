@@ -111,7 +111,8 @@ def test_state_force_2d(verbose):
     single_ball_vertex_num = 16
     radius = 0.1
     stiffness = 1e1
-    billiard.Initialize(radius, single_ball_vertex_num, stiffness)
+    coeff = 0.2
+    billiard.Initialize(radius, single_ball_vertex_num, stiffness, coeff)
     # Generate q0 and v0.
     ball_num = 3
     billiard_dofs = 2 * single_ball_vertex_num * ball_num

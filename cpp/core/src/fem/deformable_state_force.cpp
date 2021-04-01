@@ -49,12 +49,13 @@ void Deformable<vertex_dim, element_dim>::AddStateForce(const std::string& force
         force->Initialize(rho, v_water, Cd_points, Ct_points, surface_faces);
         state_forces_.push_back(force);
     } else if (force_type == "billiard_ball") {
-        CheckError(param_size == 3, "Inconsistent params for BilliardBallStateForce.");
+        CheckError(param_size == 4, "Inconsistent params for BilliardBallStateForce.");
         const real radius = params[0];
         const int single_ball_vertex_num = static_cast<int>(params[1]);
         const real stiffness = params[2];
+        const real frictional_coeff = params[3];
         auto force = std::make_shared<BilliardBallStateForce<vertex_dim>>();
-        force->Initialize(radius, single_ball_vertex_num, stiffness);
+        force->Initialize(radius, single_ball_vertex_num, stiffness, frictional_coeff);
         state_forces_.push_back(force);
     } else {
         PrintError("Unsupported state force type: " + force_type);
