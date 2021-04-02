@@ -15,26 +15,30 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
     const int thread_ct = static_cast<int>(options.at("thread_ct"));
     omp_set_num_threads(thread_ct);
 
-    // I + h2m * w_i * S'A'AS + h2m * w_i + h2m * w_i * S'A'M'MAS.
+    // inv_h2m + w_i * S'A'AS + w_i * S'A'M'MAS.
     // Assemble and pre-factorize the left-hand-side matrix.
     const int element_num = mesh_.NumOfElements();
     const int sample_num = GetNumOfSamplesInElement();
     const int vertex_num = mesh_.NumOfVertices();
     const real mass = density_ * element_volume_;
     const real h2m = dt * dt / mass;
+    const real inv_h2m = mass / (dt * dt);
     std::array<SparseMatrixElements, vertex_dim> nonzeros;
-    // Part I: Add I.
+    // Part I: Add inv_h2m.
     #pragma omp parallel for
     for (int k = 0; k < vertex_dim; ++k) {
-        for (int i = 0; i < vertex_num; ++i)
-            nonzeros[k].push_back(Eigen::Triplet<real>(i, i, 1));
+        for (int i = 0; i < vertex_num; ++i) {
+            const int dof = i * vertex_dim + k;
+            if (dirichlet_.find(dof) != dirichlet_.end())
+                nonzeros[k].push_back(Eigen::Triplet<real>(i, i, 1));
+            else
+                nonzeros[k].push_back(Eigen::Triplet<real>(i, i, inv_h2m));
+        }
     }
 
-    // Part II: PD element energy: h2m * w_i * S'A'AS.
+    // Part II: PD element energy: w_i * S'A'AS.
     real w = 0;
     for (const auto& energy : pd_element_energies_) w += energy->stiffness();
-    w *= element_volume_ / sample_num;
-    const real h2mw = h2m * w;
     // For each element and for each sample, AS maps q to the deformation gradient F.
     for (int i = 0; i < element_num; ++i) {
         const Eigen::Matrix<int, element_dim, 1> vi = mesh_.element(i);
@@ -43,12 +47,12 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
             for (int k = 0; k < vertex_dim; ++k)
                 remap_idx[j * vertex_dim + k] = vertex_dim * vi[j] + k;
         for (int j = 0; j < sample_num; ++j) {
-            // Add h2mw * SAAS to nonzeros.
+            // Add w * SAAS to nonzeros.
             const SparseMatrixElements pd_AtA_nonzeros = FromSparseMatrix(finite_element_samples_[i][j].pd_AtA());
             for (const auto& triplet: pd_AtA_nonzeros) {
                 const int row = triplet.row();
                 const int col = triplet.col();
-                const real val = triplet.value() * h2mw;
+                const real val = triplet.value() * w * element_volume_ / sample_num;
                 // Skip dofs that are fixed by dirichlet boundary conditions.
                 if (dirichlet_.find(remap_idx[row]) == dirichlet_.end() &&
                     dirichlet_.find(remap_idx[col]) == dirichlet_.end()) {
@@ -61,24 +65,22 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
         }
     }
 
-    // PdVertexEnergy terms: h2m * w_i.
+    // PdVertexEnergy terms: w_i.
     for (const auto& pair : pd_vertex_energies_) {
         const auto& energy = pair.first;
         const real stiffness = energy->stiffness();
-        const real h2mw = h2m * stiffness;
         for (const int idx : pair.second)
             for (int k = 0; k < vertex_dim; ++k) {
                 CheckError(dirichlet_.find(vertex_dim * idx + k) == dirichlet_.end(),
                     "A DoF is set by both vertex energy and boundary conditions.");
-                nonzeros[k].push_back(Eigen::Triplet<real>(idx, idx, h2mw));
+                nonzeros[k].push_back(Eigen::Triplet<real>(idx, idx, stiffness));
             }
     }
 
-    // PdMuscleEnergy terms: h2m * w_i * S'A'M'MAS.
+    // PdMuscleEnergy terms: w_i * S'A'M'MAS.
     for (const auto& pair : pd_muscle_energies_) {
         const auto& energy = pair.first;
         const auto& MtM = energy->MtM();
-        const real h2mw = h2m * energy->stiffness() * element_volume_ / sample_num;
         for (const int i : pair.second) {
             std::vector<SparseMatrixElements> AtMtMA(sample_num);
             for (int j = 0; j < sample_num; ++j)
@@ -86,6 +88,7 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
                     finite_element_samples_[i][j].pd_At() * MtM * finite_element_samples_[i][j].pd_A()
                 );
             const Eigen::Matrix<int, element_dim, 1> vi = mesh_.element(i);
+            const real w = energy->stiffness() * element_volume_ / sample_num;
             std::array<int, vertex_dim * element_dim> remap_idx;
             for (int j = 0; j < element_dim; ++j)
                 for (int k = 0; k < vertex_dim; ++k)
@@ -94,7 +97,7 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
                 for (const auto& triplet: AtMtMA[j]) {
                     const int row = triplet.row();
                     const int col = triplet.col();
-                    const real val = triplet.value() * h2mw;
+                    const real val = triplet.value() * w;
                     // Skip dofs that are fixed by dirichlet boundary conditions.
                     if (dirichlet_.find(remap_idx[row]) == dirichlet_.end() &&
                         dirichlet_.find(remap_idx[col]) == dirichlet_.end()) {
@@ -174,10 +177,10 @@ const VectorXr Deformable<vertex_dim, element_dim>::ProjectiveDynamicsLocalStep(
     // Project PdElementEnergy.
     const int element_num = mesh_.NumOfElements();
     for (const auto& energy : pd_element_energies_) {
-        const real w = energy->stiffness() * element_volume_ / sample_num;
         #pragma omp parallel for
         for (int i = 0; i < element_num; ++i) {
             const Eigen::Matrix<int, element_dim, 1> vi = mesh_.element(i);
+            const real w = energy->stiffness() * element_volume_ / sample_num;
             const auto deformed = ScatterToElementFlattened(q_cur, i);
             const auto deformed_dirichlet = ScatterToElementFlattened(q_boundary, i);
             for (int j = 0; j < sample_num; ++j) {
@@ -201,7 +204,6 @@ const VectorXr Deformable<vertex_dim, element_dim>::ProjectiveDynamicsLocalStep(
     int act_idx = 0;
     for (const auto& pair : pd_muscle_energies_) {
         const auto& energy = pair.first;
-        const real wi = energy->stiffness() * element_volume_ / sample_num;
         const auto& MtM = energy->MtM();
         const auto& Mt = energy->Mt();
         const int element_cnt = static_cast<int>(pair.second.size());
@@ -209,6 +211,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::ProjectiveDynamicsLocalStep(
         for (int ei = 0; ei < element_cnt; ++ei) {
             const int i = pair.second[ei];
             const Eigen::Matrix<int, element_dim, 1> vi = mesh_.element(i);
+            const real wi = energy->stiffness() * element_volume_ / sample_num;
             const auto deformed = ScatterToElementFlattened(q_cur, i);
             const auto deformed_dirichlet = ScatterToElementFlattened(q_boundary, i);
             for (int j = 0; j < sample_num; ++j) {
@@ -250,7 +253,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::ProjectiveDynamicsLocalStep(
 
 template<int vertex_dim, int element_dim>
 const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::string& method,
-    const VectorXr& q_init, const VectorXr& a, const real h2m, const VectorXr& rhs,
+    const VectorXr& q_init, const VectorXr& a, const real inv_h2m, const VectorXr& rhs,
     const std::map<int, real>& additional_dirichlet, const std::map<std::string, real>& options) const {
     // The goal of this function is to find q_sol so that:
     // q_sol_fixed = additional_dirichlet \/ dirichlet_.
@@ -300,14 +303,24 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
     }
     ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol);
     VectorXr force_sol = PdEnergyForce(q_sol, true) + ActuationForce(q_sol, a);
-    // We aim to minimize the following energy:
-    // 0.5 * q_next^2 + h2m * (E_pd(q_next) + E_act(q_next, a)) - rhs * q_next.
+    // We aim to use Newton's method to minimize the following energy:
+    // 0.5 / (h2) * (q_next - rhs) * M * (q_next - rhs) + (E_pd + E_act).
+    // The gradient of this energy:
+    // M / h2 * (q_next - rhs) - elastic_force.
+    // When the gradient = 0, it solves the implicit time-stepping scheme (q_next = rhs + h2m * elastic_force).
+    // Our situation is a bit more complicated: we want to fix some q_next to certain values.
+    // Therefore, what we actually aim to solve is:
+    // M / h2 * (q_next - rhs) = elastic_force for those FREE dofs only.
+    // This means we also need to fix q_next_fixed in the energy function above.
+    //
+    // In order to apply Newton's method, we need to compute the Hessian of the energy:
+    // H = M / h2 + Hess (energy).
     real energy_sol = ComputePdEnergy(q_sol, true) + ActuationEnergy(q_sol, a);
     auto eval_obj = [&](const VectorXr& q_cur, const real energy_cur){
-        return 0.5 * q_cur.dot(q_cur) + h2m * energy_cur - rhs.dot(q_cur);
+        return 0.5 * (q_cur - rhs).dot(inv_h2m * (q_cur - rhs)) + energy_cur;
     };
     real obj_sol = eval_obj(q_sol, energy_sol);
-    VectorXr grad_sol = (q_sol - rhs - h2m * force_sol).array() * selected.array();
+    VectorXr grad_sol = (inv_h2m * (q_sol - rhs) - force_sol).array() * selected.array();
     // At each iteration, we maintain:
     // - q_sol
     // - force_sol
@@ -423,17 +436,17 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
         } else {
             // Update w/o BFGS.
             // Local step:
-            const VectorXr pd_rhs = (rhs + h2m * ProjectiveDynamicsLocalStep(q_sol, a, augmented_dirichlet)).array() * selected.array();
+            const VectorXr pd_rhs = (inv_h2m * rhs + ProjectiveDynamicsLocalStep(q_sol, a, augmented_dirichlet)).array() * selected.array();
             // Global step:
             q_sol = PdLhsSolve(method, pd_rhs, additional_dirichlet, use_acc);
             for (const auto& pair : augmented_dirichlet) q_sol(pair.first) = pair.second;
         }
         force_sol = PdEnergyForce(q_sol, use_bfgs) + ActuationForce(q_sol, a);
-        grad_sol = (q_sol - rhs - h2m * force_sol).array() * selected.array();
+        grad_sol = (inv_h2m.cwiseProduct(q_sol - rhs) - force_sol).array() * selected.array();
 
         // Check for convergence --- gradients must be zero.
         const real abs_error = grad_sol.norm();
-        const real rhs_norm = VectorXr(selected.array() * rhs.array()).norm();
+        const real rhs_norm = VectorXr(selected.array() * (inv_h2m * rhs).array()).norm();
         if (verbose_level > 1) std::cout << "abs_error = " << abs_error << ", rel_tol * rhs_norm = " << rel_tol * rhs_norm << std::endl;
         if (abs_error <= rel_tol * rhs_norm + abs_tol) {
             success = true;
@@ -483,6 +496,7 @@ void Deformable<vertex_dim, element_dim>::ForwardProjectiveDynamics(const std::s
     // TODO: this mass is incorrect for tri or tet meshes.
     const real mass = element_volume_ * density_;
     const real h2m = dt * dt / mass;
+    const real inv_h2m = mass / (dt * dt);
     const VectorXr rhs = q + h * v + h2m * f_ext + h2m * ForwardStateForce(q, v);
 
     // This is for debugging purpose only.
@@ -495,7 +509,7 @@ void Deformable<vertex_dim, element_dim>::ForwardProjectiveDynamics(const std::s
                 additional_dirichlet[idx * vertex_dim + i] = q(idx * vertex_dim + i);
         }
         // Initial guess.
-        const VectorXr q_sol = PdNonlinearSolve(method, q, a, h2m, rhs, additional_dirichlet, options);
+        const VectorXr q_sol = PdNonlinearSolve(method, q, a, inv_h2m, rhs, additional_dirichlet, options);
         const VectorXr force_sol = PdEnergyForce(q_sol, use_bfgs) + ActuationForce(q_sol, a);
         q_next = q_sol;
         v_next = (q_next - q) / h;
@@ -512,15 +526,15 @@ void Deformable<vertex_dim, element_dim>::ForwardProjectiveDynamics(const std::s
             for (int i = 0; i < vertex_dim; ++i)
                 additional_dirichlet[idx * vertex_dim + i] = q(idx * vertex_dim + i);
         }
-        // Initial guess.
-        const VectorXr q_sol = PdNonlinearSolve(method, q, a, h2m, rhs, additional_dirichlet, options);
+        // The PD iteration.
+        const VectorXr q_sol = PdNonlinearSolve(method, q, a, inv_h2m, rhs, additional_dirichlet, options);
         const VectorXr force_sol = PdEnergyForce(q_sol, use_bfgs) + ActuationForce(q_sol, a);
 
         // Now verify the contact conditions.
         const std::set<int> past_active_contact_idx = VectorToSet(active_contact_idx);
         active_contact_idx_history.push_back(past_active_contact_idx);
         active_contact_idx.clear();
-        const VectorXr ext_forces = q_sol - h2m * force_sol - rhs;
+        const VectorXr ext_forces = inv_h2m * (q_sol - rhs) - force_sol;
         bool good = true;
         for (const auto& pair : frictional_boundary_vertex_indices_) {
             const int node_idx = pair.first;

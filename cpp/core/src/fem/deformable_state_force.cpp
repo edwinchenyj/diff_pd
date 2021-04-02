@@ -29,8 +29,8 @@ void Deformable<vertex_dim, element_dim>::AddStateForce(const std::string& force
         state_forces_.push_back(force);
     } else if (force_type == "hydrodynamics") {
         const int face_dim = mesh_.GetNumOfVerticesInFace();
-        const int face_num = (param_size - 1 - vertex_dim - 8 * 2) / face_dim;
-        CheckError(param_size == 1 + vertex_dim + 8 * 2 + face_num * face_dim && face_num >= 1,
+        const int face_num = (param_size - 2 - vertex_dim - 8 * 2) / face_dim;
+        CheckError(param_size == 2 + vertex_dim + 8 * 2 + face_num * face_dim && face_num >= 1,
             "Inconsistent params for HydrodynamicsStateForce.");
         const real rho = params[0];
         Eigen::Matrix<real, vertex_dim, 1> v_water;
@@ -41,12 +41,13 @@ void Deformable<vertex_dim, element_dim>::AddStateForce(const std::string& force
                 Cd_points(i, j) = params[1 + vertex_dim + i * 2 + j];
                 Ct_points(i, j) = params[1 + vertex_dim + 8 + i * 2 + j];
             }
+        const real max_force = params[1 + vertex_dim + 16];
         MatrixXi surface_faces = MatrixXi::Zero(face_dim, face_num);
         for (int i = 0; i < face_num; ++i)
             for (int j = 0; j < face_dim; ++j)
-                surface_faces(j, i) = static_cast<int>(params[1 + vertex_dim + 8 * 2 + i * face_dim + j]);
+                surface_faces(j, i) = static_cast<int>(params[2 + vertex_dim + 8 * 2 + i * face_dim + j]);
         auto force = std::make_shared<HydrodynamicsStateForce<vertex_dim, element_dim>>();
-        force->Initialize(rho, v_water, Cd_points, Ct_points, surface_faces);
+        force->Initialize(rho, v_water, Cd_points, Ct_points, max_force, surface_faces);
         state_forces_.push_back(force);
     } else if (force_type == "billiard_ball") {
         CheckError(param_size == 4, "Inconsistent params for BilliardBallStateForce.");
@@ -71,16 +72,28 @@ const VectorXr Deformable<vertex_dim, element_dim>::ForwardStateForce(const Vect
 
 template<int vertex_dim, int element_dim>
 void Deformable<vertex_dim, element_dim>::BackwardStateForce(const VectorXr& q, const VectorXr& v, const VectorXr& f,
-    const VectorXr& dl_df, VectorXr& dl_dq, VectorXr& dl_dv) const {
+    const VectorXr& dl_df, VectorXr& dl_dq, VectorXr& dl_dv, VectorXr& dl_dp) const {
     dl_dq = VectorXr::Zero(dofs_);
     dl_dv = VectorXr::Zero(dofs_);
+    std::vector<real> dl_dp_vec;
     for (const auto& f : state_forces_) {
         const VectorXr fi = f->ForwardForce(q, v);
-        VectorXr dl_dqi, dl_dvi;
-        f->BackwardForce(q, v, fi, dl_df, dl_dqi, dl_dvi);
+        VectorXr dl_dqi, dl_dvi, dl_dpi;
+        f->BackwardForce(q, v, fi, dl_df, dl_dqi, dl_dvi, dl_dpi);
         dl_dq += dl_dqi;
         dl_dv += dl_dvi;
+        const int param_dof = f->NumOfParameters();
+        for (int i = 0; i < param_dof; ++i)
+            dl_dp_vec.push_back(dl_dpi(i));
     }
+    dl_dp = ToEigenVector(dl_dp_vec);
+}
+
+template<int vertex_dim, int element_dim>
+const int Deformable<vertex_dim, element_dim>::NumOfStateForceParameters() const {
+    int dofs = 0;
+    for (const auto& f : state_forces_) dofs += f->NumOfParameters();
+    return dofs;
 }
 
 template<int vertex_dim, int element_dim>
@@ -91,11 +104,14 @@ const std::vector<real> Deformable<vertex_dim, element_dim>::PyForwardStateForce
 
 template<int vertex_dim, int element_dim>
 void Deformable<vertex_dim, element_dim>::PyBackwardStateForce(const std::vector<real>& q, const std::vector<real>& v,
-    const std::vector<real>& f, const std::vector<real>& dl_df, std::vector<real>& dl_dq, std::vector<real>& dl_dv) const {
-    VectorXr dl_dq_eig, dl_dv_eig;
-    BackwardStateForce(ToEigenVector(q), ToEigenVector(v), ToEigenVector(f), ToEigenVector(dl_df), dl_dq_eig, dl_dv_eig);
+    const std::vector<real>& f, const std::vector<real>& dl_df, std::vector<real>& dl_dq,
+    std::vector<real>& dl_dv, std::vector<real>& dl_dp) const {
+    VectorXr dl_dq_eig, dl_dv_eig, dl_dp_eig;
+    BackwardStateForce(ToEigenVector(q), ToEigenVector(v), ToEigenVector(f), ToEigenVector(dl_df),
+        dl_dq_eig, dl_dv_eig, dl_dp_eig);
     dl_dq = ToStdVector(dl_dq_eig);
     dl_dv = ToStdVector(dl_dv_eig);
+    dl_dp = ToStdVector(dl_dp_eig);
 }
 
 template class Deformable<2, 3>;

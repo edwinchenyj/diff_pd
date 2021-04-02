@@ -15,12 +15,7 @@ template<int vertex_dim, int element_dim>
 void Deformable<vertex_dim, element_dim>::Initialize(const std::string& binary_file_name, const real density,
     const std::string& material_type, const real youngs_modulus, const real poissons_ratio) {
     mesh_.Initialize(binary_file_name);
-    density_ = density;
-    element_volume_ = mesh_.average_element_volume();
-    material_ = InitializeMaterial(material_type, youngs_modulus, poissons_ratio);
-    dofs_ = vertex_dim * mesh_.NumOfVertices();
-    InitializeFiniteElementSamples();
-    pd_solver_ready_ = false;
+    InitializeAfterMesh(density, material_type, youngs_modulus, poissons_ratio);
 }
 
 template<int vertex_dim, int element_dim>
@@ -28,6 +23,12 @@ void Deformable<vertex_dim, element_dim>::Initialize(const Eigen::Matrix<real, v
     const Eigen::Matrix<int, element_dim, -1>& elements, const real density,
     const std::string& material_type, const real youngs_modulus, const real poissons_ratio) {
     mesh_.Initialize(vertices, elements);
+    InitializeAfterMesh(density, material_type, youngs_modulus, poissons_ratio);
+}
+
+template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::InitializeAfterMesh(const real density,
+    const std::string& material_type, const real youngs_modulus, const real poissons_ratio) {
     density_ = density;
     element_volume_ = mesh_.average_element_volume();
     material_ = InitializeMaterial(material_type, youngs_modulus, poissons_ratio);
@@ -70,16 +71,17 @@ void Deformable<vertex_dim, element_dim>::Backward(const std::string& method, co
     const VectorXr& f_ext, const real dt, const VectorXr& q_next, const VectorXr& v_next,
     const std::vector<int>& active_contact_idx, const VectorXr& dl_dq_next,
     const VectorXr& dl_dv_next, const std::map<std::string, real>& options,
-    VectorXr& dl_dq, VectorXr& dl_dv, VectorXr& dl_da, VectorXr& dl_df_ext, VectorXr& dl_dw) const {
+    VectorXr& dl_dq, VectorXr& dl_dv, VectorXr& dl_da, VectorXr& dl_df_ext,
+    VectorXr& dl_dmat_w, VectorXr& dl_dact_w, VectorXr& dl_dstate_p) const {
     if (method == "semi_implicit")
         BackwardSemiImplicit(q, v, a, f_ext, dt, q_next, v_next, active_contact_idx, dl_dq_next, dl_dv_next, options,
-            dl_dq, dl_dv, dl_da, dl_df_ext, dl_dw);
+            dl_dq, dl_dv, dl_da, dl_df_ext, dl_dmat_w, dl_dact_w, dl_dstate_p);
     else if (BeginsWith(method, "pd"))
         BackwardProjectiveDynamics(method, q, v, a, f_ext, dt, q_next, v_next, active_contact_idx, dl_dq_next, dl_dv_next, options,
-            dl_dq, dl_dv, dl_da, dl_df_ext, dl_dw);
+            dl_dq, dl_dv, dl_da, dl_df_ext, dl_dmat_w, dl_dact_w, dl_dstate_p);
     else if (BeginsWith(method, "newton"))
         BackwardNewton(method, q, v, a, f_ext, dt, q_next, v_next, active_contact_idx, dl_dq_next, dl_dv_next, options,
-            dl_dq, dl_dv, dl_da, dl_df_ext, dl_dw);
+            dl_dq, dl_dv, dl_da, dl_df_ext, dl_dmat_w, dl_dact_w, dl_dstate_p);
     else
         PrintError("Unsupported backward method: " + method);
 }
@@ -112,16 +114,18 @@ void Deformable<vertex_dim, element_dim>::PyBackward(const std::string& method, 
     const std::vector<real>& dl_dq_next, const std::vector<real>& dl_dv_next,
     const std::map<std::string, real>& options,
     std::vector<real>& dl_dq, std::vector<real>& dl_dv, std::vector<real>& dl_da, std::vector<real>& dl_df_ext,
-    std::vector<real>& dl_dw) const {
-    VectorXr dl_dq_eig, dl_dv_eig, dl_da_eig, dl_df_ext_eig, dl_dw_eig;
+    std::vector<real>& dl_dmat_w, std::vector<real>& dl_dact_w, std::vector<real>& dl_dstate_p) const {
+    VectorXr dl_dq_eig, dl_dv_eig, dl_da_eig, dl_df_ext_eig, dl_dmat_w_eig, dl_dact_w_eig, dl_dstate_p_eig;
     Backward(method, ToEigenVector(q), ToEigenVector(v), ToEigenVector(a), ToEigenVector(f_ext), dt, ToEigenVector(q_next),
         ToEigenVector(v_next), active_contact_idx, ToEigenVector(dl_dq_next), ToEigenVector(dl_dv_next), options,
-        dl_dq_eig, dl_dv_eig, dl_da_eig, dl_df_ext_eig, dl_dw_eig);
+        dl_dq_eig, dl_dv_eig, dl_da_eig, dl_df_ext_eig, dl_dmat_w_eig, dl_dact_w_eig, dl_dstate_p_eig);
     dl_dq = ToStdVector(dl_dq_eig);
     dl_dv = ToStdVector(dl_dv_eig);
     dl_da = ToStdVector(dl_da_eig);
     dl_df_ext = ToStdVector(dl_df_ext_eig);
-    dl_dw = ToStdVector(dl_dw_eig);
+    dl_dmat_w = ToStdVector(dl_dmat_w_eig);
+    dl_dact_w = ToStdVector(dl_dact_w_eig);
+    dl_dstate_p = ToStdVector(dl_dstate_p_eig);
 }
 
 template<int vertex_dim, int element_dim>

@@ -77,13 +77,16 @@ const VectorXr Deformable<vertex_dim, element_dim>::ActuationForce(const VectorX
 
 template<int vertex_dim, int element_dim>
 const VectorXr Deformable<vertex_dim, element_dim>::ActuationForceDifferential(const VectorXr& q, const VectorXr& a,
-    const VectorXr& dq, const VectorXr& da) const {
+    const VectorXr& dq, const VectorXr& da, const VectorXr& dw) const {
     CheckError(act_dofs_ == static_cast<int>(a.size()) && a.size() == da.size(), "Inconsistent actuation size.");
+    CheckError(static_cast<int>(dw.size()) == NumOfPdMuscleEnergies(), "Inconsistent dw size.");
     int act_idx = 0;
+    int muscle_idx = 0;
     const int sample_num = GetNumOfSamplesInElement();
     VectorXr df = VectorXr::Zero(dofs_);
     for (const auto& pair : pd_muscle_energies_) {
         const auto& energy = pair.first;
+        const real inv_w = 1 / energy->stiffness();
         for (const int element_idx : pair.second) {
             const auto vi = mesh_.element(element_idx);
             const auto deformed = ScatterToElement(q, element_idx);
@@ -91,7 +94,10 @@ const VectorXr Deformable<vertex_dim, element_dim>::ActuationForceDifferential(c
             for (int j = 0; j < sample_num; ++j) {
                 const auto F = DeformationGradient(element_idx, deformed, j);
                 const auto dF = DeformationGradient(element_idx, ddeformed, j);
-                const Eigen::Matrix<real, vertex_dim, vertex_dim> dP = energy->StressTensorDifferential(F, a(act_idx), dF, da(act_idx));
+                // We use the assumption that stress tensor is linear to w.
+                const Eigen::Matrix<real, vertex_dim, vertex_dim> dP =
+                    energy->StressTensorDifferential(F, a(act_idx), dF, da(act_idx)) +
+                    energy->StressTensor(F, a(act_idx)) * inv_w * dw(muscle_idx);
                 const Eigen::Matrix<real, 1, element_dim * vertex_dim> df_kd =
                     -Flatten(dP).transpose() * finite_element_samples_[element_idx][j].dF_dxkd_flattened()
                         * element_volume_ / sample_num;
@@ -102,22 +108,27 @@ const VectorXr Deformable<vertex_dim, element_dim>::ActuationForceDifferential(c
             }
             ++act_idx;
         }
+        ++muscle_idx;
     }
     CheckError(act_idx == act_dofs_, "Your loop over actions has introduced a bug.");
+    CheckError(muscle_idx == NumOfPdMuscleEnergies(), "You loop over muscles has introduced a bug.");
     return df;
 }
 
 template<int vertex_dim, int element_dim>
 void Deformable<vertex_dim, element_dim>::ActuationForceDifferential(const VectorXr& q, const VectorXr& a,
-    SparseMatrixElements& dq, SparseMatrixElements& da) const {
+    SparseMatrixElements& dq, SparseMatrixElements& da, SparseMatrixElements& dw) const {
     dq.clear();
     da.clear();
+    dw.clear();
     CheckError(act_dofs_ == static_cast<int>(a.size()), "Inconsistent actuation size.");
     int act_idx = 0;
+    int muscle_idx = 0;
     const int sample_num = GetNumOfSamplesInElement();
 
     for (const auto& pair : pd_muscle_energies_) {
         const auto& energy = pair.first;
+        const real inv_w = 1 / energy->stiffness();
         for (const int i : pair.second) {
             const Eigen::Matrix<int, element_dim, 1> vi = mesh_.element(i);
             const auto deformed = ScatterToElement(q, i);
@@ -136,13 +147,16 @@ void Deformable<vertex_dim, element_dim>::ActuationForceDifferential(const Vecto
                 energy->StressTensorDifferential(F, a(act_idx), dPdF, dPda);
                 const auto dPF = dPdF * dF;
                 const auto dPa = dPda * 1;
+                Eigen::Matrix<real, vertex_dim * vertex_dim, 1> dPdw = Flatten(energy->StressTensor(F, a(act_idx))) * inv_w;
+                const auto dPw = dPdw * 1;
 
                 const Eigen::Matrix<real, element_dim * vertex_dim, element_dim * vertex_dim> df_kdF =
                     -dPF.transpose() * finite_element_samples_[i][j].dF_dxkd_flattened()
                         * element_volume_ / sample_num;
                 const Eigen::Matrix<real, 1, element_dim * vertex_dim> df_kda = -dPa.transpose()
                     * finite_element_samples_[i][j].dF_dxkd_flattened() * element_volume_ / sample_num;
-            
+                const Eigen::Matrix<real, 1, element_dim * vertex_dim> df_kdw = -dPw.transpose()
+                    * finite_element_samples_[i][j].dF_dxkd_flattened() * element_volume_ / sample_num;
                 for (int k = 0; k < element_dim; ++k)
                     for (int d = 0; d < vertex_dim; ++d) {
                         // State.
@@ -152,12 +166,16 @@ void Deformable<vertex_dim, element_dim>::ActuationForceDifferential(const Vecto
                                     vertex_dim * vi(s) + t, df_kdF(s * vertex_dim + t, k * vertex_dim + d)));
                         // Action.
                         da.push_back(Eigen::Triplet<real>(vertex_dim * vi(k) + d, act_idx, df_kda(k * vertex_dim + d)));
+                        // Stiffness.
+                        dw.push_back(Eigen::Triplet<real>(vertex_dim * vi(k) + d, muscle_idx, df_kdw(k * vertex_dim + d)));
                     }
             }
             ++act_idx;
         }
+        ++muscle_idx;
     }
     CheckError(act_idx == act_dofs_, "Your loop over actions has introduced a bug.");
+    CheckError(muscle_idx == NumOfPdMuscleEnergies(), "Your loop over muscles has introduced a bug.");
 }
 
 template<int vertex_dim, int element_dim>
@@ -173,26 +191,32 @@ const std::vector<real> Deformable<vertex_dim, element_dim>::PyActuationForce(co
 
 template<int vertex_dim, int element_dim>
 const std::vector<real> Deformable<vertex_dim, element_dim>::PyActuationForceDifferential(const std::vector<real>& q,
-    const std::vector<real>& a, const std::vector<real>& dq, const std::vector<real>& da) const {
-    return ToStdVector(ActuationForceDifferential(ToEigenVector(q), ToEigenVector(a), ToEigenVector(dq), ToEigenVector(da)));
+    const std::vector<real>& a, const std::vector<real>& dq, const std::vector<real>& da, const std::vector<real>& dw) const {
+    return ToStdVector(ActuationForceDifferential(ToEigenVector(q), ToEigenVector(a), ToEigenVector(dq),
+        ToEigenVector(da), ToEigenVector(dw)));
 }
 
 template<int vertex_dim, int element_dim>
 void Deformable<vertex_dim, element_dim>::PyActuationForceDifferential(const std::vector<real>& q, const std::vector<real>& a,
-    std::vector<std::vector<real>>& dq, std::vector<std::vector<real>>& da) const {
+    std::vector<std::vector<real>>& dq, std::vector<std::vector<real>>& da, std::vector<std::vector<real>>& dw) const {
     PrintWarning("PyActuationForceDifferential should only be used for small-scale problems and for testing purposes.");
-    SparseMatrixElements nonzeros_dq, nonzeros_da;
-    ActuationForceDifferential(ToEigenVector(q), ToEigenVector(a), nonzeros_dq, nonzeros_da);
+    SparseMatrixElements nonzeros_dq, nonzeros_da, nonzeros_dw;
+    ActuationForceDifferential(ToEigenVector(q), ToEigenVector(a), nonzeros_dq, nonzeros_da, nonzeros_dw);
     dq.resize(dofs_);
     da.resize(dofs_);
+    dw.resize(dofs_);
+    const int act_w_dofs = NumOfPdMuscleEnergies();
     for (int i = 0; i < dofs_; ++i) {
         dq[i].resize(dofs_);
         std::fill(dq[i].begin(), dq[i].end(), 0);
         da[i].resize(act_dofs_);
         std::fill(da[i].begin(), da[i].end(), 0);
+        dw[i].resize(act_w_dofs);
+        std::fill(dw[i].begin(), dw[i].end(), 0);
     }
     for (const auto& triplet: nonzeros_dq) dq[triplet.row()][triplet.col()] += triplet.value();
     for (const auto& triplet: nonzeros_da) da[triplet.row()][triplet.col()] += triplet.value();
+    for (const auto& triplet: nonzeros_dw) dw[triplet.row()][triplet.col()] += triplet.value();
 }
 
 template class Deformable<2, 3>;
