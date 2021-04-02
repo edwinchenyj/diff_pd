@@ -32,7 +32,8 @@
 // -k * d,                      if d <= -d0;
 // k/(4 * d0) * (d - d0)^2      if -d0 <= d <= d0;
 // 0,                           if d >= d0.
-// In my implementation, k = stiffness_ and d0 = cutoff_dist.  
+// In my implementation, k = stiffness_ and d0 = cutoff_dist.
+// The two trainable parameters are stiffness and cutoff_dist.
 template<int vertex_dim>
 class PlanarCollisionStateForce : public StateForce<vertex_dim> {
 public:
@@ -44,18 +45,16 @@ public:
         Initialize(stiffness, cutoff_dist, normal_eig, offset);
     }
 
-    const real stiffness() const { return stiffness_; }
-    const real cutoff_dist() const { return cutoff_dist_; }
+    const real stiffness() const { return StateForce<vertex_dim>::parameters()(0); }
+    const real cutoff_dist() const { return StateForce<vertex_dim>::parameters()(1); }
     const Eigen::Matrix<real, vertex_dim, 1>& normal() const { return normal_; }
     const real offset() const { return offset_; }
 
     const VectorXr ForwardForce(const VectorXr& q, const VectorXr& v) const override;
     void BackwardForce(const VectorXr& q, const VectorXr& v, const VectorXr& f,
-        const VectorXr& dl_df, VectorXr& dl_dq, VectorXr& dl_dv) const override;
+        const VectorXr& dl_df, VectorXr& dl_dq, VectorXr& dl_dv, VectorXr& dl_dp) const override;
 
 private:
-    real stiffness_;
-    real cutoff_dist_;
     Eigen::Matrix<real, vertex_dim, 1> normal_;
     Eigen::Matrix<real, vertex_dim, vertex_dim> nnt_;   // normal * normal.T.
     real offset_;

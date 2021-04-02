@@ -17,15 +17,14 @@ public:
     }
 
     const real mass() const { return mass_; }
-    const Eigen::Matrix<real, vertex_dim, 1>& g() const { return g_; }
+    const Eigen::Matrix<real, vertex_dim, 1> g() const { return StateForce<vertex_dim>::parameters().head(vertex_dim); }
 
     const VectorXr ForwardForce(const VectorXr& q, const VectorXr& v) const override;
     void BackwardForce(const VectorXr& q, const VectorXr& v, const VectorXr& f,
-        const VectorXr& dl_df, VectorXr& dl_dq, VectorXr& dl_dv) const override;
+        const VectorXr& dl_df, VectorXr& dl_dq, VectorXr& dl_dv, VectorXr& dl_dp) const override;
 
 private:
     real mass_;
-    Eigen::Matrix<real, vertex_dim, 1> g_;
 };
 
 #endif
