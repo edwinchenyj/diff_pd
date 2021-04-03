@@ -1,7 +1,7 @@
 import sys
 sys.path.append('../')
 
-import queue
+from collections import deque
 import os
 from pathlib import Path
 import imageio
@@ -138,6 +138,103 @@ def solve_camera(points_in_pixel, points_in_world):
     }
     return info
 
+def solve_simple_camera(points_in_pixel, points_in_world):
+    # The pixel space is:
+    # - Origin: lower left.
+    # - x: left to right.
+    # - y: bottom to top.
+    # Let p and P be points_in_pixel (2D) and points_in_world (3D), respectively.
+    # Let R and t be the orientation and location of the world frame in the camera frame.
+    # T = [R, t]
+    #     [0, 1]
+    # K = [alpha, 0, img_width / 2, 0]
+    #     [0, alpha, img_height / 2, 0]
+    #     [0, 0, 1, 0]
+    # Pixels: alpha * x / z + cx
+    #         alpha * y / z + cy
+
+    # [p, 1] = Homogenous(KT[P, 1]).
+    # Let M = KT \in R^{3 x 4} = [m1, m2, m3]
+    # p.x = <m1, [P, 1]> / <m3, [P, 1]>.
+    # p.y = <m2, [P, 1]> / <m3, [P, 1]>.
+    # p.x * <m3, [P, 1]> - <m1, [P, 1]> = 0.
+    # p.y * <m3, [P, 1]> - <m2, [P, 1]> = 0.
+    # Let's flatten them into a linear system.
+    points_in_pixel = ndarray(points_in_pixel).copy()
+    points_in_pixel[:, 0] -= img_width / 2
+    points_in_pixel[:, 1] -= img_height / 2
+    points_in_world = ndarray(points_in_world).copy()
+    num_points = points_in_pixel.shape[0]
+    assert (num_points, 2) == points_in_pixel.shape
+    assert (num_points, 3) == points_in_world.shape
+    P = ndarray(np.zeros((2 * num_points, 12)))
+    for i in range(num_points):
+        # Assemble the x equation.
+        # m1:
+        P[2 * i, :3] = -points_in_world[i]
+        P[2 * i, 3] = -1
+        # m3:
+        P[2 * i, 8:11] = points_in_world[i] * points_in_pixel[i, 0]
+        P[2 * i, 11] = points_in_pixel[i, 0]
+        # Assemble the y equation.
+        # m2:
+        P[2 * i + 1, 4:7] = -points_in_world[i]
+        P[2 * i + 1, 7] = -1
+        # m3:
+        P[2 * i + 1, 8:11] = points_in_world[i] * points_in_pixel[i, 1]
+        P[2 * i + 1, 11] = points_in_pixel[i, 1]
+    # Now m can be obtained from P * m = 0.
+    # We solve this by minimizing \|P * m\|^2 s.t. \|m\|^2 = 1.
+    # Consider SVD of P: P = U * Sigma * V.T.
+    U, Sigma, Vt = np.linalg.svd(P)
+    # U @ np.diag(Sigma) @ Vt = P.
+    # So, Vt * m = [0, 0, 0, ..., 1], or m = V * [0, 0, 0, ..., 1].
+    m = Vt[-1]
+    M = ndarray(np.reshape(m, (3, 4)))
+    # Now we know M = 1 / rho * KT. Let's extract camera parameters.
+    # M = 1 / rho * [alpha, 0, 0] * [R, t]
+    #               [0, alpha, 0]
+    #               [0,     0, 1]
+    a1 = M[0, :3]
+    a2 = M[1, :3]
+    a3 = M[2, :3]
+    # |rho| * |a3| = 1.
+    rho_pos = 1 / np.linalg.norm(a3)
+    rho_neg = -rho_pos
+    info = None
+    error = np.inf
+    for rho in (rho_pos, rho_neg):
+        KR = rho * M[:, :3]
+        alpha0 = np.linalg.norm(KR[0])
+        alpha1 = np.linalg.norm(KR[1])
+        assert np.isclose(alpha0, alpha1, rtol=0.1)
+        alpha = (alpha0 + alpha1) / 2
+        R_est = np.copy(KR)
+        R_est[0] /= alpha
+        R_est[1] /= alpha
+        U, Sig, Vt = np.linalg.svd(R_est)
+        assert np.allclose(U @ np.diag(Sig) @ Vt, R_est)
+        assert np.allclose(Sig, [1, 1, 1], rtol=0.5)
+        R = U @ Vt
+        K = np.diag([alpha, alpha, 1])
+        t = np.linalg.inv(K) @ M[:, 3] * rho
+        e = np.linalg.norm(np.hstack([K @ R, (K @ t)[:, None]]) / rho - M)
+        if e < error:
+            info = {
+                'K': ndarray([[alpha, 0, img_width / 2],
+                    [0, alpha, img_height / 2],
+                    [0, 0, 1]]),
+                'R': ndarray(R).copy(),
+                'T': ndarray(t).copy(),
+                'alpha': alpha,
+                'beta': alpha,
+                'theta': np.pi / 2,
+                'cx': img_width / 2,
+                'cy': img_height / 2
+            }
+            error = e
+    return info
+
 # Input:
 # - image_data: H x W x 3 ndarray.
 # Output:
@@ -168,28 +265,39 @@ def select_corners(image_data):
     ax_table = fig.add_subplot(212)
     ax_table.set_xlabel('x')
     ax_table.set_ylabel('y')
-    # We know the 3D coordinates of the table and the napkin box.
+    # We know the 3D coordinates of the table and the billiard box.
     table_corners = ndarray([
         [0, 0, 0],
-        [1.1, 0, 0],
-        [1.1, 0.67, 0],
+        [1.10, 0, 0],
+        [1.10, 0.67, 0],
         [0, 0.67, 0]
     ])
-    napkin_box_corners = ndarray([
-        [0, 0, 0.087],
-        [0.225, 0, 0.087],
-        [0.225, 0.12, 0.087],
-        [0, 0.12, 0.087],
+    billiard_box_top_corners = ndarray([
+        [0, 0.67 - 0.056, 0.245],
+        [0.245, 0.67 - 0.056, 0.245],
+        [0.245, 0.67, 0.245],
+        [0, 0.67, 0.245]
     ])
-    napkin_box_corners_proxy = np.copy(napkin_box_corners)
-    # We shifted napkin box corners by (0.1, 0.1) so that they don't overlap.
-    napkin_box_corners_proxy[:, 0] += 0.1
-    napkin_box_corners_proxy[:, 1] += 0.1
+    billiard_box_bottom_corners = ndarray([
+        [0, 0.67 - 0.056, 0],
+        [0.245, 0.67 - 0.056, 0],
+        [0.245, 0.67, 0],
+        [0, 0.67, 0]
+    ])
+    billiard_box_top_corners_proxy = np.copy(billiard_box_top_corners)
+    billiard_box_bottom_corners_proxy = np.copy(billiard_box_bottom_corners)
+    # We shifted billiard box corners so that they don't overlap.
+    billiard_box_top_corners_proxy[:, 0] += 0.1
+    billiard_box_top_corners_proxy[:, 1] += 0.3
+    billiard_box_bottom_corners_proxy[:, 0] += 0.03
+    billiard_box_bottom_corners_proxy[:, 1] += 0.04
     # Plot the table and the corners.
     table_corners_aug = np.vstack([table_corners, table_corners[0]])
     ax_table.plot(table_corners_aug[:, 0], table_corners_aug[:, 1], 'k')
-    napkin_box_corners_aug = np.vstack([napkin_box_corners_proxy, napkin_box_corners_proxy[0]])
-    ax_table.plot(napkin_box_corners_aug[:, 0], napkin_box_corners_aug[:, 1], 'tab:blue')
+    billiard_box_top_corners_proxy_aug = np.vstack([billiard_box_top_corners_proxy, billiard_box_top_corners_proxy[0]])
+    ax_table.plot(billiard_box_top_corners_proxy_aug[:, 0], billiard_box_top_corners_proxy_aug[:, 1], 'tab:blue')
+    billiard_box_bottom_corners_proxy_aug = np.vstack([billiard_box_bottom_corners_proxy, billiard_box_bottom_corners_proxy[0]])
+    ax_table.plot(billiard_box_bottom_corners_proxy_aug[:, 0], billiard_box_bottom_corners_proxy_aug[:, 1], 'tab:blue')
     ax_table.set_aspect('equal')
 
     def on_click(event):
@@ -207,8 +315,8 @@ def select_corners(image_data):
             ix, iy = event.xdata, event.ydata
             xy = ndarray([ix, iy])
 
-            all_corners = np.vstack([table_corners, napkin_box_corners])
-            all_proxy = np.vstack([table_corners, napkin_box_corners_proxy])
+            all_corners = np.vstack([table_corners, billiard_box_top_corners, billiard_box_bottom_corners])
+            all_proxy = np.vstack([table_corners, billiard_box_top_corners_proxy, billiard_box_bottom_corners_proxy])
             selected_id = np.argmin(np.sum((all_proxy[:, :2] - xy) ** 2, axis=1))
             # Plot the selected corner.
             ax_table.plot(all_proxy[selected_id, 0], all_proxy[selected_id, 1], 'y+')
@@ -263,7 +371,7 @@ if __name__ == '__main__':
     create_folder(folder, exist_ok=True)
 
     # Step 1: extract video information.
-    experiment_video_name = Path(root_path) / 'asset/video/billiard_ball_04.mov'
+    experiment_video_name = Path(root_path) / 'asset/video/tennis_09.mov'
     experiment_video_data_folder = folder / 'experiment_video'
     create_folder(experiment_video_data_folder, exist_ok=True)
     if not (experiment_video_data_folder / '0001.png').is_file():
@@ -298,7 +406,7 @@ if __name__ == '__main__':
         info['pts_world'] = ndarray(coordinates).copy()
 
     # The pixel space in matplotlib is different from the pixel space in the calibration algorithm.
-    camera_info = solve_camera(pxl_to_cal(pixels), coordinates)
+    camera_info = solve_simple_camera(pxl_to_cal(pixels), coordinates)
     K = camera_info['K']
     R = camera_info['R']
     T = camera_info['T']
@@ -330,10 +438,10 @@ if __name__ == '__main__':
 
     # Step 2.2: filter out the billiard ball positions.
     # The following start and end frames are chosen manually by looking at each frame.
-    start_frame = 280
-    end_frame = 350
-    x_range = [290, 950]
-    y_range = [32, 270]
+    start_frame = 150
+    end_frame = 200
+    x_range = [350, 900]
+    y_range = [100, 470]
     ball_rgb = ndarray([150, 150, 20]) / 255
     num_balls = 2
     num_ball_colors = np.random.rand(num_balls, 3)
@@ -345,9 +453,26 @@ if __name__ == '__main__':
         # Extract the billiard balls.
         img_flag = np.full((img_height, img_width), False)
         img_flag[y_range[0]:y_range[1], x_range[0]:x_range[1]] = True
-        # Filter out white walls.
-        img_flag = np.logical_and(img_flag, img[:, :, 2] < 0.15)
-        img_flag = np.logical_and(img_flag, np.sqrt(np.sum((img) ** 2, axis=2)) > 0.3)
+        img_flag = np.logical_and(img_flag, np.sum((img - ball_rgb) ** 2, axis=2) < 0.02)
+
+        # Grow the billiard balls.
+        q = deque([(i, j) for i in range(img_height) for j in range(img_width) if img_flag[i, j]])
+        while q:
+            i, j = q.popleft()
+            # Check its four neighbors.
+            for i2, j2 in [(i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)]:
+                if not (y_range[0] <= i2 < y_range[1] and x_range[0] <= j2 < x_range[1]): continue
+                if img_flag[i2, j2]: continue
+                c = img[i2, j2]
+                c_mag = np.linalg.norm(c)
+                # Filter out dark area.
+                if c_mag < 0.5: continue
+                # Skip if the color is too different from the parent.
+                if np.linalg.norm(c - img[i, j]) > 0.1: continue
+                cos_angle = ndarray(c).dot(ball_rgb) / c_mag / np.linalg.norm(ball_rgb)
+                if cos_angle > 0.92:
+                    img_flag[i2, j2] = True
+                    q.append((i2, j2))
 
         # Use k-means clustering to figure out the ball location (we only need the center.)
         pixels = ndarray([(j, i) for i in range(img_height) for j in range(img_width) if img_flag[i, j]])
@@ -368,7 +493,6 @@ if __name__ == '__main__':
         for c, cl in zip(centroid, num_ball_colors):
             ci, cj = int(c[0]), int(c[1])
             img[cj - 3 : cj + 4, ci - 3 : ci + 4] = cl
-
         # Write filtered images.
         img_filtered = np.copy(img) * ndarray(img_flag)[:, :, None]
         plt.imsave(experiment_folder / '{:04d}_filtered.png'.format(idx), img_filtered)
