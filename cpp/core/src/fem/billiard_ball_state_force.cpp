@@ -115,7 +115,8 @@ void BilliardBallStateForce<vertex_dim>::BackwardForce(const VectorXr& q, const 
             const MatrixXr jac_dir_i2j_ci = -Eigen::Matrix<real, vertex_dim, vertex_dim>::Identity();
             const MatrixXr jac_dir_i2j_cj = Eigen::Matrix<real, vertex_dim, vertex_dim>::Identity();
             const real cij_dist = dir_i2j.norm();
-            CheckError(cij_dist > 1.5 * radius_, "Balls are too close to each other");
+            // We allow extremely soft balls.
+            CheckError(cij_dist > 0.1 * radius_, "Balls are too close to each other");
             const VectorXr d_cij_dist_ci = jac_dir_i2j_ci.transpose() * dir_i2j / cij_dist;
             const VectorXr d_cij_dist_cj = jac_dir_i2j_cj.transpose() * dir_i2j / cij_dist;
             // Now compute the force.

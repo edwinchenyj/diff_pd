@@ -70,6 +70,7 @@ if __name__ == '__main__':
         'radius': ball_radius,
         'reference_positions': ball_positions,
         'substeps': substeps,
+        'state_force_parameters': [3e2, 0.2]
     })
     deformable = env.deformable()
     # Initial state.
@@ -98,12 +99,13 @@ if __name__ == '__main__':
     '''
 
     # Decision variables to optimize:
+    # - stiffness and frictional coefficient of the contact model.
     # - theta and scale of the initial angular velocity of the balls.
-    # - Initial angular velocity of the ball.
     def get_init_state(x):
         x = ndarray(x).copy().ravel()
-        assert x.size == 4
-        theta0, scale0, theta1, scale1 = x
+        assert x.size == 6
+        log_stiff, coeff, theta0, scale0, theta1, scale1 = x
+        stiff = 10 ** log_stiff
         c0, s0 = np.cos(theta0), np.sin(theta0)
         c1, s1 = np.cos(theta1), np.sin(theta1)
         w = ndarray([[c0 * scale0, s0 * scale0, 0],
@@ -114,16 +116,21 @@ if __name__ == '__main__':
             'radius': ball_radius,
             'reference_positions': ball_positions,
             'substeps': substeps,
+            'state_force_parameters': [stiff, coeff]
         })
         dw_dx = ndarray([
-            [scale0 * -s0, c0, 0, 0],
-            [scale0 * c0, s0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, scale1 * -s1, c1],
-            [0, 0, scale1 * c1, s1],
-            [0, 0, 0, 0],
+            [0, 0, scale0 * -s0, c0, 0, 0],
+            [0, 0, scale0 * c0, s0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, scale1 * -s1, c1],
+            [0, 0, 0, 0, scale1 * c1, s1],
+            [0, 0, 0, 0, 0, 0],
         ])
-        info = { 'env': e, 'v0': e.default_init_velocity(), 'dw_dx': dw_dx }
+        dp_dx = ndarray([
+            [(10 ** log_stiff) * np.log(10), 0, 0, 0, 0, 0],
+            [0, 1, 0, 0, 0, 0]
+        ])
+        info = { 'env': e, 'v0': e.default_init_velocity(), 'dw_dx': dw_dx, 'dp_dx': dp_dx }
         return info
 
     # Optimization.
@@ -132,10 +139,10 @@ if __name__ == '__main__':
     init_theta1 = np.arctan2(init_angular_velocities[1, 1], init_angular_velocities[1, 0])
     init_scale1 = np.linalg.norm(init_angular_velocities[1])
     x_lower = ndarray([
-        init_theta0 - 0.05, init_scale0 * 0.9, init_theta1 - 0.05, init_scale1 * 0.9
+        1.5, 0.1, init_theta0 - 0.05, init_scale0 * 0.9, init_theta1 - 0.05, init_scale1 * 0.9
     ])
     x_upper = ndarray([
-        init_theta0 + 0.05, init_scale0 * 3.0, init_theta1 + 0.05, init_scale1 * 3.0
+        3.5, 1.5, init_theta0 + 0.05, init_scale0 * 4.0, init_theta1 + 0.05, init_scale1 * 4.0
     ])
     bounds = scipy.optimize.Bounds(x_lower, x_upper)
     x_init = np.random.uniform(low=x_lower, high=x_upper)
@@ -146,7 +153,8 @@ if __name__ == '__main__':
         e = init_info['env']
         v = init_info['v0']
         loss, grad, info = e.simulate(dt, frame_num, (pd_method, newton_method), (pd_opt, newton_opt), q0, v, a0, f0, require_grad=True)
-        g = e.backprop_init_velocities(grad[1]) @ init_info['dw_dx']
+        # We start from 3: because the first three state parameters are gravitiy.
+        g = info['state_force_parameter_gradients'][3:] @ init_info['dp_dx'] + e.backprop_init_velocities(grad[1]) @ init_info['dw_dx']
         print('loss: {:8.3f}, |grad|: {:8.3f}, forward time: {:6.3f}s, backward time: {:6.3f}s'.format(
             loss, np.linalg.norm(g), info['forward_time'], info['backward_time']))
         single_data = {}
@@ -160,6 +168,21 @@ if __name__ == '__main__':
 
     # Sanity check the gradients.
     # check_gradients(loss_and_grad, x_init, eps=1e-3)
+
+    # Pick the best initial guess.
+    best_loss = np.inf
+    best_x_init = None
+    for _ in range(16):
+        x_guess = np.random.uniform(low=x_lower, high=x_upper)
+        init_info = get_init_state(x_guess)
+        e = init_info['env']
+        v = init_info['v0']
+        loss, _ = e.simulate(dt, frame_num, (pd_method, newton_method), (pd_opt, newton_opt), q0, v, a0, f0, require_grad=False)
+        print('loss:', loss)
+        if loss < best_loss:
+            best_loss = loss
+            best_x_init = np.copy(x_guess)
+    x_init = best_x_init
 
     # Visualize the initial solution.
     if not (folder / 'init/0000.png').is_file():

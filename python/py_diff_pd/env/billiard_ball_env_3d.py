@@ -20,6 +20,7 @@ class BilliardBallEnv3d(EnvBase):
 
         youngs_modulus = options['youngs_modulus'] if 'youngs_modulus' in options else 1e6
         poissons_ratio = options['poissons_ratio'] if 'poissons_ratio' in options else 0.49
+        state_force_parameters = ndarray(options['state_force_parameters'])
 
         # Obtain the initial billiard ball centers.
         init_ball_positions = ndarray(options['init_positions']).copy()
@@ -119,9 +120,7 @@ class BilliardBallEnv3d(EnvBase):
         deformable.AddPdEnergy('volume', [la,], [])
         # State-based forces.
         deformable.AddStateForce('gravity', [0, 0, -9.81])
-        stiffness = 3e2
-        coeff = 0.2
-        deformable.AddStateForce('billiard_ball', [radius, num_ball_vertices, stiffness, coeff])
+        deformable.AddStateForce('billiard_ball', [radius, num_ball_vertices, state_force_parameters[0], state_force_parameters[1]])
 
         # Friction_node_idx = all vertices on the edge.
         deformable.SetFrictionalBoundary('planar', [0.0, 0.0, 1.0, radius], all_friction_node_indices)
@@ -145,6 +144,7 @@ class BilliardBallEnv3d(EnvBase):
         self._f_ext = f_ext
         self._youngs_modulus = youngs_modulus
         self._poissons_ratio = poissons_ratio
+        self._state_force_parameters = state_force_parameters
         self._stepwise_loss = True
 
         self.__spp = options['spp'] if 'spp' in options else 4
