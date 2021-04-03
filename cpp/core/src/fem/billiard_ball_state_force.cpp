@@ -4,16 +4,12 @@
 #include "mesh/mesh.h"
 
 template<int vertex_dim>
-BilliardBallStateForce<vertex_dim>::BilliardBallStateForce()
-    : radius_(0), single_ball_vertex_num_(0), stiffness_(0), frictional_coeff_(0) {}
-
-template<int vertex_dim>
 void BilliardBallStateForce<vertex_dim>::Initialize(const real radius, const int single_ball_vertex_num,
     const real stiffness, const real frictional_coeff) {
+    Vector2r parameters(stiffness, frictional_coeff);
+    StateForce<vertex_dim>::set_parameters(parameters);
     radius_ = radius;
     single_ball_vertex_num_ = single_ball_vertex_num;
-    stiffness_ = stiffness;
-    frictional_coeff_ = frictional_coeff;
 }
 
 template<int vertex_dim>
@@ -49,12 +45,12 @@ const VectorXr BilliardBallStateForce<vertex_dim>::ForwardForce(const VectorXr& 
             const VectorXr dir_i2j = cj - ci;
             const real cij_dist = dir_i2j.norm();
             // Now compute the spring force.
-            const real f_mag = std::max(2 * radius_ - cij_dist, 0.0) * stiffness_;
+            const real f_mag = std::max(2 * radius_ - cij_dist, 0.0) * stiffness();
             const VectorXr i2j = dir_i2j / cij_dist;
             const VectorXr fj = i2j * f_mag;
             const VectorXr fi = -fj;
             // Next, compute the friction force.
-            const real ff_mag = f_mag * frictional_coeff_;
+            const real ff_mag = f_mag * frictional_coeff();
             const VectorXr vi = central_velocities.col(i);
             const VectorXr vj = central_velocities.col(j);
             const VectorXr vi_in_j = vi - vj;
@@ -84,7 +80,10 @@ const VectorXr BilliardBallStateForce<vertex_dim>::ForwardForce(const VectorXr& 
 
 template<int vertex_dim>
 void BilliardBallStateForce<vertex_dim>::BackwardForce(const VectorXr& q, const VectorXr& v, const VectorXr& f,
-    const VectorXr& dl_df, VectorXr& dl_dq, VectorXr& dl_dv) const {
+    const VectorXr& dl_df, VectorXr& dl_dq, VectorXr& dl_dv, VectorXr& dl_dp) const {
+    // TODO: implement dl_dp.
+    dl_dp = VectorXr::Zero(2);
+
     // Reshape q to n x dim.
     const int vertex_num = static_cast<int>(q.size()) / vertex_dim;
     CheckError(vertex_num * vertex_dim == static_cast<int>(q.size()) && vertex_num % single_ball_vertex_num_ == 0,
@@ -121,12 +120,12 @@ void BilliardBallStateForce<vertex_dim>::BackwardForce(const VectorXr& q, const 
             const VectorXr d_cij_dist_ci = jac_dir_i2j_ci.transpose() * dir_i2j / cij_dist;
             const VectorXr d_cij_dist_cj = jac_dir_i2j_cj.transpose() * dir_i2j / cij_dist;
             // Now compute the force.
-            const real f_mag = std::max(2 * radius_ - cij_dist, 0.0) * stiffness_;
+            const real f_mag = std::max(2 * radius_ - cij_dist, 0.0) * stiffness();
             VectorXr d_f_mag_ci = VectorXr::Zero(vertex_dim);
             VectorXr d_f_mag_cj = VectorXr::Zero(vertex_dim);
             if (f_mag > 0) {
-                d_f_mag_ci = -stiffness_ * d_cij_dist_ci;
-                d_f_mag_cj = -stiffness_ * d_cij_dist_cj;
+                d_f_mag_ci = -stiffness() * d_cij_dist_ci;
+                d_f_mag_cj = -stiffness() * d_cij_dist_cj;
             }
             const VectorXr i2j = dir_i2j / cij_dist;
             const MatrixXr jac_i2j_ci = jac_dir_i2j_ci / cij_dist - dir_i2j * d_cij_dist_ci.transpose() / (cij_dist * cij_dist);
@@ -138,9 +137,9 @@ void BilliardBallStateForce<vertex_dim>::BackwardForce(const VectorXr& q, const 
             const MatrixXr jac_fi_ci = -jac_fj_ci;
             const MatrixXr jac_fi_cj = -jac_fj_cj;
             // Next, compute the friction force.
-            const real ff_mag = f_mag * frictional_coeff_;
-            const VectorXr d_ff_mag_ci = d_f_mag_ci * frictional_coeff_;
-            const VectorXr d_ff_mag_cj = d_f_mag_cj * frictional_coeff_;
+            const real ff_mag = f_mag * frictional_coeff();
+            const VectorXr d_ff_mag_ci = d_f_mag_ci * frictional_coeff();
+            const VectorXr d_ff_mag_cj = d_f_mag_cj * frictional_coeff();
             const VectorXr vi = central_velocities.col(i);
             const VectorXr vj = central_velocities.col(j);
             const VectorXr vi_in_j = vi - vj;

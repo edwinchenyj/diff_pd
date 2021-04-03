@@ -21,7 +21,6 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
     const int sample_num = GetNumOfSamplesInElement();
     const int vertex_num = mesh_.NumOfVertices();
     const real mass = density_ * element_volume_;
-    const real h2m = dt * dt / mass;
     const real inv_h2m = mass / (dt * dt);
     std::array<SparseMatrixElements, vertex_dim> nonzeros;
     // Part I: Add inv_h2m.
@@ -442,7 +441,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
             for (const auto& pair : augmented_dirichlet) q_sol(pair.first) = pair.second;
         }
         force_sol = PdEnergyForce(q_sol, use_bfgs) + ActuationForce(q_sol, a);
-        grad_sol = (inv_h2m.cwiseProduct(q_sol - rhs) - force_sol).array() * selected.array();
+        grad_sol = (inv_h2m * (q_sol - rhs) - force_sol).array() * selected.array();
 
         // Check for convergence --- gradients must be zero.
         const real abs_error = grad_sol.norm();

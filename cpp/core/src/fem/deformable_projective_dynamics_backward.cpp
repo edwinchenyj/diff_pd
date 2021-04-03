@@ -413,7 +413,7 @@ void Deformable<vertex_dim, element_dim>::BackwardProjectiveDynamics(const std::
         CheckError(cholesky.info() == Eigen::Success, "Cholesky solver failed.");
     }
 
-    VectorXr dl_drhs = dl_drhs_intermediate.cwiseProduct(inv_h2m);
+    VectorXr dl_drhs = dl_drhs_intermediate * inv_h2m;
     // Now dl_drhs_free is correct. Working on dl_drhs_fixed next.
     for (const auto& pair: augmented_dirichlet) dl_drhs(pair.first) = dl_dq_next_agg(pair.first);
     // dl_drhs_fixed += -dl_dq_next_free * [dlhs/ dq_next_free]^(-1) * dlhs / drhs_fixed.

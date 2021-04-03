@@ -301,7 +301,7 @@ const SparseMatrix Deformable<vertex_dim, element_dim>::NewtonMatrix(const Vecto
         if (dirichlet_with_friction.find(i) != dirichlet_with_friction.end())
             nonzeros_new.push_back(Eigen::Triplet<real>(i, i, 1));
         else
-            nonzeros_new.push_back(Eigen::Triplet<real>(i, i, inv_h2m);
+            nonzeros_new.push_back(Eigen::Triplet<real>(i, i, inv_h2m));
     }
     return ToSparseMatrix(dofs_, dofs_, nonzeros_new);
 }
