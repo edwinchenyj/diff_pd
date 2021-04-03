@@ -81,7 +81,6 @@ const VectorXr BilliardBallStateForce<vertex_dim>::ForwardForce(const VectorXr& 
 template<int vertex_dim>
 void BilliardBallStateForce<vertex_dim>::BackwardForce(const VectorXr& q, const VectorXr& v, const VectorXr& f,
     const VectorXr& dl_df, VectorXr& dl_dq, VectorXr& dl_dv, VectorXr& dl_dp) const {
-    // TODO: implement dl_dp.
     dl_dp = VectorXr::Zero(2);
 
     // Reshape q to n x dim.
@@ -121,6 +120,7 @@ void BilliardBallStateForce<vertex_dim>::BackwardForce(const VectorXr& q, const 
             const VectorXr d_cij_dist_cj = jac_dir_i2j_cj.transpose() * dir_i2j / cij_dist;
             // Now compute the force.
             const real f_mag = std::max(2 * radius_ - cij_dist, 0.0) * stiffness();
+            const Vector2r d_f_mag_dp = Vector2r(std::max(2 * radius_ - cij_dist, 0.0), 0);
             VectorXr d_f_mag_ci = VectorXr::Zero(vertex_dim);
             VectorXr d_f_mag_cj = VectorXr::Zero(vertex_dim);
             if (f_mag > 0) {
@@ -131,13 +131,16 @@ void BilliardBallStateForce<vertex_dim>::BackwardForce(const VectorXr& q, const 
             const MatrixXr jac_i2j_ci = jac_dir_i2j_ci / cij_dist - dir_i2j * d_cij_dist_ci.transpose() / (cij_dist * cij_dist);
             const MatrixXr jac_i2j_cj = jac_dir_i2j_cj / cij_dist - dir_i2j * d_cij_dist_cj.transpose() / (cij_dist * cij_dist);
             // const VectorXr fj = i2j * f_mag;
+            const MatrixXr jac_fj_p = i2j * d_f_mag_dp.transpose();
             const MatrixXr jac_fj_ci = jac_i2j_ci * f_mag + i2j * d_f_mag_ci.transpose();
             const MatrixXr jac_fj_cj = jac_i2j_cj * f_mag + i2j * d_f_mag_cj.transpose();
             // const VectorXr fi = -fj;
+            const MatrixXr jac_fi_p = -jac_fj_p;
             const MatrixXr jac_fi_ci = -jac_fj_ci;
             const MatrixXr jac_fi_cj = -jac_fj_cj;
             // Next, compute the friction force.
             const real ff_mag = f_mag * frictional_coeff();
+            const Vector2r d_ff_mag_dp(std::max(2 * radius_ - cij_dist, 0.0) * frictional_coeff(), f_mag);
             const VectorXr d_ff_mag_ci = d_f_mag_ci * frictional_coeff();
             const VectorXr d_ff_mag_cj = d_f_mag_cj * frictional_coeff();
             const VectorXr vi = central_velocities.col(i);
@@ -166,6 +169,8 @@ void BilliardBallStateForce<vertex_dim>::BackwardForce(const VectorXr& q, const 
             }
             // const VectorXr ff_i = ff_i_dir * ff_mag;
             // const VectorXr ff_j = -ff_i;
+            const MatrixXr jac_ffi_p = ffi_dir * d_ff_mag_dp.transpose();
+            const MatrixXr jac_ffj_p = -jac_ffi_p;
             const MatrixXr jac_ffi_ci = jac_ffi_dir_ci * ff_mag + ffi_dir * d_ff_mag_ci.transpose();
             const MatrixXr jac_ffi_cj = jac_ffi_dir_cj * ff_mag + ffi_dir * d_ff_mag_cj.transpose();
             const MatrixXr jac_ffj_ci = -jac_ffi_ci;
@@ -182,6 +187,7 @@ void BilliardBallStateForce<vertex_dim>::BackwardForce(const VectorXr& q, const 
                     / single_ball_vertex_num_;
                 dl_ci += (jac_fi_ci + jac_ffi_ci).transpose() * dl_dfi + (jac_fj_ci + jac_ffj_ci).transpose() * dl_dfj;
                 dl_cj += (jac_fi_cj + jac_ffi_cj).transpose() * dl_dfi + (jac_fj_cj + jac_ffj_cj).transpose() * dl_dfj;
+                dl_dp += (jac_fi_p + jac_ffi_p).transpose() * dl_dfi + (jac_fj_p + jac_ffj_p).transpose() * dl_dfj;
             }
             // Backpropagate from centers[i] and centers[j] to q.
             for (int p = 0; p < single_ball_vertex_num_; ++p)
