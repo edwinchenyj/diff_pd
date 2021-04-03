@@ -126,7 +126,7 @@ def test_deformable_backward_3d(verbose):
 
     # Check gradients.
     eps = 1e-4
-    atol = 1e-4
+    atol = 1e-3
     rtol = 5e-2
     def skip_var(dof):
         return env.is_dirichlet_dof(dof)

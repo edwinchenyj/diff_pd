@@ -48,12 +48,13 @@ def test_state_force_3d(verbose):
     Cd_points = ndarray([[0.0, 0.05], [0.4, 0.05], [0.7, 1.85], [1.0, 2.05]])
     # Ct_points = (angle, coeff) pairs where angle is normalized to [-1, 1].
     Ct_points = ndarray([[-1, -0.8], [-0.3, -0.5], [0.3, 0.1], [1, 2.5]])
+    max_thrust = 0.1
     # The current Cd and Ct are similar to Figure 2 in SoftCon.
     # surface_faces is a list of (v0, v1, v2, v3) where v0, v1, v2, v3 are the vertex indices of the corners of a boundary face.
     # The order of v0, v1, v2, v3 follows the right-hand rule: if your right hand follows v0 -> v1 -> v2 -> v3, your thumb will
     # point to the outward normal.
     surface_faces = get_boundary_face(mesh)
-    deformable.AddStateForce('hydrodynamics', np.concatenate([[rho,], v_water, Cd_points.ravel(), Ct_points.ravel(),
+    deformable.AddStateForce('hydrodynamics', np.concatenate([[rho,], v_water, Cd_points.ravel(), Ct_points.ravel(), [max_thrust,],
         ndarray(surface_faces).ravel()]))
 
     dofs = deformable.dofs()
@@ -74,7 +75,7 @@ def test_state_force_3d(verbose):
 
     hydro = HexHydrodynamicsStateForce()
     flattened_surface_faces = [ll for l in surface_faces for ll in l]
-    hydro.PyInitialize(rho, v_water, Cd_points.ravel(), Ct_points.ravel(), flattened_surface_faces)
+    hydro.PyInitialize(rho, v_water, Cd_points.ravel(), Ct_points.ravel(), max_thrust, flattened_surface_faces)
 
     eps = 1e-8
     atol = 1e-4
@@ -95,7 +96,7 @@ def test_state_force_3d(verbose):
     billiard.Initialize(radius, single_ball_vertex_num, stiffness, coeff)
     # Generate q0 and v0.
     ball_num = 3
-    billiard_dofs = 2 * single_ball_vertex_num * ball_num
+    billiard_dofs = 3 * single_ball_vertex_num * ball_num
     single_ball_q = [(np.cos(i * np.pi * 2 / single_ball_vertex_num) * radius,
         np.sin(i * np.pi * 2 / single_ball_vertex_num) * radius, 0) for i in range(single_ball_vertex_num)]
     single_ball_q = ndarray(single_ball_q)
@@ -106,31 +107,60 @@ def test_state_force_3d(verbose):
     ]).ravel()
     billiard_v0 = np.random.normal(size=billiard_dofs, scale=0.05)
     billiard_weight = np.random.normal(size=billiard_dofs)
-    def l_and_g(x):
-        return loss_and_grad(x, billiard_weight, billiard, billiard_dofs)
-    if not check_gradients(l_and_g, np.concatenate([billiard_q0, billiard_v0]), eps, rtol, atol, verbose):
+    def l_and_g(qvp):
+        q = qvp[:billiard_dofs]
+        v = qvp[billiard_dofs:2 * billiard_dofs]
+        p = qvp[2 * billiard_dofs:]
+        billiard_qvp = BilliardBallStateForce3d()
+        billiard_qvp.Initialize(radius, single_ball_vertex_num, p[0], p[1])
+
+        f = ndarray(billiard_qvp.PyForwardForce(q, v))
+        loss = f.dot(billiard_weight)
+
+        # Compute gradients.
+        dl_df = np.copy(billiard_weight)
+        dl_dq = StdRealVector(dofs)
+        dl_dv = StdRealVector(dofs)
+        dl_dp = StdRealVector(billiard_qvp.NumOfParameters())
+        billiard_qvp.PyBackwardForce(q, v, f, dl_df, dl_dq, dl_dv, dl_dp)
+        grad = np.concatenate([ndarray(dl_dq), ndarray(dl_dv), ndarray(dl_dp)])
+        return loss, grad
+    if not check_gradients(l_and_g, np.concatenate([billiard_q0, billiard_v0, [stiffness, coeff,]]), eps, rtol, atol, verbose):
         if verbose:
             print_error('BilliardBallStateForce gradients mismatch.')
         return False
 
     # Test it in Deformable.
-    def forward_and_backward(qv):
-        q = qv[:dofs]
-        v = qv[dofs:]
-        f = ndarray(deformable.PyForwardStateForce(q, v))
+    def forward_and_backward(qvp):
+        q = qvp[:dofs]
+        v = qvp[dofs:2 * dofs]
+        p = qvp[2 * dofs:]
+        p_deformable = HexDeformable()
+        p_deformable.Initialize(str(bin_file_name), density, 'none', youngs_modulus, poissons_ratio)
+        p_deformable.AddStateForce('gravity', [p[0], p[1], p[2]])
+        p_deformable.AddStateForce('planar_collision', [p[3], p[4], 0.01, 0.2, 0.99, -dx / 2])
+        Cd_points = p[5:13]
+        Ct_points = p[13:]
+        p_deformable.AddStateForce('hydrodynamics', np.concatenate([[rho,], v_water, Cd_points, Ct_points, [max_thrust,],
+            ndarray(surface_faces).ravel()]))
+
+        f = ndarray(p_deformable.PyForwardStateForce(q, v))
         loss = f.dot(f_weight)
         grad_q = StdRealVector(dofs)
         grad_v = StdRealVector(dofs)
-        deformable.PyBackwardStateForce(q, v, f, f_weight, grad_q, grad_v)
-        grad = np.zeros(2 * dofs)
+        grad_p = StdRealVector(p_deformable.NumOfStateForceParameters())
+        p_deformable.PyBackwardStateForce(q, v, f, f_weight, grad_q, grad_v, grad_p)
+        grad = np.zeros(qvp.size)
         grad[:dofs] = ndarray(grad_q)
-        grad[dofs:] = ndarray(grad_v)
+        grad[dofs:2 * dofs] = ndarray(grad_v)
+        grad[2 * dofs:] = ndarray(grad_p)
         return loss, grad
 
     eps = 1e-8
     atol = 1e-4
-    rtol = 1e-2
-    x0 = np.concatenate([q0, v0])
+    rtol = 1e-3
+    p0 = ndarray([0.0, 0.0, -9.81, 1e2, 0.01, 0.0, 0.05, 0.4, 0.05, 0.7, 1.85, 1.0, 2.05, -1, -0.8, -0.3, -0.5, 0.3, 0.1, 1, 2.5])
+    x0 = np.concatenate([q0, v0, p0])
     grads_equal = check_gradients(forward_and_backward, x0, eps, rtol, atol, verbose)
     if not grads_equal:
         if verbose:
@@ -151,7 +181,8 @@ def loss_and_grad(qv, f_weight, state_force, dofs):
     dl_df = np.copy(f_weight)
     dl_dq = StdRealVector(dofs)
     dl_dv = StdRealVector(dofs)
-    state_force.PyBackwardForce(q, v, f, dl_df, dl_dq, dl_dv)
+    dl_dp = StdRealVector(state_force.NumOfParameters())
+    state_force.PyBackwardForce(q, v, f, dl_df, dl_dq, dl_dv, dl_dp)
     grad = np.concatenate([ndarray(dl_dq), ndarray(dl_dv)])
     return loss, grad
 
