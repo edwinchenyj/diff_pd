@@ -21,14 +21,14 @@ if __name__ == '__main__':
     folder = Path('billiard_ball_3d')
 
     # Simulation parameters.
-    substeps = 4
+    substeps = 3
     dt = (1 / 60) / substeps
     newton_method = 'newton_pcg'
     pd_method = 'pd_eigen'
     thread_ct = 6
-    newton_opt = { 'max_newton_iter': 1000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-9,
+    newton_opt = { 'max_newton_iter': 2000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-9,
         'verbose': 0, 'thread_ct': thread_ct }
-    pd_opt = { 'max_pd_iter': 1000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-9,
+    pd_opt = { 'max_pd_iter': 2000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-9,
         'verbose': 0, 'thread_ct': thread_ct, 'use_bfgs': 1, 'bfgs_history_size': 10 }
 
     # Extract the initial information of the balls.
