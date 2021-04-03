@@ -26,6 +26,13 @@ class HopperEnv3d(EnvBase):
         waist_width = options['waist_width']
         thickness = options['thickness']
         assert leg_width % 2 == 0
+        actuator_parameters = options['actuator_parameters'] if 'actuator_parameters' in options else ndarray([
+            np.log10(2) + 5,
+            np.log10(2) + 5,
+            np.log10(2) + 5,
+            np.log10(2) + 5,
+        ])
+        state_force_parameters = options['state_force_parameters'] if 'state_force_parameters' in options else ndarray([0.0, 0.0, -9.81])
 
         # Mesh parameters.
         cell_nums = (leg_width * 2 + waist_width, thickness, 2 * half_leg_height + waist_height)
@@ -54,7 +61,7 @@ class HopperEnv3d(EnvBase):
         deformable.Initialize(bin_file_name, density, 'none', youngs_modulus, poissons_ratio)
 
         # External force.
-        deformable.AddStateForce('gravity', [0.0, 0.0, -9.81])
+        deformable.AddStateForce('gravity', state_force_parameters)
 
         # Elasticity.
         deformable.AddPdEnergy('corotated', [2 * mu,], [])
@@ -79,10 +86,11 @@ class HopperEnv3d(EnvBase):
                 right_leg_left_fiber.append(i)
             elif leg_width + waist_width + leg_width // 2 < x < leg_width + waist_width + leg_width:
                 right_leg_right_fiber.append(i)
-        deformable.AddActuation(2e5, [0.0, 0.0, 1.0], left_leg_left_fiber)
-        deformable.AddActuation(2e5, [0.0, 0.0, 1.0], left_leg_right_fiber)
-        deformable.AddActuation(2e5, [0.0, 0.0, 1.0], right_leg_left_fiber)
-        deformable.AddActuation(2e5, [0.0, 0.0, 1.0], right_leg_right_fiber)
+        actuator_stiffness = self._actuator_parameter_to_stiffness(actuator_parameters)
+        deformable.AddActuation(actuator_stiffness[0], [0.0, 0.0, 1.0], left_leg_left_fiber)
+        deformable.AddActuation(actuator_stiffness[1], [0.0, 0.0, 1.0], left_leg_right_fiber)
+        deformable.AddActuation(actuator_stiffness[2], [0.0, 0.0, 1.0], right_leg_left_fiber)
+        deformable.AddActuation(actuator_stiffness[3], [0.0, 0.0, 1.0], right_leg_right_fiber)
 
         # Collision.
         friction_node_idx = get_contact_vertex(mesh)
@@ -120,6 +128,8 @@ class HopperEnv3d(EnvBase):
         self._f_ext = np.zeros(dofs)
         self._youngs_modulus = youngs_modulus
         self._poissons_ratio = poissons_ratio
+        self._actuator_parameters = actuator_parameters
+        self._state_force_parameters = state_force_parameters
         self._stepwise_loss = False
         self._left_leg_left_fiber = left_leg_left_fiber
         self._left_leg_right_fiber = left_leg_right_fiber

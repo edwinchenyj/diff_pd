@@ -21,6 +21,13 @@ class CowEnv3d(EnvBase):
         youngs_modulus = options['youngs_modulus'] if 'youngs_modulus' in options else 1e6
         poissons_ratio = options['poissons_ratio'] if 'poissons_ratio' in options else 0.49
         gait = options['gait'] if 'gait' in options else 'pronk'
+        if 'actuator_parameters' in options:
+            actuator_parameters = options['actuator_parameters']
+        elif gait == 'gallop':
+            actuator_parameters = ndarray([np.log10(5) + 5, np.log10(5) + 5])
+        else:
+            actuator_parameters = ndarray([np.log10(5) + 5,])
+        state_force_parameters = options['state_force_parameters'] if 'state_force_parameters' in options else ndarray([0.0, 0.0, -9.81])
 
         # Mesh parameters.
         la = youngs_modulus * poissons_ratio / ((1 + poissons_ratio) * (1 - 2 * poissons_ratio))
@@ -45,7 +52,7 @@ class CowEnv3d(EnvBase):
         deformable.AddPdEnergy('corotated', [2 * mu,], [])
         deformable.AddPdEnergy('volume', [la,], [])
         # State-based forces.
-        deformable.AddStateForce('gravity', [0, 0, -9.81])
+        deformable.AddStateForce('gravity', state_force_parameters)
         # Collisions.
         vertex_num = mesh.NumOfVertices()
         friction_node_idx = []
@@ -112,7 +119,8 @@ class CowEnv3d(EnvBase):
                 leg_indices[key].append(count)
                 act_indices.append(i)
                 count += 1
-        deformable.AddActuation(5e5, [0.0, 0.0, 1.0], act_indices)
+        actuator_stiffness = self._actuator_parameter_to_stiffness(actuator_parameters)
+        deformable.AddActuation(actuator_stiffness[0], [0.0, 0.0, 1.0], act_indices)
 
         spine_indices = {}
         if gait == 'gallop':
@@ -141,7 +149,7 @@ class CowEnv3d(EnvBase):
                     act_indices.append(i)
                     count += 1
 
-            deformable.AddActuation(5e5, [1.0, 0.0, 0.0], act_indices)
+            deformable.AddActuation(actuator_stiffness[1], [1.0, 0.0, 0.0], act_indices)
         # Initial states.
         dofs = deformable.dofs()
         print('Cow element: {:d}, DoFs: {:d}.'.format(element_num, dofs))
@@ -157,6 +165,8 @@ class CowEnv3d(EnvBase):
         self._f_ext = f_ext
         self._youngs_modulus = youngs_modulus
         self._poissons_ratio = poissons_ratio
+        self._actuator_parameters = actuator_parameters
+        self._state_force_parameters = state_force_parameters
         self._stepwise_loss = False
         self._leg_indices = leg_indices
         self._act_indices = act_indices

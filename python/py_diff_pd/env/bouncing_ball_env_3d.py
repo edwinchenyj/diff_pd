@@ -21,6 +21,7 @@ class BouncingBallEnv3d(EnvBase):
 
         youngs_modulus = options['youngs_modulus'] if 'youngs_modulus' in options else 1e6
         poissons_ratio = options['poissons_ratio'] if 'poissons_ratio' in options else 0.45
+        state_force_parameters = options['state_force_parameters'] if 'state_force_parameters' in options else ndarray([0.0, 0.0, -9.81])
 
         # Mesh parameters.
         la = youngs_modulus * poissons_ratio / ((1 + poissons_ratio) * (1 - 2 * poissons_ratio))
@@ -42,7 +43,7 @@ class BouncingBallEnv3d(EnvBase):
         fi = ndarray(mesh.py_element(0))
         dx = np.linalg.norm(ndarray(mesh.py_vertex(int(fi[0]))) - ndarray(mesh.py_vertex(int(fi[1]))))
         # State-based forces.
-        deformable.AddStateForce('gravity', [0, 0, -9.81])
+        deformable.AddStateForce('gravity', state_force_parameters)
         # Elasticity.
         deformable.AddPdEnergy('corotated', [2 * mu,], [])
         deformable.AddPdEnergy('volume', [la,], [])
@@ -66,6 +67,7 @@ class BouncingBallEnv3d(EnvBase):
         self._f_ext = f_ext
         self._youngs_modulus = youngs_modulus
         self._poissons_ratio = poissons_ratio
+        self._state_force_parameters = state_force_parameters
         self._stepwise_loss = True
 
         scale = 0.5

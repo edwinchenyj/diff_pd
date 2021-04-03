@@ -19,6 +19,8 @@ class HopperEnv2d(EnvBase):
         refinement = options['refinement'] if 'refinement' in options else 2
         youngs_modulus = options['youngs_modulus'] if 'youngs_modulus' in options else 4e5
         poissons_ratio = options['poissons_ratio'] if 'poissons_ratio' in options else 0.45
+        actuator_parameters = options['actuator_parameters'] if 'actuator_parameters' in options else ndarray([5., 5.])
+        state_force_parameters = options['state_force_parameters'] if 'state_force_parameters' in options else ndarray([0.0, -9.81])
 
         # Mesh parameters.
         cell_nums = (2 * refinement, 4 * refinement)
@@ -40,7 +42,7 @@ class HopperEnv2d(EnvBase):
         deformable.Initialize(bin_file_name, density, 'none', youngs_modulus, poissons_ratio)
 
         # External force.
-        deformable.AddStateForce('gravity', [0.0, -9.81])
+        deformable.AddStateForce('gravity', state_force_parameters)
 
         # Elasticity.
         deformable.AddPdEnergy('corotated', [2 * mu,], [])
@@ -52,8 +54,9 @@ class HopperEnv2d(EnvBase):
         for j in range(cell_nums[1]):
             left_muscle_indices.append(0 * cell_nums[1] + j)
             right_muscle_indices.append((2 * refinement - 1) * cell_nums[1] + j)
-        deformable.AddActuation(1e5, [0.0, 1.0], left_muscle_indices)
-        deformable.AddActuation(1e5, [0.0, 1.0], right_muscle_indices)
+        actuator_stiffness = self._actuator_parameter_to_stiffness(actuator_parameters)
+        deformable.AddActuation(actuator_stiffness[0], [0.0, 1.0], left_muscle_indices)
+        deformable.AddActuation(actuator_stiffness[1], [0.0, 1.0], right_muscle_indices)
         # Collision.
         friction_node_idx = []
         for i in range(node_nums[0]):
@@ -78,6 +81,8 @@ class HopperEnv2d(EnvBase):
         self._f_ext = f_ext
         self._youngs_modulus = youngs_modulus
         self._poissons_ratio = poissons_ratio
+        self._actuator_parameters = actuator_parameters
+        self._state_force_parameters = state_force_parameters
         self._stepwise_loss = False
         self.__loss_q_grad = np.random.normal(size=dofs)
         self.__loss_v_grad = np.random.normal(size=dofs)

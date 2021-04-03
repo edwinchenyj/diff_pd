@@ -23,6 +23,7 @@ class TendonRoutingEnv3d(EnvBase):
         refinement = options['refinement']
         youngs_modulus = options['youngs_modulus']
         poissons_ratio = options['poissons_ratio']
+        actuator_parameters = options['actuator_parameters'] if 'actuator_parameters' in options else ndarray([5.,])
         target = options['target']
 
         # Mesh parameters.
@@ -56,7 +57,8 @@ class TendonRoutingEnv3d(EnvBase):
         # Actuation.
         element_num = mesh.NumOfElements()
         act_indices = list(range(element_num))
-        deformable.AddActuation(1e5, [0.0, 0.0, 1.0], act_indices)
+        actuator_stiffness = self._actuator_parameter_to_stiffness(actuator_parameters)
+        deformable.AddActuation(actuator_stiffness[0], [0.0, 0.0, 1.0], act_indices)
         act_maps = []
         for i in range(2):
             for j in range(2):
@@ -84,6 +86,9 @@ class TendonRoutingEnv3d(EnvBase):
         self._deformable = deformable
         self._q0 = q0
         self._v0 = v0
+        self._youngs_modulus = youngs_modulus
+        self._poissons_ratio = poissons_ratio
+        self._actuator_parameters = actuator_parameters
         self._f_ext = f_ext
         self._stepwise_loss = False
         self._target = np.copy(ndarray(target))

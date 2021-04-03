@@ -24,6 +24,7 @@ class BunnyEnv3d(EnvBase):
 
         youngs_modulus = options['youngs_modulus'] if 'youngs_modulus' in options else 1e6
         poissons_ratio = options['poissons_ratio'] if 'poissons_ratio' in options else 0.49
+        state_force_parameters = options['state_force_parameters'] if 'state_force_parameters' in options else ndarray([0.0, 0.0, -9.81])
         mesh_type = options['mesh_type'] if 'mesh_type' in options else 'hex'
         assert mesh_type in ['hex', 'tet']
 
@@ -58,7 +59,7 @@ class BunnyEnv3d(EnvBase):
         deformable.AddPdEnergy('corotated', [2 * mu,], [])
         deformable.AddPdEnergy('volume', [la,], [])
         # State-based forces.
-        deformable.AddStateForce('gravity', [0, 0, -9.81])
+        deformable.AddStateForce('gravity', state_force_parameters)
         # Collisions.
         if mesh_type == 'hex':
             friction_node_idx = get_hex_contact_vertex(mesh)
@@ -94,6 +95,7 @@ class BunnyEnv3d(EnvBase):
         self._f_ext = f_ext
         self._youngs_modulus = youngs_modulus
         self._poissons_ratio = poissons_ratio
+        self._state_force_parameters = state_force_parameters
         self._stepwise_loss = False
         self._target_com = ndarray(options['target_com']) if 'target_com' in options else ndarray([0.15, 0.15, 0.15])
         self._bunny_size = bunny_size

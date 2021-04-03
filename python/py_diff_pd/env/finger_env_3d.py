@@ -19,6 +19,7 @@ class FingerEnv3d(EnvBase):
         # Mesh parameters.
         youngs_modulus = 3e5
         poissons_ratio = 0.45
+        actuator_parameters = [5.,]
         la = youngs_modulus * poissons_ratio / ((1 + poissons_ratio) * (1 - 2 * poissons_ratio))
         mu = youngs_modulus / (2 * (1 + poissons_ratio))
         density = 1e3
@@ -48,7 +49,8 @@ class FingerEnv3d(EnvBase):
         # Actuation.
         element_num = mesh.NumOfElements()
         act_indices = [i for i in range(element_num)]
-        deformable.AddActuation(1e5, [0.0, 0.0, 1.0], act_indices)
+        actuator_stiffness = self._actuator_parameter_to_stiffness(actuator_parameters)
+        deformable.AddActuation(actuator_stiffness[0], [0.0, 0.0, 1.0], act_indices)
 
         # Initial state
         dofs = deformable.dofs()
@@ -61,6 +63,9 @@ class FingerEnv3d(EnvBase):
         # Data members.
         self.__folder = Path(folder)
         self._origin = origin
+        self._youngs_modulus = youngs_modulus
+        self._poissons_ratio = poissons_ratio
+        self._actuator_parameters = actuator_parameters
         self._deformable = deformable
         self._q0 = q0
         self._v0 = v0

@@ -20,6 +20,7 @@ class RollingJellyEnv3d(EnvBase):
         refinement = options['refinement']
         youngs_modulus = options['youngs_modulus']
         poissons_ratio = options['poissons_ratio']
+        state_force_parameters = options['state_force_parameters'] if 'state_force_parameters' in options else ndarray([0.0, 0.0, -9.81])
 
         # Mesh parameters.
         la = youngs_modulus * poissons_ratio / ((1 + poissons_ratio) * (1 - 2 * poissons_ratio))
@@ -48,7 +49,7 @@ class RollingJellyEnv3d(EnvBase):
         deformable = HexDeformable()
         deformable.Initialize(str(bin_file_name), density, 'none', youngs_modulus, poissons_ratio)
         # State-based forces.
-        deformable.AddStateForce('gravity', [0, 0, -9.81])
+        deformable.AddStateForce('gravity', state_force_parameters)
         # Elasticity.
         deformable.AddPdEnergy('corotated', [2 * mu,], [])
         deformable.AddPdEnergy('volume', [la,], [])
@@ -83,6 +84,7 @@ class RollingJellyEnv3d(EnvBase):
         self._f_ext = f_ext
         self._youngs_modulus = youngs_modulus
         self._poissons_ratio = poissons_ratio
+        self._state_force_parameters = state_force_parameters
         self._stepwise_loss = False
         self.__loss_q_grad = np.random.normal(size=dofs)
         self.__loss_v_grad = np.random.normal(size=dofs)

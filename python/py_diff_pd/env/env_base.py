@@ -18,6 +18,8 @@ class EnvBase:
         self._f_ext = np.zeros(0)
         self._youngs_modulus = 0
         self._poissons_ratio = 0
+        self._actuator_parameters = np.zeros(0)
+        self._state_force_parameters = np.zeros(0)
         self._stepwise_loss = False
 
         self._folder = Path(folder)
@@ -30,6 +32,9 @@ class EnvBase:
         self._color = (0.3, 0.7, 0.5)
         self._scale = 0.4
         self._resolution = (800, 800)
+
+    def material_stiffness_differential(self, youngs_modulus, possions_ratio):
+        raise NotImplementedError
 
     # Returns a 2 x 2 Jacobian:
     # Cols: youngs modulus, poissons ratio.
@@ -46,9 +51,19 @@ class EnvBase:
         jac[1, 1] = -(E / 2) / ((1 + nu) ** 2)
         return jac
 
-    # Returns a Jacobian that maps (youngs_modulus, poissons_ratio) to the stiffness in pd_element_energy.
-    def material_stiffness_differential(self, youngs_modulus, poissons_ratio):
-        raise NotImplementedError
+    def _actuator_parameter_to_stiffness(self, actuator_parameters):
+        return ndarray([10 ** p for p in actuator_parameters.ravel()])
+
+    # Returns a Jacobian:
+    # Cols: actuator_parameters.
+    # Rows: actuator stiffnesses.
+    def _actuator_jacobian(self, actuator_parameters):
+        n = actuator_parameters.size
+        jac = np.zeros((n, n))
+        # stiffness[i] = 10 ** actuator_parameters[i].
+        for i in range(n):
+            jac[i, i] = (10 ** actuator_parameters[i]) * np.log(10)
+        return ndarray(jac).copy()
 
     def is_dirichlet_dof(self, dof):
         raise NotImplementedError
@@ -252,17 +267,24 @@ class EnvBase:
             act_dofs = self._deformable.act_dofs()
             dl_act = np.zeros((frame_num, act_dofs))
             dl_df_ext = np.zeros((frame_num, dofs))
-            dl_dw = np.zeros(2)
+            mat_w_dofs = self._deformable.NumOfPdElementEnergies()
+            act_w_dofs = self._deformable.NumOfPdMuscleEnergies()
+            state_p_dofs = self._deformable.NumOfStateForceParameters()
+            dl_dmat_w = np.zeros(mat_w_dofs)
+            dl_dact_w = np.zeros(act_w_dofs)
+            dl_dstate_p = np.zeros(state_p_dofs)
             for i in reversed(range(frame_num)):
                 # i -> i + 1.
                 dl_dq = StdRealVector(dofs)
                 dl_dv_clamped = StdRealVector(dofs)
                 dl_da = StdRealVector(act_dofs)
                 dl_df = StdRealVector(dofs)
-                dl_dwi = StdRealVector(2)
+                dl_dmat_wi = StdRealVector(mat_w_dofs)
+                dl_dact_wi = StdRealVector(act_w_dofs)
+                dl_dstate_pi = StdRealVector(state_p_dofs)
                 self._deformable.PyBackward(backward_method, q[i], v_clamped[i], sim_act[i], sim_f_ext[i], dt,
                     q[i + 1], v[i + 1], active_contact_indices[i + 1], dl_dq_next, dl_dv_next,
-                    backward_opt, dl_dq, dl_dv_clamped, dl_da, dl_df, dl_dwi)
+                    backward_opt, dl_dq, dl_dv_clamped, dl_da, dl_df, dl_dmat_wi, dl_dact_wi, dl_dstate_pi)
                 # Backpropagate v_clamped[i] = clip(v[i], -velocity_bound, velocity_bound).
                 dl_dv_clamped = ndarray(dl_dv_clamped)
                 dl_dv = np.copy(dl_dv_clamped)
@@ -278,10 +300,21 @@ class EnvBase:
                     dl_dv_next += ndarray(dvi)
                 dl_act[i] = ndarray(dl_da)
                 dl_df_ext[i] = ndarray(dl_df)
-                dl_dw += ndarray(dl_dwi)
+                dl_dmat_w += ndarray(dl_dmat_wi)
+                dl_dact_w += ndarray(dl_dact_wi)
+                dl_dstate_p += ndarray(dl_dstate_pi)
             grad = [np.copy(dl_dq_next), np.copy(dl_dv_next), dl_act, dl_df_ext]
             t_grad = time.time() - t_begin
             info['backward_time'] = t_grad
-            info['material_parameter_gradients'] = dl_dw.T @ self.material_stiffness_differential(
-                self._youngs_modulus, self._poissons_ratio)
+            info['material_parameter_gradients'] = ndarray(dl_dmat_w.T @ self.material_stiffness_differential(
+                self._youngs_modulus, self._poissons_ratio)).ravel()
+            if act_w_dofs > 0:
+                info['actuator_parameter_gradients'] = ndarray(dl_dact_w.T @ self._actuator_jacobian(
+                    self._actuator_parameters)).ravel()
+            else:
+                info['actuator_parameter_gradients'] = ndarray(np.zeros(0))
+            if state_p_dofs > 0:
+                info['state_force_parameter_gradients'] = ndarray(dl_dstate_p)
+            else:
+                info['state_force_parameter_gradients'] = ndarray(np.zeros(0))
             return loss, grad, info

@@ -19,6 +19,8 @@ class QuadrupedEnv3d(EnvBase):
 
         youngs_modulus = options['youngs_modulus'] if 'youngs_modulus' in options else 1e6
         poissons_ratio = options['poissons_ratio'] if 'poissons_ratio' in options else 0.49
+        actuator_parameters = options['actuator_parameters'] if 'actuator_parameters' in options else ndarray([np.log10(5) + 5])
+        state_force_parameters = options['state_force_parameters'] if 'state_force_parameters' in options else ndarray([0.0, 0.0, -9.81])
         # Configure the size of the quadruped:
         # Foot width = 1.
         foot_width_size = 0.1
@@ -64,7 +66,7 @@ class QuadrupedEnv3d(EnvBase):
         deformable = HexDeformable()
         deformable.Initialize(str(bin_file_name), density, 'none', youngs_modulus, poissons_ratio)
         # State-based forces.
-        deformable.AddStateForce('gravity', [0, 0, -9.81])
+        deformable.AddStateForce('gravity', state_force_parameters)
         # Elasticity.
         deformable.AddPdEnergy('corotated', [2 * mu,], [])
         deformable.AddPdEnergy('volume', [la,], [])
@@ -117,7 +119,8 @@ class QuadrupedEnv3d(EnvBase):
                 leg_indices[key].append(count)
                 act_indices.append(i)
                 count += 1
-        deformable.AddActuation(5e5, [0.0, 0.0, 1.0], act_indices)
+        actuator_stiffness = self._actuator_parameter_to_stiffness(actuator_parameters)
+        deformable.AddActuation(actuator_stiffness[0], [0.0, 0.0, 1.0], act_indices)
 
         # Initial conditions.
         dofs = deformable.dofs()
@@ -134,6 +137,8 @@ class QuadrupedEnv3d(EnvBase):
         self._f_ext = f_ext
         self._youngs_modulus = youngs_modulus
         self._poissons_ratio = poissons_ratio
+        self._actuator_parameters = actuator_parameters
+        self._state_force_parameters = state_force_parameters
         self._stepwise_loss = False
         self.__node_nums = node_nums
         self.__element_num = element_num

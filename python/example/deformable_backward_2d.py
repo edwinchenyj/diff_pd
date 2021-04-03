@@ -30,9 +30,9 @@ def test_deformable_backward_2d(verbose):
     deformable = env.deformable()
 
     methods = ['newton_pcg', 'newton_cholesky', 'pd_eigen']
-    opts = [{ 'max_newton_iter': 200, 'max_ls_iter': 10, 'abs_tol': 1e-6, 'rel_tol': 1e-6, 'verbose': 0, 'thread_ct': 4 },
-        { 'max_newton_iter': 200, 'max_ls_iter': 10, 'abs_tol': 1e-6, 'rel_tol': 1e-6, 'verbose': 0, 'thread_ct': 4 },
-        { 'max_pd_iter': 200, 'max_ls_iter': 10, 'abs_tol': 1e-6, 'rel_tol': 1e-6, 'verbose': 0, 'thread_ct': 4,
+    opts = [{ 'max_newton_iter': 200, 'max_ls_iter': 10, 'abs_tol': 1e-10, 'rel_tol': 1e-10, 'verbose': 0, 'thread_ct': 4 },
+        { 'max_newton_iter': 200, 'max_ls_iter': 10, 'abs_tol': 1e-10, 'rel_tol': 1e-10, 'verbose': 0, 'thread_ct': 4 },
+        { 'max_pd_iter': 200, 'max_ls_iter': 10, 'abs_tol': 1e-10, 'rel_tol': 1e-10, 'verbose': 0, 'thread_ct': 4,
             'use_bfgs': 1, 'bfgs_history_size': 10 }]
     if 'PARDISO_LIC_PATH' in os.environ:
         methods += ['newton_pardiso', 'pd_pardiso']
