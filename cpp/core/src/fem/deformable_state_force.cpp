@@ -50,11 +50,16 @@ void Deformable<vertex_dim, element_dim>::AddStateForce(const std::string& force
         force->Initialize(rho, v_water, Cd_points, Ct_points, max_force, surface_faces);
         state_forces_.push_back(force);
     } else if (force_type == "billiard_ball") {
-        CheckError(param_size == 4, "Inconsistent params for BilliardBallStateForce.");
         const real radius = params[0];
         const int single_ball_vertex_num = static_cast<int>(params[1]);
-        const real stiffness = params[2];
-        const real frictional_coeff = params[3];
+        const int ball_num = (param_size - 2) / 2;
+        CheckError(param_size == 2 + ball_num * 2, "Inconsistent params for BilliardBallStateForce.");
+        std::vector<real> stiffness(ball_num, 0);
+        std::vector<real> frictional_coeff(ball_num, 0);
+        for (int i = 0; i < ball_num; ++i) {
+            stiffness[i] = params[2 + i];
+            frictional_coeff[i] = params[2 + ball_num + i];
+        }
         auto force = std::make_shared<BilliardBallStateForce<vertex_dim>>();
         force->Initialize(radius, single_ball_vertex_num, stiffness, frictional_coeff);
         state_forces_.push_back(force);

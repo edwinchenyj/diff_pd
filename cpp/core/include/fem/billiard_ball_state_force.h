@@ -10,12 +10,14 @@ template<int vertex_dim>
 class BilliardBallStateForce : public StateForce<vertex_dim> {
 public:
     void Initialize(const real radius, const int single_ball_vertex_num,
-        const real stiffness, const real frictional_coeff);
+        const std::vector<real> &stiffness, const std::vector<real>& frictional_coeff);
 
     const real radius() const { return radius_; }
     const int single_ball_vertex_num() const { return single_ball_vertex_num_; }
-    const real stiffness() const { return StateForce<vertex_dim>::parameters()(0); }
-    const real frictional_coeff() const { return StateForce<vertex_dim>::parameters()(1); }
+    const real stiffness(const int ball_idx) const { return StateForce<vertex_dim>::parameters()(ball_idx); }
+    const real frictional_coeff(const int ball_idx) const {
+        return StateForce<vertex_dim>::parameters()(ball_num_ + ball_idx);
+    }
 
     const VectorXr ForwardForce(const VectorXr& q, const VectorXr& v) const override;
     void BackwardForce(const VectorXr& q, const VectorXr& v, const VectorXr& f,
@@ -24,6 +26,7 @@ public:
 private:
     real radius_;
     int single_ball_vertex_num_;
+    int ball_num_;
 
     // Parameters for the impulse-based contact model (essentially a spring).
     // Step 1: Compute c.o.m. positions of each billiard ball from q.

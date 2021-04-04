@@ -70,7 +70,7 @@ if __name__ == '__main__':
         'radius': ball_radius,
         'reference_positions': ball_positions,
         'substeps': substeps,
-        'state_force_parameters': [3e2, 0.2]
+        'state_force_parameters': [3e2, 3e2, 0.2, 0.2]
     })
     deformable = env.deformable()
     # Initial state.
@@ -103,9 +103,10 @@ if __name__ == '__main__':
     # - theta and scale of the initial angular velocity of the balls.
     def get_init_state(x):
         x = ndarray(x).copy().ravel()
-        assert x.size == 6
-        log_stiff, coeff, theta0, scale0, theta1, scale1 = x
-        stiff = 10 ** log_stiff
+        assert x.size == 8
+        log_stiff0, coeff0, log_stiff1, coeff1, theta0, scale0, theta1, scale1 = x
+        stiff0 = 10 ** log_stiff0
+        stiff1 = 10 ** log_stiff1
         c0, s0 = np.cos(theta0), np.sin(theta0)
         c1, s1 = np.cos(theta1), np.sin(theta1)
         w = ndarray([[c0 * scale0, s0 * scale0, 0],
@@ -116,19 +117,21 @@ if __name__ == '__main__':
             'radius': ball_radius,
             'reference_positions': ball_positions,
             'substeps': substeps,
-            'state_force_parameters': [stiff, coeff]
+            'state_force_parameters': [stiff0, stiff1, coeff0, coeff1]
         })
         dw_dx = ndarray([
-            [0, 0, scale0 * -s0, c0, 0, 0],
-            [0, 0, scale0 * c0, s0, 0, 0],
-            [0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, scale1 * -s1, c1],
-            [0, 0, 0, 0, scale1 * c1, s1],
-            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, scale0 * -s0, c0, 0, 0],
+            [0, 0, 0, 0, scale0 * c0, s0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, scale1 * -s1, c1],
+            [0, 0, 0, 0, 0, 0, scale1 * c1, s1],
+            [0, 0, 0, 0, 0, 0, 0, 0],
         ])
         dp_dx = ndarray([
-            [(10 ** log_stiff) * np.log(10), 0, 0, 0, 0, 0],
-            [0, 1, 0, 0, 0, 0]
+            [(10 ** log_stiff0) * np.log(10), 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, (10 ** log_stiff1) * np.log(10), 0, 0, 0, 0, 0],
+            [0, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 1, 0, 0, 0, 0]
         ])
         info = { 'env': e, 'v0': e.default_init_velocity(), 'dw_dx': dw_dx, 'dp_dx': dp_dx }
         return info
@@ -139,10 +142,10 @@ if __name__ == '__main__':
     init_theta1 = np.arctan2(init_angular_velocities[1, 1], init_angular_velocities[1, 0])
     init_scale1 = np.linalg.norm(init_angular_velocities[1])
     x_lower = ndarray([
-        1.5, 0.1, init_theta0 - 0.05, init_scale0 * 0.9, init_theta1 - 0.05, init_scale1 * 0.9
+        1.5, 0.1, 1.5, 0.1, init_theta0 - 0.05, init_scale0 * 0.9, init_theta1 - 0.05, init_scale1 * 0.9
     ])
     x_upper = ndarray([
-        3.5, 1.5, init_theta0 + 0.05, init_scale0 * 4.0, init_theta1 + 0.05, init_scale1 * 4.0
+        3.5, 1.5, 3.5, 1.5, init_theta0 + 0.05, init_scale0 * 4.0, init_theta1 + 0.05, init_scale1 * 4.0
     ])
     bounds = scipy.optimize.Bounds(x_lower, x_upper)
     x_init = np.random.uniform(low=x_lower, high=x_upper)
@@ -167,7 +170,7 @@ if __name__ == '__main__':
         return loss, ndarray(g).copy().ravel()
 
     # Sanity check the gradients.
-    # check_gradients(loss_and_grad, x_init, eps=1e-3)
+    # check_gradients(loss_and_grad, x_init, eps=1e-6)
 
     # Pick the best initial guess.
     best_loss = np.inf
@@ -191,7 +194,7 @@ if __name__ == '__main__':
         v_init = info['v0']
         _, info = e_init.simulate(dt, frame_num, pd_method, pd_opt, q0, v_init, a0, f0, require_grad=False, vis_folder='init',
             render_frame_skip=substeps)
-        pickle.dump(info, open(folder / 'init/info.data', 'wb'))
+        pickle.dump((x_init, info), open(folder / 'init/info.data', 'wb'))
         fig = plt.figure()
         ax = fig.add_subplot(111)
         q = info['q']
@@ -228,7 +231,7 @@ if __name__ == '__main__':
         v_init = info['v0']
         _, info = e_init.simulate(dt, frame_num, pd_method, pd_opt, q0, v_init, a0, f0, require_grad=False, vis_folder=pd_method,
             render_frame_skip=substeps)
-        pickle.dump(info, open(folder / pd_method / 'info.data', 'wb'))
+        pickle.dump((x_final, info), open(folder / pd_method / 'info.data', 'wb'))
         fig = plt.figure()
         ax = fig.add_subplot(111)
         q = info['q']

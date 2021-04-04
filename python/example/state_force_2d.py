@@ -113,9 +113,9 @@ def test_state_force_2d(verbose):
     radius = 0.1
     stiffness = 1e1
     coeff = 0.2
-    billiard.Initialize(radius, single_ball_vertex_num, stiffness, coeff)
     # Generate q0 and v0.
     ball_num = 3
+    billiard.Initialize(radius, single_ball_vertex_num, np.full((ball_num,), stiffness), np.full((ball_num,), coeff))
     billiard_dofs = 2 * single_ball_vertex_num * ball_num
     single_ball_q = [(np.cos(i * np.pi * 2 / single_ball_vertex_num) * radius,
         np.sin(i * np.pi * 2 / single_ball_vertex_num) * radius) for i in range(single_ball_vertex_num)]
@@ -132,7 +132,7 @@ def test_state_force_2d(verbose):
         v = qvp[billiard_dofs:2 * billiard_dofs]
         p = qvp[2 * billiard_dofs:]
         billiard_qvp = BilliardBallStateForce2d()
-        billiard_qvp.Initialize(radius, single_ball_vertex_num, p[0], p[1])
+        billiard_qvp.Initialize(radius, single_ball_vertex_num, p[:ball_num], p[ball_num:])
 
         f = ndarray(billiard_qvp.PyForwardForce(q, v))
         loss = f.dot(billiard_weight)
@@ -145,7 +145,8 @@ def test_state_force_2d(verbose):
         billiard_qvp.PyBackwardForce(q, v, f, dl_df, dl_dq, dl_dv, dl_dp)
         grad = np.concatenate([ndarray(dl_dq), ndarray(dl_dv), ndarray(dl_dp)])
         return loss, grad
-    if not check_gradients(l_and_g, np.concatenate([billiard_q0, billiard_v0, [stiffness, coeff,]]), eps, rtol, atol, verbose):
+    if not check_gradients(l_and_g, np.concatenate([billiard_q0, billiard_v0,
+        [stiffness, stiffness, stiffness, coeff, coeff, coeff,]]), eps, rtol, atol, verbose):
         if verbose:
             print_error('BilliardBallStateForce gradients mismatch.')
         return False
