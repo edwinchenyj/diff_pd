@@ -65,7 +65,7 @@ class BilliardBallEnv3d(EnvBase):
         ax.scatter(v[:, 0], v[:, 1], v[:, 2])
         plt.show()
         '''
-        # Depending on the number of balls, we will dumplicate the vertices.
+        # Depending on the number of balls, we will duplicate the vertices.
         num_balls = init_ball_positions.shape[0]
         self.__num_balls = num_balls
         num_ball_vertices = verts.shape[0]
