@@ -101,10 +101,14 @@ if __name__ == '__main__':
     # Decision variables to optimize:
     # - stiffness and frictional coefficient of the contact model.
     # - theta and scale of the initial angular velocity of the balls.
+    # - initial locations of the balls.
     def get_init_state(x):
         x = ndarray(x).copy().ravel()
-        assert x.size == 8
-        log_stiff0, coeff0, log_stiff1, coeff1, theta0, scale0, theta1, scale1 = x
+        assert x.size == 12
+        log_stiff0, coeff0, log_stiff1, coeff1 = x[:4]
+        theta0, scale0, theta1, scale1 = x[4:8]
+        pos0 = [x[8], x[9], 0]
+        pos1 = [x[10], x[11], 0]
         stiff0 = 10 ** log_stiff0
         stiff1 = 10 ** log_stiff1
         c0, s0 = np.cos(theta0), np.sin(theta0)
@@ -112,28 +116,37 @@ if __name__ == '__main__':
         w = ndarray([[c0 * scale0, s0 * scale0, 0],
             [c1 * scale1, s1 * scale1, 0]])
         e = BilliardBallEnv3d(folder, {
-            'init_positions': init_positions,
+            'init_positions': [pos0, pos1],
             'init_angular_velocities': w,
             'radius': ball_radius,
             'reference_positions': ball_positions,
             'substeps': substeps,
             'state_force_parameters': [stiff0, stiff1, coeff0, coeff1]
         })
+        dc_dx = ndarray([
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ])
         dw_dx = ndarray([
-            [0, 0, 0, 0, scale0 * -s0, c0, 0, 0],
-            [0, 0, 0, 0, scale0 * c0, s0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, scale1 * -s1, c1],
-            [0, 0, 0, 0, 0, 0, scale1 * c1, s1],
-            [0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, scale0 * -s0, c0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, scale0 * c0, s0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, scale1 * -s1, c1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, scale1 * c1, s1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ])
         dp_dx = ndarray([
-            [(10 ** log_stiff0) * np.log(10), 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, (10 ** log_stiff1) * np.log(10), 0, 0, 0, 0, 0],
-            [0, 1, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 1, 0, 0, 0, 0]
+            [(10 ** log_stiff0) * np.log(10), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, (10 ** log_stiff1) * np.log(10), 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]
         ])
-        info = { 'env': e, 'v0': e.default_init_velocity(), 'dw_dx': dw_dx, 'dp_dx': dp_dx }
+        info = { 'env': e, 'q0': e.default_init_position(), 'v0': e.default_init_velocity(),
+            'dc_dx': dc_dx, 'dw_dx': dw_dx, 'dp_dx': dp_dx }
         return info
 
     # Optimization.
@@ -142,10 +155,12 @@ if __name__ == '__main__':
     init_theta1 = np.arctan2(init_angular_velocities[1, 1], init_angular_velocities[1, 0])
     init_scale1 = np.linalg.norm(init_angular_velocities[1])
     x_lower = ndarray([
-        1.5, 0.1, 1.5, 0.1, init_theta0 - 0.05, init_scale0 * 0.9, init_theta1 - 0.05, init_scale1 * 0.9
+        1.5, 0.3, 1.5, 0.3, init_theta0 - 0.05, init_scale0 * 2.0, init_theta1 - 0.05, init_scale1 * 2.0,
+        init_positions[0, 0] - 0.04, init_positions[0, 1] - 0.04, init_positions[1, 0] - 0.04, init_positions[1, 1] - 0.04,
     ])
     x_upper = ndarray([
-        3.5, 1.5, 3.5, 1.5, init_theta0 + 0.05, init_scale0 * 4.0, init_theta1 + 0.05, init_scale1 * 4.0
+        2.0, 0.7, 2.0, 0.7, init_theta0 + 0.05, init_scale0 * 4.0, init_theta1 + 0.05, init_scale1 * 4.0,
+        init_positions[0, 0] + 0.04, init_positions[0, 1] + 0.04, init_positions[1, 0] + 0.04, init_positions[1, 1] + 0.04,
     ])
     bounds = scipy.optimize.Bounds(x_lower, x_upper)
     x_init = np.random.uniform(low=x_lower, high=x_upper)
@@ -154,10 +169,13 @@ if __name__ == '__main__':
     def loss_and_grad(x):
         init_info = get_init_state(x)
         e = init_info['env']
+        q = init_info['q0']
         v = init_info['v0']
-        loss, grad, info = e.simulate(dt, frame_num, (pd_method, newton_method), (pd_opt, newton_opt), q0, v, a0, f0, require_grad=True)
+        loss, grad, info = e.simulate(dt, frame_num, (pd_method, newton_method), (pd_opt, newton_opt), q, v, a0, f0, require_grad=True)
         # We start from 3: because the first three state parameters are gravitiy.
-        g = info['state_force_parameter_gradients'][3:] @ init_info['dp_dx'] + e.backprop_init_velocities(grad[1]) @ init_info['dw_dx']
+        g = info['state_force_parameter_gradients'][3:] @ init_info['dp_dx'] \
+            + e.backprop_init_velocities(grad[1]) @ init_info['dw_dx'] \
+            + e.backprop_init_positions(grad[0]) @ init_info['dc_dx']
         print('loss: {:8.3f}, |grad|: {:8.3f}, forward time: {:6.3f}s, backward time: {:6.3f}s'.format(
             loss, np.linalg.norm(g), info['forward_time'], info['backward_time']))
         single_data = {}
@@ -175,12 +193,14 @@ if __name__ == '__main__':
     # Pick the best initial guess.
     best_loss = np.inf
     best_x_init = None
-    for _ in range(4):
+    for _ in range(16):
         x_guess = np.random.uniform(low=x_lower, high=x_upper)
         init_info = get_init_state(x_guess)
         e = init_info['env']
         v = init_info['v0']
-        loss, _ = e.simulate(dt, frame_num, (pd_method, newton_method), (pd_opt, newton_opt), q0, v, a0, f0, require_grad=False)
+        q = init_info['q0']
+        loss, _ = e.simulate(dt, frame_num, (pd_method, newton_method), (pd_opt, newton_opt),
+            q, v, a0, f0, require_grad=False)
         print('loss:', loss)
         if loss < best_loss:
             best_loss = loss
@@ -192,7 +212,8 @@ if __name__ == '__main__':
         info = get_init_state(x_init)
         e_init = info['env']
         v_init = info['v0']
-        _, info = e_init.simulate(dt, frame_num, pd_method, pd_opt, q0, v_init, a0, f0, require_grad=False, vis_folder='init',
+        q_init = info['q0']
+        _, info = e_init.simulate(dt, frame_num, pd_method, pd_opt, q_init, v_init, a0, f0, require_grad=False, vis_folder='init',
             render_frame_skip=substeps)
         pickle.dump((x_init, info), open(folder / 'init/info.data', 'wb'))
         fig = plt.figure()
@@ -229,7 +250,8 @@ if __name__ == '__main__':
         info = get_init_state(x_final)
         e_init = info['env']
         v_init = info['v0']
-        _, info = e_init.simulate(dt, frame_num, pd_method, pd_opt, q0, v_init, a0, f0, require_grad=False, vis_folder=pd_method,
+        q_init = info['q0']
+        _, info = e_init.simulate(dt, frame_num, pd_method, pd_opt, q_init, v_init, a0, f0, require_grad=False, vis_folder=pd_method,
             render_frame_skip=substeps)
         pickle.dump((x_final, info), open(folder / pd_method / 'info.data', 'wb'))
         fig = plt.figure()

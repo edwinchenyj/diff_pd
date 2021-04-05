@@ -104,6 +104,7 @@ class BilliardBallEnv3d(EnvBase):
             [0, 0, 0]
         ])
         self.__grad_v_grad_w = ndarray([(verts @ dW.T).ravel() for dW in [dWx, dWy, dWz]]).T
+        self.__grad_q_grad_c = ndarray(np.tile(np.eye(3), (num_ball_vertices, 1)))
 
         all_verts = np.vstack(all_verts)
         all_eles = np.vstack(all_eles)
@@ -158,6 +159,12 @@ class BilliardBallEnv3d(EnvBase):
         # Output: dl_domega.
         dl_dv_reshaped = dl_dv.reshape((self.__num_balls, -1))
         return ndarray(dl_dv_reshaped @ self.__grad_v_grad_w).ravel()
+
+    def backprop_init_positions(self, dl_dq):
+        # Input: dl_dq.
+        # Output: dl_dc.
+        dl_dq_reshaped = dl_dq.reshape((self.__num_balls, -1))
+        return ndarray(dl_dq_reshaped @ self.__grad_q_grad_c).ravel()
 
     def material_stiffness_differential(self, youngs_modulus, poissons_ratio):
         jac = self._material_jacobian(youngs_modulus, poissons_ratio)
