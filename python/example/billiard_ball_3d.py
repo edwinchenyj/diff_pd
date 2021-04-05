@@ -175,7 +175,7 @@ if __name__ == '__main__':
     # Pick the best initial guess.
     best_loss = np.inf
     best_x_init = None
-    for _ in range(16):
+    for _ in range(4):
         x_guess = np.random.uniform(low=x_lower, high=x_upper)
         init_info = get_init_state(x_guess)
         e = init_info['env']
