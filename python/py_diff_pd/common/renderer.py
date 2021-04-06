@@ -354,7 +354,7 @@ class PbrtRenderer(object):
         self.__shape_objects.append(shape_pbrt_short_name)
 
     # Call this function after you have set up add_hex_mesh and add_tri_mesh.
-    def render(self, verbose=False, nproc=None):
+    def render(self, verbose=False, light_rgb=(1., 1., 1.), nproc=None):
         scene_pbrt_name = self.__temporary_folder / 'scene.pbrt'
         with open(scene_pbrt_name, 'w') as f:
             x_res, y_res = self.__resolution
@@ -381,7 +381,8 @@ class PbrtRenderer(object):
 
             f.write('\n')
             f.write('AttributeBegin\n')
-            f.write('LightSource "infinite" "string mapname" "{}" "color scale" [1, 1, 1]\n'.format(str(self.__lightmap)))
+            f.write('LightSource "infinite" "string mapname" "{}" "color scale" [{:f}, {:f}, {:f}]\n'.format(str(
+                self.__lightmap), light_rgb[0], light_rgb[1], light_rgb[2]))
             f.write('AttributeEnd\n')
 
             f.write('\n')

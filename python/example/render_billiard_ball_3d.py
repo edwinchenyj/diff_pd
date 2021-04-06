@@ -147,10 +147,10 @@ if __name__ == '__main__':
                 obj_file_name = folder / '.tmp.obj'
                 q_to_obj(qi, obj_file_name)
                 renderer.add_tri_mesh(obj_file_name, color=ndarray([150 / 255, 150 / 255, 20 / 255]), render_tet_edge=False)
-                
+
                 renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj', texture_img='chkbd_24_0.7',
                     transforms=[('t', (0.5, 0.5, 0))], color=[0, 0, 0] if ext == 'black' else [.5, .5, .5])
-                renderer.render()
+                renderer.render(light_rgb=(.5, .5, .5), verbose=True)
                 os.remove(folder / '.tmp.obj')
         # Overlay.
         create_folder(folder / '{}_overlay'.format(name), exist_ok=True)
