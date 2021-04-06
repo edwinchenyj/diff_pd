@@ -36,6 +36,25 @@ def cal_to_pxl(cal):
     cal[:, 1] *= -1
     return cal
 
+def q_to_obj(q, obj_file_name):
+    q = ndarray(q).copy()
+    # Generate the mesh from q.
+    tmp_bin_file_name = '.tmp.bin'
+    sphere_file_name = Path(root_path) / 'asset' / 'mesh' / 'sphere.obj'
+    _, eles = tetrahedralize(sphere_file_name, normalize_input=False)
+    all_verts = q.reshape((2, -1, 3))
+    # Shift the z axis by radius.
+    all_verts[:, :, 2] += ball_radius
+    num_balls = 2
+    all_eles = [eles + i * all_verts.shape[1] for i in range(num_balls)]
+    all_verts = np.vstack(all_verts)
+    all_eles = np.vstack(all_eles)
+    generate_tet_mesh(all_verts, all_eles, tmp_bin_file_name)
+    mesh = TetMesh3d()
+    mesh.Initialize(str(tmp_bin_file_name))
+    tet2obj(mesh, obj_file_name=obj_file_name)
+    os.remove(tmp_bin_file_name)
+
 if __name__ == '__main__':
     seed = 42
     np.random.seed(seed)
@@ -44,6 +63,8 @@ if __name__ == '__main__':
     # Simulation parameters.
     substeps = 3
     dt = (1 / 60) / substeps
+    start_frame = 150
+    end_frame = 200
 
     # Extract the initial information of the balls.
     ball_radius = 0.06858 / 2   # In meters and from measurement/googling the diameter of a tennis ball.
@@ -82,40 +103,77 @@ if __name__ == '__main__':
         _, info = sim_data
         for i, qi in enumerate(info['q']):
             if i % substeps != 0: continue
-            img_name = folder / name / '{:04d}.png'.format(int(i // substeps))
+            for extension in ('original', 'overlay'):
+                img_name = folder / name / '{:04d}_{}.png'.format(int(i // substeps), extension)
+                if img_name.is_file(): continue
 
-            options = {
-                'file_name': img_name,
-                'light_map': 'uffizi-large.exr',
-                'sample': 4,
-                'max_depth': 2,
-                'camera_pos': camera_pos,
-                'camera_lookat': camera_lookat,
-                'camera_up': camera_up,
-                'resolution': (img_width, img_height),
-                'fov': fov,
-            }
-            renderer = PbrtRenderer(options)
+                options = {
+                    'file_name': img_name,
+                    'light_map': 'uffizi-large.exr',
+                    'sample': 4,
+                    'max_depth': 2,
+                    'camera_pos': camera_pos,
+                    'camera_lookat': camera_lookat,
+                    'camera_up': camera_up,
+                    'resolution': (img_width, img_height),
+                    'fov': fov,
+                }
+                renderer = PbrtRenderer(options)
+                obj_file_name = folder / '.tmp.obj'
+                q_to_obj(qi, obj_file_name)
+                renderer.add_tri_mesh(obj_file_name, color=ndarray([150 / 255, 150 / 255, 20 / 255]), render_tet_edge=True)
+                if extension == 'overlay':
+                    for j in range(0, i, 10 * substeps):
+                        obj_file_name = folder / '.tmp_{:04d}.obj'.format(j)
+                        # Scale q a little bit to avoid z fighting.
+                        qj = ndarray(info['q'][j]).copy()
+                        qj = qj.reshape((2, -1, 3))
+                        qj_mean = np.mean(qj, axis=1)[:, None, :]
+                        qj = (qj - qj_mean) * 0.95 + qj_mean
+                        q_to_obj(qj, obj_file_name)
+                        renderer.add_tri_mesh(obj_file_name, color=ndarray([150 / 255, 150 / 255, 20 / 255]), render_tet_edge=False)
 
-            # Generate the mesh from qi.
-            tmp_bin_file_name = '.tmp.bin'
-            obj_file_name = Path(root_path) / 'asset' / 'mesh' / 'sphere.obj'
-            _, eles = tetrahedralize(obj_file_name, normalize_input=False)
-            all_verts = qi.reshape((2, -1, 3))
-            # Shift the z axis by radius.
-            all_verts[:, :, 2] += ball_radius
-            num_balls = 2
-            all_eles = [eles + i * all_verts.shape[1] for i in range(num_balls)]
-            all_verts = np.vstack(all_verts)
-            all_eles = np.vstack(all_eles)
-            generate_tet_mesh(all_verts, all_eles, tmp_bin_file_name)
-            mesh = TetMesh3d()
-            mesh.Initialize(str(tmp_bin_file_name))
-            tet2obj(mesh, obj_file_name=folder / '.tmp.obj')
-            renderer.add_tri_mesh(folder / '.tmp.obj', color=[.1, .7, .2], render_tet_edge=True)
-            renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj', texture_img='chkbd_24_0.7',
-                transforms=[('t', (0.5, 0.5, 0))])
+                renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj', texture_img='chkbd_24_0.7',
+                    transforms=[('t', (0.5, 0.5, 0))])
+                renderer.render()
+                if extension == 'overlay':
+                    for j in range(0, i, 10 * substeps):
+                        obj_file_name = folder / '.tmp_{:04d}.obj'.format(j)
+                        os.remove(obj_file_name)
+                os.remove(folder / '.tmp.obj')
 
-            renderer.render()
+        # Now place images side by side.
+        create_folder(folder / '{}_compare'.format(name), exist_ok=True)
+        for i in range(start_frame, end_frame):
+            img_name = folder / '{}_compare'.format(name) / '{:04d}.png'.format(i - start_frame)
+            if img_name.is_file(): continue
+            img_left = load_image(Path(root_path) / 'python/example/billiard_ball_calibration/experiment_video/{:04d}.png'.format(i))
+            img_right = load_image(Path(root_path) / 'python/example' / folder / name / '{:04d}_original.png'.format(i - start_frame))
+            img_left = img_left[:, :, :3]
+            img_right = img_right[:, :, :3]
+            img = np.concatenate([img_left, img_right], axis=1)
+            plt.imsave(img_name, img)
 
-            os.remove(folder / '.tmp.obj')
+        # Now generate overlayed images.
+        create_folder(folder / '{}_overlay'.format(name), exist_ok=True)
+        for i in range(start_frame, end_frame):
+            img_name = folder / '{}_overlay'.format(name) / '{:04d}.png'.format(i - start_frame)
+            if img_name.is_file(): continue
+            img_left = load_image(Path(root_path) / 'python/example/billiard_ball_calibration/experiment_video/{:04d}.png'.format(i))
+            img_left = img_left[:, :, :3]
+            for j in range(start_frame, i, 10):
+                img_left_filtered = load_image(Path(root_path) / 'python/example/billiard_ball_calibration/experiment'
+                    / '{:04d}_filtered.png'.format(j))
+                img_left_filtered = img_left_filtered[:, :, :3]
+                img_left += img_left_filtered * 0.3
+            img_left = np.clip(img_left, 0, 1)
+            img_right = load_image(Path(root_path) / 'python/example' / folder / name / '{:04d}_overlay.png'.format(i - start_frame))
+            img_right = img_right[:, :, :3]
+            img = np.concatenate([img_left, img_right], axis=1)
+            plt.imsave(img_name, img)
+
+    # Export mp4 videos.
+    for name in ('init', 'pd_eigen'):
+        for ext, fps in [('compare', 30), ('overlay', 30)]:
+            folder_name = folder / '{}_{}'.format(name, ext)
+            export_mp4(folder_name, folder / '{}_{}.mp4'.format(name, ext), fps=fps)

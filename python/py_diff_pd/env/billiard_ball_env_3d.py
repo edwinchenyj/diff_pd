@@ -187,7 +187,6 @@ class BilliardBallEnv3d(EnvBase):
             'camera_up': ndarray([0, 1, 0]),
             'resolution': (800, 600),
             'fov': 30,
-            'sample': self.__spp
         }
         renderer = PbrtRenderer(options)
 

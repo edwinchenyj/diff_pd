@@ -490,12 +490,15 @@ if __name__ == '__main__':
                 # c should be placed at centroid[new_j]
                 new_centroid[new_j] = c
             centroid = new_centroid
+        # Write filtered images.
+        img_filtered = np.copy(img) * ndarray(img_flag)[:, :, None]
+        plt.imsave(experiment_folder / '{:04d}_filtered.png'.format(idx), img_filtered)
         for c, cl in zip(centroid, num_ball_colors):
             ci, cj = int(c[0]), int(c[1])
             img[cj - 3 : cj + 4, ci - 3 : ci + 4] = cl
         # Write filtered images.
         img_filtered = np.copy(img) * ndarray(img_flag)[:, :, None]
-        plt.imsave(experiment_folder / '{:04d}_filtered.png'.format(idx), img_filtered)
+        plt.imsave(experiment_folder / '{:04d}_filtered_with_center.png'.format(idx), img_filtered)
 
         # Save data.
         pickle.dump(centroid, open(experiment_folder / '{:04d}_centroid.data'.format(idx), 'wb'))
