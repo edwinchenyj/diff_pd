@@ -9,6 +9,7 @@ import scipy.optimize
 import pickle
 import matplotlib.pyplot as plt
 import matplotlib.cbook as cbook
+from scipy.cluster.vq import vq, kmeans2
 
 from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.tet_mesh import generate_tet_mesh, tet2obj, tetrahedralize
@@ -61,6 +62,7 @@ if __name__ == '__main__':
     folder = Path('render_billiard_ball_3d')
 
     # Simulation parameters.
+    num_balls = 2
     substeps = 3
     dt = (1 / 60) / substeps
     start_frame = 150
@@ -78,8 +80,7 @@ if __name__ == '__main__':
     alpha = camera_data['alpha']
     cx = camera_data['cx']
     cy = camera_data['cy']
-    img_width = cx * 2
-    img_height = cy * 2
+    assert int(cx) * 2 == img_width and int(cy) * 2 == img_height
     # Compute camera_pos, camera_lookat, camera_up, and fov.
     # R.T indicate the camera coordinates.
     camera_pos = -R.T @ T
@@ -162,7 +163,23 @@ if __name__ == '__main__':
             for j in range(0, i, 10):
                 img_j = load_image(Path(root_path) / 'python/example' / folder / '{}_black'.format(name) / '{:04d}.png'.format(j))
                 img_j = img_j[:, :, :3]
-                alpha_map = img_j > 0
+                # Extract the ball center.
+                alpha_map = np.sum(np.abs(img_j), axis=2) > 0
+                pixels = ndarray([(j, i) for i in range(img_height) for j in range(img_width) if alpha_map[i, j]])
+                centroid, label = kmeans2(pixels, num_balls, minit='points')
+                assert centroid.shape == (num_balls, 2)
+                assert label.shape == (pixels.shape[0],)
+                # Estimate the radius of each ball.
+                alpha_map = np.full((img_height, img_width), False)
+                pixel_jj, pixel_ii = np.meshgrid(np.arange(img_width), np.arange(img_height))
+                for i in range(num_balls):
+                    ball_i = ndarray(pixels[label == i]).copy()
+                    r = np.mean(np.max(ball_i, axis=0) - np.min(ball_i, axis=0)) / 2
+                    # Scale down r a bit to get rid of the black ring.
+                    r *= 0.95
+                    alpha_map = np.logical_or(alpha_map, (pixel_jj - centroid[i][0]) ** 2 + (pixel_ii - centroid[i][1]) ** 2 < r ** 2)
+                # Overlay images.
+                alpha_map = alpha_map[:, :, None]
                 img = ndarray(alpha_map) * img_j * 0.3 + ndarray(~alpha_map) * img + ndarray(alpha_map) * img * 0.7
             img = np.clip(img, 0, 1)
             plt.imsave(img_name, img)
