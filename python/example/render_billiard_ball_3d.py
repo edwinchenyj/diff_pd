@@ -183,3 +183,35 @@ if __name__ == '__main__':
                 img = ndarray(alpha_map) * img_j * 0.3 + ndarray(~alpha_map) * img + ndarray(alpha_map) * img * 0.7
             img = np.clip(img, 0, 1)
             plt.imsave(img_name, img)
+
+    # Generate videos.
+    video_folder = Path(root_path) / 'python/example' / folder / 'video'
+    video_overlay_folder = Path(root_path) / 'python/example' / folder / 'video_overlay'
+    init_folder = Path(root_path) / 'python/example' / folder / 'init_normal'
+    init_overlay_folder = Path(root_path) / 'python/example' / folder / 'init_overlay'
+    pd_eigen_folder = Path(root_path) / 'python/example' / folder / 'pd_eigen_normal'
+    pd_eigen_overlay_folder = Path(root_path) / 'python/example' / folder / 'pd_eigen_overlay'
+    create_folder(folder / 'video_init_normal', exist_ok=True)
+    create_folder(folder / 'video_init_overlay', exist_ok=True)
+    create_folder(folder / 'video_pd_eigen_normal', exist_ok=True)
+    create_folder(folder / 'video_pd_eigen_overlay', exist_ok=True)
+    for i in range(end_frame - start_frame):
+        if (folder / 'video_init_normal' / '{:04d}.png'.format(i)).is_file(): continue
+        video_img = load_image(video_folder / '{:04d}.png'.format(i))[:, :, :3]
+        video_overlay_img = load_image(video_overlay_folder / '{:04d}.png'.format(i))[:, :, :3]
+        init_img = load_image(init_folder / '{:04d}.png'.format(i))[:, :, :3]
+        init_overlay_img = load_image(init_overlay_folder / '{:04d}.png'.format(i))[:, :, :3]
+        pd_eigen_img = load_image(pd_eigen_folder / '{:04d}.png'.format(i))[:, :, :3]
+        pd_eigen_overlay_img = load_image(pd_eigen_overlay_folder / '{:04d}.png'.format(i))[:, :, :3]
+        video_init_img = np.concatenate([video_img, init_img], axis=1)
+        plt.imsave(folder / 'video_init_normal' / '{:04d}.png'.format(i), video_init_img)
+        video_init_overlay_img = np.concatenate([video_overlay_img, init_overlay_img], axis=1)
+        plt.imsave(folder / 'video_init_overlay' / '{:04d}.png'.format(i), video_init_overlay_img)
+        video_pd_eigen_img = np.concatenate([video_img, pd_eigen_img], axis=1)
+        plt.imsave(folder / 'video_pd_eigen_normal' / '{:04d}.png'.format(i), video_pd_eigen_img)
+        video_pd_eigen_overlay_img = np.concatenate([video_overlay_img, pd_eigen_overlay_img], axis=1)
+        plt.imsave(folder / 'video_pd_eigen_overlay' / '{:04d}.png'.format(i), video_pd_eigen_overlay_img)
+    export_mp4(folder / 'video_init_normal', folder / 'video_init_normal.mp4', fps=30)
+    export_mp4(folder / 'video_init_overlay', folder / 'video_init_overlay.mp4', fps=15)
+    export_mp4(folder / 'video_pd_eigen_normal', folder / 'video_pd_eigen_normal.mp4', fps=30)
+    export_mp4(folder / 'video_pd_eigen_overlay', folder / 'video_pd_eigen_overlay.mp4', fps=15)
