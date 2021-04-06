@@ -479,6 +479,13 @@ if __name__ == '__main__':
         centroid, label = kmeans2(pixels, num_balls, minit='points')
         assert centroid.shape == (num_balls, 2)
         assert label.shape == (pixels.shape[0],)
+        # Estimate the radius of each ball.
+        img_flag = np.full((img_height, img_width), False)
+        pixel_jj, pixel_ii = np.meshgrid(np.arange(img_width), np.arange(img_height))
+        for i in range(num_balls):
+            ball_i = ndarray(pixels[label == i]).copy()
+            r = np.mean(np.max(ball_i, axis=0) - np.min(ball_i, axis=0)) / 2
+            img_flag = np.logical_or(img_flag, (pixel_jj - centroid[i][0]) ** 2 + (pixel_ii - centroid[i][1]) ** 2 < r ** 2)
 
         # Remap centroids so that it is consistent with the last frame.
         if idx > start_frame:

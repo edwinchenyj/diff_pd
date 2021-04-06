@@ -97,14 +97,39 @@ if __name__ == '__main__':
     # np.tan(half_fov) * alpha = cy
     fov = np.rad2deg(np.arctan(cy / alpha) * 2)
 
-    for name in ['init', 'pd_eigen']:
+    # Generate original video sequence and overlay video sequence.
+    create_folder(folder / 'video', exist_ok=True)
+    for i in range(start_frame, end_frame):
+        img_name = folder / 'video' / '{:04d}.png'.format(i - start_frame)
+        if img_name.is_file(): continue
+        img = load_image(Path(root_path) / 'python/example/billiard_ball_calibration/experiment_video/{:04d}.png'.format(i))
+        plt.imsave(img_name, img)
+
+    create_folder(folder / 'video_overlay', exist_ok=True)
+    for i in range(end_frame - start_frame):
+        img_name = folder / 'video_overlay' / '{:04d}.png'.format(i)
+        if img_name.is_file(): continue
+        img = load_image(Path(root_path) / 'python/example' / folder / 'video' / '{:04d}.png'.format(i))
+        img = img[:, :, :3]
+        for j in range(0, i, 10):
+            img_j = load_image(Path(root_path) / 'python/example/billiard_ball_calibration'
+                / 'experiment/{:04d}_filtered.png'.format(j + start_frame))
+            img_j = img_j[:, :, :3]
+            img += img_j * 0.3
+        img = np.clip(img, 0, 1)
+        plt.imsave(img_name, img)
+
+    # Render initial and optimized results.
+    for name in ('init', 'pd_eigen'):
         sim_data = pickle.load(open(optimization_data_folder / name / 'info.data', 'rb'))
-        create_folder(folder / name, exist_ok=True)
         _, info = sim_data
+        create_folder(folder / '{}_normal'.format(name), exist_ok=True)
+        create_folder(folder / '{}_black'.format(name), exist_ok=True)
+        # Render frames.
         for i, qi in enumerate(info['q']):
             if i % substeps != 0: continue
-            for extension in ('original', 'overlay'):
-                img_name = folder / name / '{:04d}_{}.png'.format(int(i // substeps), extension)
+            for ext in ('normal', 'black'):
+                img_name = folder / '{}_{}'.format(name, ext) / '{:04d}.png'.format(int(i // substeps))
                 if img_name.is_file(): continue
 
                 options = {
@@ -121,59 +146,23 @@ if __name__ == '__main__':
                 renderer = PbrtRenderer(options)
                 obj_file_name = folder / '.tmp.obj'
                 q_to_obj(qi, obj_file_name)
-                renderer.add_tri_mesh(obj_file_name, color=ndarray([150 / 255, 150 / 255, 20 / 255]), render_tet_edge=True)
-                if extension == 'overlay':
-                    for j in range(0, i, 10 * substeps):
-                        obj_file_name = folder / '.tmp_{:04d}.obj'.format(j)
-                        # Scale q a little bit to avoid z fighting.
-                        qj = ndarray(info['q'][j]).copy()
-                        qj = qj.reshape((2, -1, 3))
-                        qj_mean = np.mean(qj, axis=1)[:, None, :]
-                        qj = (qj - qj_mean) * 0.95 + qj_mean
-                        q_to_obj(qj, obj_file_name)
-                        renderer.add_tri_mesh(obj_file_name, color=ndarray([150 / 255, 150 / 255, 20 / 255]), render_tet_edge=False)
-
+                renderer.add_tri_mesh(obj_file_name, color=ndarray([150 / 255, 150 / 255, 20 / 255]), render_tet_edge=False)
+                
                 renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj', texture_img='chkbd_24_0.7',
-                    transforms=[('t', (0.5, 0.5, 0))])
+                    transforms=[('t', (0.5, 0.5, 0))], color=[0, 0, 0] if ext == 'black' else [.5, .5, .5])
                 renderer.render()
-                if extension == 'overlay':
-                    for j in range(0, i, 10 * substeps):
-                        obj_file_name = folder / '.tmp_{:04d}.obj'.format(j)
-                        os.remove(obj_file_name)
                 os.remove(folder / '.tmp.obj')
-
-        # Now place images side by side.
-        create_folder(folder / '{}_compare'.format(name), exist_ok=True)
-        for i in range(start_frame, end_frame):
-            img_name = folder / '{}_compare'.format(name) / '{:04d}.png'.format(i - start_frame)
-            if img_name.is_file(): continue
-            img_left = load_image(Path(root_path) / 'python/example/billiard_ball_calibration/experiment_video/{:04d}.png'.format(i))
-            img_right = load_image(Path(root_path) / 'python/example' / folder / name / '{:04d}_original.png'.format(i - start_frame))
-            img_left = img_left[:, :, :3]
-            img_right = img_right[:, :, :3]
-            img = np.concatenate([img_left, img_right], axis=1)
-            plt.imsave(img_name, img)
-
-        # Now generate overlayed images.
+        # Overlay.
         create_folder(folder / '{}_overlay'.format(name), exist_ok=True)
-        for i in range(start_frame, end_frame):
-            img_name = folder / '{}_overlay'.format(name) / '{:04d}.png'.format(i - start_frame)
+        for i in range(end_frame - start_frame):
+            img_name = folder / '{}_overlay'.format(name) / '{:04d}.png'.format(i)
             if img_name.is_file(): continue
-            img_left = load_image(Path(root_path) / 'python/example/billiard_ball_calibration/experiment_video/{:04d}.png'.format(i))
-            img_left = img_left[:, :, :3]
-            for j in range(start_frame, i, 10):
-                img_left_filtered = load_image(Path(root_path) / 'python/example/billiard_ball_calibration/experiment'
-                    / '{:04d}_filtered.png'.format(j))
-                img_left_filtered = img_left_filtered[:, :, :3]
-                img_left += img_left_filtered * 0.3
-            img_left = np.clip(img_left, 0, 1)
-            img_right = load_image(Path(root_path) / 'python/example' / folder / name / '{:04d}_overlay.png'.format(i - start_frame))
-            img_right = img_right[:, :, :3]
-            img = np.concatenate([img_left, img_right], axis=1)
+            img = load_image(Path(root_path) / 'python/example' / folder / '{}_normal'.format(name) / '{:04d}.png'.format(i))
+            img = img[:, :, :3]
+            for j in range(0, i, 10):
+                img_j = load_image(Path(root_path) / 'python/example' / folder / '{}_black'.format(name) / '{:04d}.png'.format(j))
+                img_j = img_j[:, :, :3]
+                alpha_map = img_j > 0
+                img = ndarray(alpha_map) * img_j * 0.3 + ndarray(~alpha_map) * img + ndarray(alpha_map) * img * 0.7
+            img = np.clip(img, 0, 1)
             plt.imsave(img_name, img)
-
-    # Export mp4 videos.
-    for name in ('init', 'pd_eigen'):
-        for ext, fps in [('compare', 30), ('overlay', 30)]:
-            folder_name = folder / '{}_{}'.format(name, ext)
-            export_mp4(folder_name, folder / '{}_{}.mp4'.format(name, ext), fps=fps)
