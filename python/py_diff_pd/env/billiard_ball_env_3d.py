@@ -213,6 +213,34 @@ class BilliardBallEnv3d(EnvBase):
 
         os.remove(self._folder / '.tmp.obj')
 
+    def get_pixel_location(self, q):
+        q = ndarray(q).copy()
+        centers = np.mean(q.reshape((self.__num_balls, -1, 3)), axis=1)
+        centers[:, 2] += self.__radius
+        # Convert to the camera space.
+        roll, pitch, yaw = self.__rpy
+        c_yaw, s_yaw = np.cos(yaw), np.sin(yaw)
+        R_yaw = ndarray([[c_yaw, -s_yaw, 0],
+            [s_yaw, c_yaw, 0],
+            [0, 0, 1]])
+        c_pitch, s_pitch = np.cos(pitch), np.sin(pitch)
+        R_pitch = ndarray([[c_pitch, 0, s_pitch],
+            [0, 1, 0],
+            [-s_pitch, 0, c_pitch]])
+        c_roll, s_roll = np.cos(roll), np.sin(roll)
+        R_roll = ndarray([[1, 0, 0],
+            [0, c_roll, -s_roll],
+            [0, s_roll, c_roll]])
+        R = R_yaw @ R_pitch @ R_roll @ self.__R_init
+
+        camera_loc = centers @ R.T + self.__t + self.__T_init
+        camera_loc_x = camera_loc[:, 0]
+        camera_loc_y = camera_loc[:, 1]
+        camera_loc_z = camera_loc[:, 2]
+        predicted_x = camera_loc_x / camera_loc_z * self.__a * self.__alpha_init
+        predicted_y = camera_loc_y / camera_loc_z * self.__a * self.__alpha_init
+        return ndarray([predicted_x, predicted_y]).T
+
     def __stepwise_loss_and_grad_2d(self, q, v, i):
         if i % self.__substeps != 0:
             return 0, ndarray(np.zeros(q.size)), ndarray(np.zeros(v.size)), {

@@ -90,6 +90,7 @@ if __name__ == '__main__':
         pxl[:, 0] -= img_width / 2
         pxl[:, 1] -= img_height / 2
         reference_pixels.append(pxl)
+    reference_pixels = ndarray(reference_pixels)
 
     # Build the environment.
     env = BilliardBallEnv3d(folder, {
@@ -226,7 +227,7 @@ if __name__ == '__main__':
     # Pick the best initial guess.
     best_loss = np.inf
     best_x_init = None
-    for _ in range(32):
+    for _ in range(4):
         x_guess = np.random.uniform(low=x_lower, high=x_upper)
         init_info = get_init_state(x_guess)
         e = init_info['env']
@@ -250,14 +251,34 @@ if __name__ == '__main__':
             render_frame_skip=substeps)
         pickle.dump((x_init, info), open(folder / 'init/info.data', 'wb'))
         fig = plt.figure()
-        ax = fig.add_subplot(111)
+        ax = fig.add_subplot(211)
         q = info['q']
         traj = ndarray([np.mean(qi.reshape((2, -1, 3)), axis=1) for qi in q])
-        ax.plot(traj[:, 0, 0], traj[:, 0, 1], 'r+', label='ball_0_sim')
-        ax.plot(traj[:, 1, 0], traj[:, 1, 1], 'b+', label='ball_1_sim')
+        ax.plot(traj[:, 0, 0], traj[:, 0, 1], color='tab:red', marker='+', label='ball_0_sim')
+        ax.plot(traj[:, 1, 0], traj[:, 1, 1], color='tab:blue', marker='+', label='ball_1_sim')
         ax.plot(ball_0_positions[:, 0], ball_0_positions[:, 1], 'tab:red', label='ball_0_real')
         ax.plot(ball_1_positions[:, 0], ball_1_positions[:, 1], 'tab:blue', label='ball_1_real')
+        ax.set_aspect('equal')
         ax.legend()
+        ax.set_title('top down view')
+        ax = fig.add_subplot(212)
+        # The camera view.
+        predicted_pixels = []
+        for i in range(start_frame, end_frame):
+            predicted_pixels.append(e_init.get_pixel_location(info['q'][int((i - start_frame) * substeps)]))
+        predicted_pixels = ndarray(predicted_pixels)
+        colors = ('tab:red', 'tab:blue')
+        for i in range(predicted_pixels.shape[1]):
+            px = predicted_pixels[:, i, 0]
+            py = predicted_pixels[:, i, 1]
+            ax.plot(px + img_width / 2, py + img_height / 2, color=colors[i], marker='+')
+            rx = reference_pixels[:, i, 0]
+            ry = reference_pixels[:, i, 1]
+            ax.plot(rx + img_width / 2, ry + img_height / 2, color=colors[i])
+        ax.set_xlim([0, img_width])
+        ax.set_ylim([0, img_height])
+        ax.set_aspect('equal')
+        ax.set_title('camera view')
         plt.show()
         fig.savefig(folder / 'init/compare.png')
 
@@ -266,7 +287,7 @@ if __name__ == '__main__':
     def callback(xk):
         print_info('Another iteration is finished.')
     result = scipy.optimize.minimize(loss_and_grad, np.copy(x_init),
-        method='L-BFGS-B', jac=True, bounds=bounds, options={ 'ftol': 1e-3, 'maxfun': 40, 'maxiter': 10 }, callback=callback)
+        method='L-BFGS-B', jac=True, bounds=bounds, options={ 'ftol': 1e-4, 'maxfun': 40, 'maxiter': 10 }, callback=callback)
     t1 = time.time()
     if not result.success:
         print_warning('Optimization is not successful. Using the last iteration results.')
@@ -288,13 +309,33 @@ if __name__ == '__main__':
             render_frame_skip=substeps)
         pickle.dump((x_final, info), open(folder / pd_method / 'info.data', 'wb'))
         fig = plt.figure()
-        ax = fig.add_subplot(111)
+        ax = fig.add_subplot(211)
         q = info['q']
         traj = ndarray([np.mean(qi.reshape((2, -1, 3)), axis=1) for qi in q])
-        ax.plot(traj[:, 0, 0], traj[:, 0, 1], 'r+', label='ball_0_sim')
-        ax.plot(traj[:, 1, 0], traj[:, 1, 1], 'b+', label='ball_1_sim')
+        ax.plot(traj[:, 0, 0], traj[:, 0, 1], color='tab:red', marker='+', label='ball_0_sim')
+        ax.plot(traj[:, 1, 0], traj[:, 1, 1], color='tab:blue', marker='+', label='ball_1_sim')
         ax.plot(ball_0_positions[:, 0], ball_0_positions[:, 1], 'tab:red', label='ball_0_real')
         ax.plot(ball_1_positions[:, 0], ball_1_positions[:, 1], 'tab:blue', label='ball_1_real')
+        ax.set_aspect('equal')
         ax.legend()
+        ax.set_title('top down view')
+        ax = fig.add_subplot(212)
+        # The camera view.
+        predicted_pixels = []
+        for i in range(start_frame, end_frame):
+            predicted_pixels.append(e_init.get_pixel_location(info['q'][int((i - start_frame) * substeps)]))
+        predicted_pixels = ndarray(predicted_pixels)
+        colors = ('tab:red', 'tab:blue')
+        for i in range(predicted_pixels.shape[1]):
+            px = predicted_pixels[:, i, 0]
+            py = predicted_pixels[:, i, 1]
+            ax.plot(px + img_width / 2, py + img_height / 2, color=colors[i], marker='+')
+            rx = reference_pixels[:, i, 0]
+            ry = reference_pixels[:, i, 1]
+            ax.plot(rx + img_width / 2, ry + img_height / 2, color=colors[i])
+        ax.set_xlim([0, img_width])
+        ax.set_ylim([0, img_height])
+        ax.set_aspect('equal')
+        ax.set_title('camera view')
         plt.show()
         fig.savefig(folder / pd_method / 'compare.png')
