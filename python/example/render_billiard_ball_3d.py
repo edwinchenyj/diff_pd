@@ -56,31 +56,7 @@ def q_to_obj(q, obj_file_name):
     tet2obj(mesh, obj_file_name=obj_file_name)
     os.remove(tmp_bin_file_name)
 
-if __name__ == '__main__':
-    seed = 42
-    np.random.seed(seed)
-    folder = Path('render_billiard_ball_3d')
-
-    # Simulation parameters.
-    num_balls = 2
-    substeps = 3
-    dt = (1 / 60) / substeps
-    start_frame = 150
-    end_frame = 200
-
-    # Extract the initial information of the balls.
-    ball_radius = 0.06858 / 2   # In meters and from measurement/googling the diameter of a tennis ball.
-    experiment_data_folder = Path(root_path) / 'python/example/billiard_ball_calibration/experiment_video'
-    camera_data = pickle.load(open(Path(root_path) / 'python/example/billiard_ball_calibration/experiment/intrinsic.data', 'rb'))
-    optimization_data_folder = Path(root_path) / 'python/example/billiard_ball_3d'
-    opt_data = pickle.load(open(optimization_data_folder / 'data_0006_threads.bin', 'rb'))
-    R = camera_data['R']
-    T = camera_data['T']
-    K = camera_data['K']
-    alpha = camera_data['alpha']
-    cx = camera_data['cx']
-    cy = camera_data['cy']
-    assert int(cx) * 2 == img_width and int(cy) * 2 == img_height
+def get_camera_info(R, T, alpha):
     # Compute camera_pos, camera_lookat, camera_up, and fov.
     # R.T indicate the camera coordinates.
     camera_pos = -R.T @ T
@@ -96,7 +72,26 @@ if __name__ == '__main__':
     camera_lookat = camera_pos - camera_z
     # Compute fov from alpha.
     # np.tan(half_fov) * alpha = cy
-    fov = np.rad2deg(np.arctan(cy / alpha) * 2)
+    fov = np.rad2deg(np.arctan(img_height / 2 / alpha) * 2)
+    return camera_pos, camera_lookat, camera_up, fov
+
+if __name__ == '__main__':
+    seed = 42
+    np.random.seed(seed)
+    folder = Path('render_billiard_ball_3d')
+
+    # Simulation parameters.
+    num_balls = 2
+    substeps = 3
+    dt = (1 / 60) / substeps
+    start_frame = 150
+    end_frame = 200
+
+    # Extract the initial information of the balls.
+    ball_radius = 0.06858 / 2   # In meters and from measurement/googling the diameter of a tennis ball.
+    experiment_data_folder = Path(root_path) / 'python/example/billiard_ball_calibration/experiment_video'
+    optimization_data_folder = Path(root_path) / 'python/example/billiard_ball_3d'
+    opt_data = pickle.load(open(optimization_data_folder / 'data_0006_threads.bin', 'rb'))
 
     # Generate original video sequence and overlay video sequence.
     create_folder(folder / 'video', exist_ok=True)
@@ -126,6 +121,31 @@ if __name__ == '__main__':
         _, info = sim_data
         create_folder(folder / '{}_normal'.format(name), exist_ok=True)
         create_folder(folder / '{}_black'.format(name), exist_ok=True)
+
+        # Extract the camera information.
+        camera_data = pickle.load(open(Path(root_path) / 'python/example/billiard_ball_calibration/experiment/intrinsic.data', 'rb'))
+        R = camera_data['R']
+        T = camera_data['T']
+        alpha = camera_data['alpha']
+        x_sol, _ = pickle.load(open(Path(root_path) / 'python/example/billiard_ball_3d' / name / 'info.data', 'rb'))
+        roll, pitch, yaw = x_sol[12:15]
+        c_yaw, s_yaw = np.cos(yaw), np.sin(yaw)
+        R_yaw = ndarray([[c_yaw, -s_yaw, 0],
+            [s_yaw, c_yaw, 0],
+            [0, 0, 1]])
+        c_pitch, s_pitch = np.cos(pitch), np.sin(pitch)
+        R_pitch = ndarray([[c_pitch, 0, s_pitch],
+            [0, 1, 0],
+            [-s_pitch, 0, c_pitch]])
+        c_roll, s_roll = np.cos(roll), np.sin(roll)
+        R_roll = ndarray([[1, 0, 0],
+            [0, c_roll, -s_roll],
+            [0, s_roll, c_roll]])
+        R_final = R_yaw @ R_pitch @ R_roll @ R
+        T_final = x_sol[15:18] + T
+        alpha_final = x_sol[18] * alpha
+        camera_pos, camera_lookat, camera_up, fov = get_camera_info(R_final, T_final, alpha_final)
+
         # Render frames.
         for i, qi in enumerate(info['q']):
             if i % substeps != 0: continue
@@ -147,10 +167,13 @@ if __name__ == '__main__':
                 renderer = PbrtRenderer(options)
                 obj_file_name = folder / '.tmp.obj'
                 q_to_obj(qi, obj_file_name)
-                renderer.add_tri_mesh(obj_file_name, color=ndarray([150 / 255, 150 / 255, 20 / 255]), render_tet_edge=False)
+                renderer.add_tri_mesh(obj_file_name, color=ndarray([150 / 255, 30 / 255, 20 / 255]), render_tet_edge=False)
 
-                renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj', texture_img='chkbd_24_0.7',
-                    transforms=[('t', (0.5, 0.5, 0))], color=[0, 0, 0] if ext == 'black' else [.5, .5, .5])
+                # Rotate the ground so that it is horizontal.
+                camera_side = np.cross(camera_lookat - camera_pos, camera_up)
+                ground_angle = np.arctan2(camera_side[1], camera_side[0])
+                renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/flat_ground.obj', texture_img='chkbd_24_0.7',
+                    transforms=[('r', (ground_angle, 0, 0, 1)), ('t', (0.5, 0.5, 0))], color=[0, 0, 0] if ext == 'black' else [.5, .5, .5])
                 renderer.render(light_rgb=(.5, .5, .5), verbose=True)
                 os.remove(folder / '.tmp.obj')
         # Overlay.
@@ -196,7 +219,6 @@ if __name__ == '__main__':
     create_folder(folder / 'video_pd_eigen_normal', exist_ok=True)
     create_folder(folder / 'video_pd_eigen_overlay', exist_ok=True)
     for i in range(end_frame - start_frame):
-        if (folder / 'video_init_normal' / '{:04d}.png'.format(i)).is_file(): continue
         video_img = load_image(video_folder / '{:04d}.png'.format(i))[:, :, :3]
         video_overlay_img = load_image(video_overlay_folder / '{:04d}.png'.format(i))[:, :, :3]
         init_img = load_image(init_folder / '{:04d}.png'.format(i))[:, :, :3]
@@ -204,13 +226,27 @@ if __name__ == '__main__':
         pd_eigen_img = load_image(pd_eigen_folder / '{:04d}.png'.format(i))[:, :, :3]
         pd_eigen_overlay_img = load_image(pd_eigen_overlay_folder / '{:04d}.png'.format(i))[:, :, :3]
         video_init_img = np.concatenate([video_img, init_img], axis=1)
-        plt.imsave(folder / 'video_init_normal' / '{:04d}.png'.format(i), video_init_img)
-        video_init_overlay_img = np.concatenate([video_overlay_img, init_overlay_img], axis=1)
-        plt.imsave(folder / 'video_init_overlay' / '{:04d}.png'.format(i), video_init_overlay_img)
+        if not (folder / 'video_init_normal' / '{:04d}.png'.format(i)).is_file():
+            plt.imsave(folder / 'video_init_normal' / '{:04d}.png'.format(i), video_init_img)
         video_pd_eigen_img = np.concatenate([video_img, pd_eigen_img], axis=1)
-        plt.imsave(folder / 'video_pd_eigen_normal' / '{:04d}.png'.format(i), video_pd_eigen_img)
+        if not (folder / 'video_pd_eigen_normal' / '{:04d}.png'.format(i)).is_file():
+            plt.imsave(folder / 'video_pd_eigen_normal' / '{:04d}.png'.format(i), video_pd_eigen_img)
+
+        # Generate overlay image.
+        for j in list(range(0, i, 10)) + [end_frame - start_frame - 1,]:
+            if j > i: continue
+            img_j = load_image(Path(root_path) / 'python/example/billiard_ball_calibration'
+                / 'experiment/{:04d}_filtered.png'.format(j + start_frame))[:, :, :3]
+            init_overlay_img += img_j * 0.3
+            pd_eigen_overlay_img += img_j * 0.3
+        init_overlay_img = np.clip(init_overlay_img, 0, 1)
+        pd_eigen_overlay_img = np.clip(pd_eigen_overlay_img, 0, 1)
+        video_init_overlay_img = np.concatenate([video_overlay_img, init_overlay_img], axis=1)
+        if not (folder / 'video_init_overlay' / '{:04d}.png'.format(i)).is_file():
+            plt.imsave(folder / 'video_init_overlay' / '{:04d}.png'.format(i), video_init_overlay_img)
         video_pd_eigen_overlay_img = np.concatenate([video_overlay_img, pd_eigen_overlay_img], axis=1)
-        plt.imsave(folder / 'video_pd_eigen_overlay' / '{:04d}.png'.format(i), video_pd_eigen_overlay_img)
+        if not (folder / 'video_pd_eigen_overlay' / '{:04d}.png'.format(i)).is_file():
+            plt.imsave(folder / 'video_pd_eigen_overlay' / '{:04d}.png'.format(i), video_pd_eigen_overlay_img)
     export_mp4(folder / 'video_init_normal', folder / 'video_init_normal.mp4', fps=30)
     export_mp4(folder / 'video_init_overlay', folder / 'video_init_overlay.mp4', fps=15)
     export_mp4(folder / 'video_pd_eigen_normal', folder / 'video_pd_eigen_normal.mp4', fps=30)
