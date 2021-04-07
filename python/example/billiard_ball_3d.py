@@ -15,8 +15,20 @@ from py_diff_pd.core.py_diff_pd_core import StdRealVector
 from py_diff_pd.env.billiard_ball_env_3d import BilliardBallEnv3d
 from py_diff_pd.common.project_path import root_path
 
+img_height, img_width = 720, 1280
+def pxl_to_cal(pxl):
+    pxl = ndarray(pxl).copy()
+    pxl[:, 1] *= -1
+    pxl[:, 1] += img_height
+    return pxl
+def cal_to_pxl(cal):
+    cal = ndarray(cal).copy()
+    cal[:, 1] -= img_height
+    cal[:, 1] *= -1
+    return cal
+
 if __name__ == '__main__':
-    seed = 42
+    seed = 0
     np.random.seed(seed)
     folder = Path('billiard_ball_3d')
 
@@ -35,9 +47,9 @@ if __name__ == '__main__':
     ball_radius = 0.06858 / 2   # In meters and from measurement/googling the diameter of a tennis ball.
     experiment_data_folder = Path(root_path) / 'python/example/billiard_ball_calibration/experiment'
     ball_xy_positions = pickle.load(open(experiment_data_folder / 'ball_xy_positions.data', 'rb'))
-    active_frame = np.min([(len(ball_xy_positions) - 1), 50])
-    ball_xy_positions = ball_xy_positions[:active_frame + 1]
-    frame_num = active_frame * substeps
+    start_frame = 150
+    end_frame = 200
+    frame_num = (end_frame - start_frame - 1) * substeps
     # Unlike in calibration, the height is set to be 0 here.
     ball_0_positions = [(pos[0, 0], pos[0, 1], 0) for _, pos in ball_xy_positions]
     ball_1_positions = [(pos[1, 0], pos[1, 1], 0) for _, pos in ball_xy_positions]
@@ -63,6 +75,22 @@ if __name__ == '__main__':
     init_positions = ndarray(init_positions)
     init_angular_velocities = ndarray(init_angular_velocities)
 
+    # Extract the initial camera information.
+    camera_data = pickle.load(open(Path(root_path) / 'python/example/billiard_ball_calibration/experiment/intrinsic.data', 'rb'))
+    R = camera_data['R']
+    T = camera_data['T']
+    alpha = camera_data['alpha']
+
+    # Extract the reference pixels.
+    reference_pixels = []
+    for i in range(start_frame, end_frame):
+        pxl = pickle.load(open(Path(root_path) / 'python/example/billiard_ball_calibration'
+            / 'experiment' / '{:04d}_centroid.data'.format(i), 'rb'))
+        pxl = pxl_to_cal(pxl)
+        pxl[:, 0] -= img_width / 2
+        pxl[:, 1] -= img_height / 2
+        reference_pixels.append(pxl)
+
     # Build the environment.
     env = BilliardBallEnv3d(folder, {
         'init_positions': init_positions,
@@ -70,7 +98,15 @@ if __name__ == '__main__':
         'radius': ball_radius,
         'reference_positions': ball_positions,
         'substeps': substeps,
-        'state_force_parameters': [3e2, 3e2, 0.2, 0.2]
+        'state_force_parameters': [3e2, 3e2, 0.2, 0.2],
+        'loss_type': '2d',
+        'R_init': R,
+        'T_init': T,
+        'alpha_init': alpha,
+        'rpy': [0, 0, 0],
+        't': [0, 0, 0],
+        'a': 1,
+        'reference_pixels': reference_pixels,
     })
     deformable = env.deformable()
     # Initial state.
@@ -81,34 +117,20 @@ if __name__ == '__main__':
     a0 = [np.zeros(act_dofs) for _ in range(frame_num)]
     f0 = [np.zeros(dofs) for _ in range(frame_num)]
 
-    # Uncomment the code below to sanity check the gradients.
-    '''
-    q_perturb = np.random.normal(size=q0.size, scale=1e-3)
-    v_perturb = np.random.normal(size=v0.size, scale=1e-2)
-    def loss_and_grad_sanity_check(x):
-        x = ndarray(x).copy().ravel()
-        q = q0 + q_perturb * x[0]
-        v = v0 + v_perturb * x[1]
-        loss, grad, info = env.simulate(dt, 30, (pd_method, newton_method),
-            (pd_opt, newton_opt), q, v, a0[:30], f0[:30], require_grad=True)
-        g = np.zeros(x.size)
-        g[0] = grad[0].dot(q_perturb)
-        g[1] = grad[1].dot(v_perturb)
-        return loss, ndarray(g).copy().ravel()
-    check_gradients(loss_and_grad_sanity_check, ndarray([0.1, 0.2]), eps=1e-3)
-    '''
-
     # Decision variables to optimize:
     # - stiffness and frictional coefficient of the contact model.
     # - theta and scale of the initial angular velocity of the balls.
     # - initial locations of the balls.
     def get_init_state(x):
         x = ndarray(x).copy().ravel()
-        assert x.size == 12
+        assert x.size == 19
         log_stiff0, coeff0, log_stiff1, coeff1 = x[:4]
         theta0, scale0, theta1, scale1 = x[4:8]
         pos0 = [x[8], x[9], 0]
         pos1 = [x[10], x[11], 0]
+        rpy = x[12:15]
+        t = x[15:18]
+        a = x[18]
         stiff0 = 10 ** log_stiff0
         stiff1 = 10 ** log_stiff1
         c0, s0 = np.cos(theta0), np.sin(theta0)
@@ -121,30 +143,35 @@ if __name__ == '__main__':
             'radius': ball_radius,
             'reference_positions': ball_positions,
             'substeps': substeps,
-            'state_force_parameters': [stiff0, stiff1, coeff0, coeff1]
+            'state_force_parameters': [stiff0, stiff1, coeff0, coeff1],
+            'loss_type': '2d',
+            'R_init': R,
+            'T_init': T,
+            'alpha_init': alpha,
+            'rpy': rpy,
+            't': t,
+            'a': a,
+            'reference_pixels': reference_pixels,
         })
-        dc_dx = ndarray([
-            [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ])
-        dw_dx = ndarray([
-            [0, 0, 0, 0, scale0 * -s0, c0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, scale0 * c0, s0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, scale1 * -s1, c1, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, scale1 * c1, s1, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ])
-        dp_dx = ndarray([
-            [(10 ** log_stiff0) * np.log(10), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, (10 ** log_stiff1) * np.log(10), 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]
-        ])
+        dc_dx = np.zeros((6, 19))
+        dc_dx[0, 8] = 1
+        dc_dx[1, 9] = 1
+        dc_dx[3, 10] = 1
+        dc_dx[4, 11] = 1
+        dw_dx = np.zeros((6, 19))
+        dw_dx[0, 4] = scale0 * -s0
+        dw_dx[0, 5] = c0
+        dw_dx[1, 4] = scale0 * c0
+        dw_dx[1, 5] = s0
+        dw_dx[3, 6] = scale1 * -s1
+        dw_dx[3, 7] = c1
+        dw_dx[4, 6] = scale1 * c1
+        dw_dx[4, 7] = s1
+        dp_dx = np.zeros((4, 19))
+        dp_dx[0, 0] = (10 ** log_stiff0) * np.log(10)
+        dp_dx[1, 2] = (10 ** log_stiff1) * np.log(10)
+        dp_dx[2, 1] = 1
+        dp_dx[3, 3] = 1
         info = { 'env': e, 'q0': e.default_init_position(), 'v0': e.default_init_velocity(),
             'dc_dx': dc_dx, 'dw_dx': dw_dx, 'dp_dx': dp_dx }
         return info
@@ -157,10 +184,12 @@ if __name__ == '__main__':
     x_lower = ndarray([
         1.5, 0.3, 1.5, 0.3, init_theta0 - 0.05, init_scale0 * 2.0, init_theta1 - 0.05, init_scale1 * 2.0,
         init_positions[0, 0] - 0.04, init_positions[0, 1] - 0.04, init_positions[1, 0] - 0.04, init_positions[1, 1] - 0.04,
+        -0.2, -0.2, -0.2, -0.1, -0.1, -0.1, 0.8,
     ])
     x_upper = ndarray([
         2.0, 0.7, 2.0, 0.7, init_theta0 + 0.05, init_scale0 * 4.0, init_theta1 + 0.05, init_scale1 * 4.0,
         init_positions[0, 0] + 0.04, init_positions[0, 1] + 0.04, init_positions[1, 0] + 0.04, init_positions[1, 1] + 0.04,
+        0.2, 0.2, 0.2, 0.1, 0.1, 0.1, 1.2
     ])
     bounds = scipy.optimize.Bounds(x_lower, x_upper)
     x_init = np.random.uniform(low=x_lower, high=x_upper)
@@ -176,6 +205,10 @@ if __name__ == '__main__':
         g = info['state_force_parameter_gradients'][3:] @ init_info['dp_dx'] \
             + e.backprop_init_velocities(grad[1]) @ init_info['dw_dx'] \
             + e.backprop_init_positions(grad[0]) @ init_info['dc_dx']
+        c_g = info['grad_custom']
+        g[12:15] += c_g['rpy']
+        g[15:18] += c_g['t']
+        g[18] += c_g['a']
         print('loss: {:8.3f}, |grad|: {:8.3f}, forward time: {:6.3f}s, backward time: {:6.3f}s'.format(
             loss, np.linalg.norm(g), info['forward_time'], info['backward_time']))
         single_data = {}
@@ -193,7 +226,7 @@ if __name__ == '__main__':
     # Pick the best initial guess.
     best_loss = np.inf
     best_x_init = None
-    for _ in range(16):
+    for _ in range(32):
         x_guess = np.random.uniform(low=x_lower, high=x_upper)
         init_info = get_init_state(x_guess)
         e = init_info['env']
