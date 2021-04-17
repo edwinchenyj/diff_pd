@@ -12,7 +12,7 @@ import os
 import numpy as np
 
 if __name__ == '__main__':
-    obj_file_name = Path(root_path) / 'asset' / 'mesh' / 'starfish_half_simplified.obj'
+    obj_file_name = Path(root_path) / 'asset' / 'mesh' / 'armadillo_low_res.obj'
     verts, elements = tetrahedralize(obj_file_name, visualize=True, options={
         'minratio': 1.1 })
     print('Generated {:4d} vertices and {:4d} elements'.format(verts.shape[0], elements.shape[0]))

@@ -4,6 +4,7 @@
 #include "solver/matrix_op.h"
 #include "material/linear.h"
 #include "material/corotated.h"
+#include "material/neohookean.h"
 #include "Eigen/SparseCholesky"
 
 template<int vertex_dim, int element_dim>
@@ -46,6 +47,9 @@ const std::shared_ptr<Material<vertex_dim>> Deformable<vertex_dim, element_dim>:
         material->Initialize(youngs_modulus, poissons_ratio);
     } else if (material_type == "corotated") {
         material = std::make_shared<CorotatedMaterial<vertex_dim>>();
+        material->Initialize(youngs_modulus, poissons_ratio);
+    } else if (material_type == "neohookean") {
+        material = std::make_shared<NeohookeanMaterial<vertex_dim>>();
         material->Initialize(youngs_modulus, poissons_ratio);
     } else if (material_type == "none") {
         material = nullptr;
