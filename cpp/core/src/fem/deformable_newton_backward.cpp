@@ -84,8 +84,10 @@ void Deformable<vertex_dim, element_dim>::BackwardNewton(const std::string& meth
     // Hence the following:
     // dl_drhs_fixed = dl_dq_next_fixed - dl_dq_next_free * [dlhs / dq_next_free]^(-1) * dlhs / drhs_fixed.
     VectorXr dl_drhs_intermediate = VectorXr::Zero(dofs_);
-    ComputeDeformationGradientAuxiliaryDataAndProjection(q_next);
-    const SparseMatrix op = NewtonMatrix(q_next, a, inv_h2m, augmented_dirichlet, true);
+    // Check if precomputed data are needed.
+    const bool use_precomputed_data = !pd_element_energies_.empty();
+    if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_next);
+    const SparseMatrix op = NewtonMatrix(q_next, a, inv_h2m, augmented_dirichlet, use_precomputed_data);
     if (method == "newton_pcg") {
         Eigen::ConjugateGradient<SparseMatrix, Eigen::Lower|Eigen::Upper> cg;
         // Setting up cg termination conditions: here what you set is the upper bound of:
@@ -141,7 +143,7 @@ void Deformable<vertex_dim, element_dim>::BackwardNewton(const std::string& meth
 
     // Backpropagate mat_w -> q_next.
     SparseMatrixElements nonzeros_mat_w;
-    PdEnergyForceDifferential(q_next, false, true, true, nonzeros_q, nonzeros_mat_w);
+    PdEnergyForceDifferential(q_next, false, true, use_precomputed_data, nonzeros_q, nonzeros_mat_w);
     dl_dmat_w += VectorSparseMatrixProduct(adjoint, dofs_, mat_w_dofs, nonzeros_mat_w);
     // Equivalent code:
     // dl_dmat_w += VectorXr(adjoint.transpose() * ToSparseMatrix(dofs_, mat_w_dofs, nonzeros_mat_w));

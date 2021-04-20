@@ -182,7 +182,8 @@ void Deformable<vertex_dim, element_dim>::BackwardProjectiveDynamics(const std::
     const real inv_h2m = mass / (h * h);
     std::vector<Eigen::Matrix<real, vertex_dim * element_dim, vertex_dim * element_dim>> pd_backward_local_element_matrices;
     std::vector<std::vector<Eigen::Matrix<real, vertex_dim * element_dim, vertex_dim * element_dim>>> pd_backward_local_muscle_matrices;
-    ComputeDeformationGradientAuxiliaryDataAndProjection(q_next);
+    const bool use_precomputed_data = !pd_element_energies_.empty();
+    if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_next);
     SetupProjectiveDynamicsLocalStepDifferential(q_next, a, pd_backward_local_element_matrices, pd_backward_local_muscle_matrices);
 
     // Forward:
@@ -407,7 +408,7 @@ void Deformable<vertex_dim, element_dim>::BackwardProjectiveDynamics(const std::
         // Switch back to Newton's method.
         PrintWarning("PD backward: switching to Cholesky decomposition");
         Eigen::SimplicialLDLT<SparseMatrix> cholesky;
-        const SparseMatrix op = NewtonMatrix(q_next, a, inv_h2m, augmented_dirichlet, true);
+        const SparseMatrix op = NewtonMatrix(q_next, a, inv_h2m, augmented_dirichlet, use_precomputed_data);
         cholesky.compute(op);
         dl_drhs_intermediate = cholesky.solve(dl_dq_next_agg);
         CheckError(cholesky.info() == Eigen::Success, "Cholesky solver failed.");
@@ -442,7 +443,7 @@ void Deformable<vertex_dim, element_dim>::BackwardProjectiveDynamics(const std::
 
     // Backpropagate w -> q_next.
     SparseMatrixElements nonzeros_mat_w;
-    PdEnergyForceDifferential(q_next, false, true, true, nonzeros_q, nonzeros_mat_w);
+    PdEnergyForceDifferential(q_next, false, true, use_precomputed_data, nonzeros_q, nonzeros_mat_w);
     dl_dmat_w += VectorSparseMatrixProduct(adjoint, dofs_, mat_w_dofs, nonzeros_mat_w);
     // Equivalent code:
     // dl_dw += VectorXr(adjoint.transpose() * ToSparseMatrix(dofs_, mat_w_dofs, nonzeros_mat_w));

@@ -3,7 +3,7 @@
 
 template<int dim>
 const real NeohookeanMaterial<dim>::EnergyDensity(const Eigen::Matrix<real, dim, dim>& F) const {
-    const real I1 = (F.transpose() * F).trace();
+    const real I1 = F.squaredNorm();
     const real J = F.determinant();
     const real mu = Material<dim>::mu();
     const real la = Material<dim>::lambda();

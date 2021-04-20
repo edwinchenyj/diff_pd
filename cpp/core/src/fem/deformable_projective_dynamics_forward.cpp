@@ -302,8 +302,9 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
         q_sol(pair.first) = pair.second;
         selected(pair.first) = 0;
     }
-    ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol);
-    VectorXr force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, true) + ActuationForce(q_sol, a);
+    const bool use_precomputed_data = !pd_element_energies_.empty();
+    if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol);
+    VectorXr force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_precomputed_data) + ActuationForce(q_sol, a);
     // We aim to use Newton's method to minimize the following energy:
     // 0.5 / (h2) * (q_next - rhs) * M * (q_next - rhs) + (E_ela + E_pd + E_act).
     // The gradient of this energy:
@@ -316,7 +317,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
     //
     // In order to apply Newton's method, we need to compute the Hessian of the energy:
     // H = M / h2 + Hess (energy).
-    real energy_sol = ElasticEnergy(q_sol) + ComputePdEnergy(q_sol, true) + ActuationEnergy(q_sol, a);
+    real energy_sol = ElasticEnergy(q_sol) + ComputePdEnergy(q_sol, use_precomputed_data) + ActuationEnergy(q_sol, a);
     auto eval_obj = [&](const VectorXr& q_cur, const real energy_cur) {
         return 0.5 * (q_cur - rhs).dot(inv_h2m * (q_cur - rhs)) + energy_cur;
     };
@@ -393,8 +394,8 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
             if (verbose_level > 1) Tic();
             real step_size = 1;
             VectorXr q_sol_next = q_sol - step_size * quasi_newton_direction;
-            ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol_next);
-            real energy_next = ElasticEnergy(q_sol_next) + ComputePdEnergy(q_sol_next, true) + ActuationEnergy(q_sol_next, a);
+            if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol_next);
+            real energy_next = ElasticEnergy(q_sol_next) + ComputePdEnergy(q_sol_next, use_precomputed_data) + ActuationEnergy(q_sol_next, a);
             real obj_next = eval_obj(q_sol_next, energy_next);
             const real gamma = ToReal(1e-4);
             bool ls_success = false;
@@ -409,8 +410,8 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
                 }
                 step_size /= 2;
                 q_sol_next = q_sol - step_size * quasi_newton_direction;
-                ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol_next);
-                energy_next = ElasticEnergy(q_sol_next) + ComputePdEnergy(q_sol_next, true) + ActuationEnergy(q_sol_next, a);
+                if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol_next);
+                energy_next = ElasticEnergy(q_sol_next) + ComputePdEnergy(q_sol_next, use_precomputed_data) + ActuationEnergy(q_sol_next, a);
                 obj_next = eval_obj(q_sol_next, energy_next);
                 if (verbose_level > 0) PrintInfo("Line search iteration: " + std::to_string(j));
                 if (verbose_level > 1) {

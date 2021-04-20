@@ -37,6 +37,7 @@ void Deformable<vertex_dim, element_dim>::ForwardNewton(const std::string& metho
     const real inv_h2m = mass / (h * h);
     const int max_contact_iter = 5;
     std::vector<std::set<int>> active_contact_idx_history;
+    const bool use_precomputed_data = !pd_element_energies_.empty();
     for (int contact_iter = 0; contact_iter < max_contact_iter; ++contact_iter) {
         if (verbose_level > 0) std::cout << "Contact iteration " << contact_iter << std::endl;
         // Fix dirichlet_ + active_contact_nodes.
@@ -52,8 +53,8 @@ void Deformable<vertex_dim, element_dim>::ForwardNewton(const std::string& metho
             q_sol(pair.first) = pair.second;
             selected(pair.first) = 0;
         }
-        ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol);
-        VectorXr force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, true) + ActuationForce(q_sol, a);
+        if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol);
+        VectorXr force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_precomputed_data) + ActuationForce(q_sol, a);
         // We aim to use Newton's method to minimize the following energy:
         // 0.5 / (h2) * (q_next - rhs) * M * (q_next - rhs) + (E_ela + E_pd + E_act).
         // The gradient of this energy:
@@ -66,7 +67,7 @@ void Deformable<vertex_dim, element_dim>::ForwardNewton(const std::string& metho
         //
         // In order to apply Newton's method, we need to compute the Hessian of the energy:
         // H = M / h2 + Hess (energy).
-        real energy_sol = ElasticEnergy(q_sol) + ComputePdEnergy(q_sol, true) + ActuationEnergy(q_sol, a);
+        real energy_sol = ElasticEnergy(q_sol) + ComputePdEnergy(q_sol, use_precomputed_data) + ActuationEnergy(q_sol, a);
         auto eval_obj = [&](const VectorXr& q_cur, const real energy_cur){
             return 0.5 * (q_cur - rhs).dot(inv_h2m * (q_cur - rhs)) + energy_cur;
         };
@@ -84,7 +85,7 @@ void Deformable<vertex_dim, element_dim>::ForwardNewton(const std::string& metho
             // Newton's direction: dq = H^{-1} * grad.
             VectorXr newton_direction = VectorXr::Zero(dofs_);
             if (verbose_level > 1) Tic();
-            const SparseMatrix op = NewtonMatrix(q_sol, a, inv_h2m, augmented_dirichlet, true);
+            const SparseMatrix op = NewtonMatrix(q_sol, a, inv_h2m, augmented_dirichlet, use_precomputed_data);
             if (verbose_level > 1) Toc("Assemble NewtonMatrix");
             if (method == "newton_pcg") {
                 // Looks like Matrix operators are more accurate and allow for more advanced preconditioners.
@@ -134,9 +135,9 @@ void Deformable<vertex_dim, element_dim>::ForwardNewton(const std::string& metho
                     // Check if the gradients make sense.
                     for (const real eps : { 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6 }) {
                         const VectorXr q_sol_perturbed = q_sol - eps * grad_sol;
-                        ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol_perturbed);
+                        if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol_perturbed);
                         const real energy_sol_perturbed = ElasticEnergy(q_sol_perturbed)
-                            + ComputePdEnergy(q_sol_perturbed, true) + ActuationEnergy(q_sol_perturbed, a);
+                            + ComputePdEnergy(q_sol_perturbed, use_precomputed_data) + ActuationEnergy(q_sol_perturbed, a);
                         const real obj_sol_perturbed = eval_obj(q_sol_perturbed, energy_sol_perturbed);
                         const real obj_diff_numerical = obj_sol_perturbed - obj_sol;
                         const real obj_diff_analytical = -eps * grad_sol.dot(grad_sol);
@@ -154,8 +155,8 @@ void Deformable<vertex_dim, element_dim>::ForwardNewton(const std::string& metho
             if (verbose_level > 1) Tic();
             real step_size = 1;
             VectorXr q_sol_next = q_sol - step_size * newton_direction;
-            ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol_next);
-            real energy_next = ElasticEnergy(q_sol_next) + ComputePdEnergy(q_sol_next, true) + ActuationEnergy(q_sol_next, a);
+            if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol_next);
+            real energy_next = ElasticEnergy(q_sol_next) + ComputePdEnergy(q_sol_next, use_precomputed_data) + ActuationEnergy(q_sol_next, a);
             real obj_next = eval_obj(q_sol_next, energy_next);
             const real gamma = ToReal(1e-4);
             bool ls_success = false;
@@ -170,8 +171,8 @@ void Deformable<vertex_dim, element_dim>::ForwardNewton(const std::string& metho
                 }
                 step_size /= 2;
                 q_sol_next = q_sol - step_size * newton_direction;
-                ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol_next);
-                energy_next = ElasticEnergy(q_sol_next) + ComputePdEnergy(q_sol_next, true) + ActuationEnergy(q_sol_next, a);
+                if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol_next);
+                energy_next = ElasticEnergy(q_sol_next) + ComputePdEnergy(q_sol_next, use_precomputed_data) + ActuationEnergy(q_sol_next, a);
                 obj_next = eval_obj(q_sol_next, energy_next);
                 if (verbose_level > 0) std::cout << "Line search iteration: " << j << std::endl;
                 if (verbose_level > 1) {
@@ -193,7 +194,7 @@ void Deformable<vertex_dim, element_dim>::ForwardNewton(const std::string& metho
             // Update.
             if (verbose_level > 1) std::cout << "obj_sol = " << obj_sol << ", obj_next = " << obj_next << std::endl;
             q_sol = q_sol_next;
-            force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, true) + ActuationForce(q_sol, a);
+            force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_precomputed_data) + ActuationForce(q_sol, a);
             energy_sol = energy_next;
             obj_sol = obj_next;
             grad_sol = (inv_h2m * (q_sol - rhs) - force_sol).array() * selected.array();
