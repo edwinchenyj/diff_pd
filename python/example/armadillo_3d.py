@@ -25,8 +25,10 @@ def test_armadillo_3d(verbose):
 
     # Setting thread number.
     thread_cts = [4,]
-    methods = ('newton_cholesky',)
-    opts = ({ 'max_newton_iter': 5000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': 4 },)
+    methods = ('pd_eigen', 'newton_cholesky')
+    opts = ({ 'max_pd_iter': 5000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': 4,
+                'use_bfgs': 1, 'bfgs_history_size': 10 },
+            { 'max_newton_iter': 5000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': 4 },)
 
     dofs = deformable.dofs()
     act_dofs = deformable.act_dofs()
@@ -36,7 +38,7 @@ def test_armadillo_3d(verbose):
     f0 = np.zeros(dofs)
 
     dt = 2e-3
-    frame_num = 2
+    frame_num = 50
 
     if verbose:
         for method, opt in zip(methods, opts):

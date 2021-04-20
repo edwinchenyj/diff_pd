@@ -6,8 +6,6 @@
 template<int vertex_dim, int element_dim>
 void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const std::string& method, const real dt,
     const std::map<std::string, real>& options) const {
-    CheckError(!material_, "PD does not support material models.");
-
     if (pd_solver_ready_) return;
 
     CheckError(options.find("thread_ct") != options.end(), "Missing parameter thread_ct.");
@@ -37,6 +35,11 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
 
     // Part II: PD element energy: w_i * S'A'AS.
     real w = 0;
+    if (material_) {
+        // Add elastic stiffness: Here, we use 10% as suggested in Tiantian's code:
+        // https://github.com/ltt1598/Quasi-Newton-Methods-for-Real-time-Simulation-of-Hyperelastic-Materials/blob/master/GenPD/GenPD/source/constraint_tet.cpp#L235
+        w += material_->ComputeAverageStiffness(0.1);
+    }
     for (const auto& energy : pd_element_energies_) w += energy->stiffness();
     // For each element and for each sample, AS maps q to the deformation gradient F.
     for (int i = 0; i < element_num; ++i) {
@@ -150,7 +153,6 @@ void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const st
 template<int vertex_dim, int element_dim>
 const VectorXr Deformable<vertex_dim, element_dim>::ProjectiveDynamicsLocalStep(const VectorXr& q_cur, const VectorXr& a_cur,
     const std::map<int, real>& dirichlet_with_friction) const {
-    CheckError(!material_, "PD does not support material models.");
     CheckError(act_dofs_ == static_cast<int>(a_cur.size()), "Inconsistent actuation size.");
 
     // We minimize:
@@ -256,7 +258,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
     const std::map<int, real>& additional_dirichlet, const std::map<std::string, real>& options) const {
     // The goal of this function is to find q_sol so that:
     // q_sol_fixed = additional_dirichlet \/ dirichlet_.
-    // q_sol_free - h2m * f_pd(q_sol_free; q_sol_fixed) - h2m * f_act(q_sol_free; q_sol_fixed, a) = rhs.
+    // q_sol_free - h2m * f_ela(q_sol_free; q_sol_fixed) - h2m * f_pd(q_sol_free; q_sol_fixed) - h2m * f_act(q_sol_free; q_sol_fixed, a) = rhs.
     CheckError(options.find("max_pd_iter") != options.end(), "Missing option max_pd_iter.");
     CheckError(options.find("abs_tol") != options.end(), "Missing option abs_tol.");
     CheckError(options.find("rel_tol") != options.end(), "Missing option rel_tol.");
@@ -301,21 +303,21 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
         selected(pair.first) = 0;
     }
     ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol);
-    VectorXr force_sol = PdEnergyForce(q_sol, true) + ActuationForce(q_sol, a);
+    VectorXr force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, true) + ActuationForce(q_sol, a);
     // We aim to use Newton's method to minimize the following energy:
-    // 0.5 / (h2) * (q_next - rhs) * M * (q_next - rhs) + (E_pd + E_act).
+    // 0.5 / (h2) * (q_next - rhs) * M * (q_next - rhs) + (E_ela + E_pd + E_act).
     // The gradient of this energy:
-    // M / h2 * (q_next - rhs) - elastic_force.
-    // When the gradient = 0, it solves the implicit time-stepping scheme (q_next = rhs + h2m * elastic_force).
+    // M / h2 * (q_next - rhs) - ela_force - pd_force - act_force.
+    // When the gradient = 0, it solves the implicit time-stepping scheme (q_next = rhs + h2m * (elastic_force + pd_force + act_force)).
     // Our situation is a bit more complicated: we want to fix some q_next to certain values.
     // Therefore, what we actually aim to solve is:
-    // M / h2 * (q_next - rhs) = elastic_force for those FREE dofs only.
+    // M / h2 * (q_next - rhs) = ela_force + pd_force + act_force for those FREE dofs only.
     // This means we also need to fix q_next_fixed in the energy function above.
     //
     // In order to apply Newton's method, we need to compute the Hessian of the energy:
     // H = M / h2 + Hess (energy).
-    real energy_sol = ComputePdEnergy(q_sol, true) + ActuationEnergy(q_sol, a);
-    auto eval_obj = [&](const VectorXr& q_cur, const real energy_cur){
+    real energy_sol = ElasticEnergy(q_sol) + ComputePdEnergy(q_sol, true) + ActuationEnergy(q_sol, a);
+    auto eval_obj = [&](const VectorXr& q_cur, const real energy_cur) {
         return 0.5 * (q_cur - rhs).dot(inv_h2m * (q_cur - rhs)) + energy_cur;
     };
     real obj_sol = eval_obj(q_sol, energy_sol);
@@ -392,7 +394,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
             real step_size = 1;
             VectorXr q_sol_next = q_sol - step_size * quasi_newton_direction;
             ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol_next);
-            real energy_next = ComputePdEnergy(q_sol_next, true) + ActuationEnergy(q_sol_next, a);
+            real energy_next = ElasticEnergy(q_sol_next) + ComputePdEnergy(q_sol_next, true) + ActuationEnergy(q_sol_next, a);
             real obj_next = eval_obj(q_sol_next, energy_next);
             const real gamma = ToReal(1e-4);
             bool ls_success = false;
@@ -408,7 +410,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
                 step_size /= 2;
                 q_sol_next = q_sol - step_size * quasi_newton_direction;
                 ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol_next);
-                energy_next = ComputePdEnergy(q_sol_next, true) + ActuationEnergy(q_sol_next, a);
+                energy_next = ElasticEnergy(q_sol_next) + ComputePdEnergy(q_sol_next, true) + ActuationEnergy(q_sol_next, a);
                 obj_next = eval_obj(q_sol_next, energy_next);
                 if (verbose_level > 0) PrintInfo("Line search iteration: " + std::to_string(j));
                 if (verbose_level > 1) {
@@ -434,13 +436,22 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
             obj_sol = obj_next;
         } else {
             // Update w/o BFGS.
+            // For traditional PD:
+            // LHS * q_sol = rhs.
+            // => q_sol = inv(LHS) * rhs
+            // Additionally, q_sol = q_old - inv(LHS) * grad g.
+            // => rhs = LHS * q_old - grad g.
+            // Now that we have additional gradients from the elastic force, we will update grad g in rhs accordingly.
             // Local step:
-            const VectorXr pd_rhs = (inv_h2m * rhs + ProjectiveDynamicsLocalStep(q_sol, a, augmented_dirichlet)).array() * selected.array();
+            const VectorXr pd_rhs = (inv_h2m * rhs + ProjectiveDynamicsLocalStep(q_sol, a, augmented_dirichlet)
+                + ElasticForce(q_sol)).array() * selected.array();
+            // 
             // Global step:
             q_sol = PdLhsSolve(method, pd_rhs, additional_dirichlet, use_acc);
             for (const auto& pair : augmented_dirichlet) q_sol(pair.first) = pair.second;
+            // Note that energy_sol and obj_sol is not needed in this non-bfgs iteration.
         }
-        force_sol = PdEnergyForce(q_sol, use_bfgs) + ActuationForce(q_sol, a);
+        force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_bfgs) + ActuationForce(q_sol, a);
         grad_sol = (inv_h2m * (q_sol - rhs) - force_sol).array() * selected.array();
 
         // Check for convergence --- gradients must be zero.
@@ -461,8 +472,6 @@ void Deformable<vertex_dim, element_dim>::ForwardProjectiveDynamics(const std::s
     const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext, const real dt,
     const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
     std::vector<int>& active_contact_idx) const {
-    CheckError(!material_, "PD does not support material models.");
-
     CheckError(options.find("max_pd_iter") != options.end(), "Missing option max_pd_iter.");
     CheckError(options.find("abs_tol") != options.end(), "Missing option abs_tol.");
     CheckError(options.find("rel_tol") != options.end(), "Missing option rel_tol.");
@@ -509,7 +518,6 @@ void Deformable<vertex_dim, element_dim>::ForwardProjectiveDynamics(const std::s
         }
         // Initial guess.
         const VectorXr q_sol = PdNonlinearSolve(method, q, a, inv_h2m, rhs, additional_dirichlet, options);
-        const VectorXr force_sol = PdEnergyForce(q_sol, use_bfgs) + ActuationForce(q_sol, a);
         q_next = q_sol;
         v_next = (q_next - q) / h;
         return;
@@ -527,7 +535,7 @@ void Deformable<vertex_dim, element_dim>::ForwardProjectiveDynamics(const std::s
         }
         // The PD iteration.
         const VectorXr q_sol = PdNonlinearSolve(method, q, a, inv_h2m, rhs, additional_dirichlet, options);
-        const VectorXr force_sol = PdEnergyForce(q_sol, use_bfgs) + ActuationForce(q_sol, a);
+        const VectorXr force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_bfgs) + ActuationForce(q_sol, a);
 
         // Now verify the contact conditions.
         const std::set<int> past_active_contact_idx = VectorToSet(active_contact_idx);
