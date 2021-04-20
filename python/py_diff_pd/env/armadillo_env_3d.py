@@ -9,7 +9,7 @@ from py_diff_pd.common.tet_mesh import tetrahedralize
 from py_diff_pd.common.project_path import root_path
 from py_diff_pd.common.common import print_info, create_folder, ndarray
 from py_diff_pd.common.display import export_mp4
-from py_diff_pd.common.tet_mesh import generate_tet_mesh, tet2obj, tetrahedralize
+from py_diff_pd.common.tet_mesh import generate_tet_mesh, read_tetgen_file
 from py_diff_pd.common.tet_mesh import get_contact_vertex as get_tet_contact_vertex
 from py_diff_pd.core.py_diff_pd_core import TetMesh3d, TetDeformable
 from py_diff_pd.common.renderer import PbrtRenderer
@@ -31,8 +31,29 @@ class ArmadilloEnv3d(EnvBase):
         mu = youngs_modulus / (2 * (1 + poissons_ratio))
         density = 1e3
         # Generate armadillo mesh.
-        obj_file_name = Path(root_path) / 'asset' / 'mesh' / 'armadillo_low_res.obj'
-        verts, eles = tetrahedralize(obj_file_name, normalize_input=False, options={ 'minratio': 1.1 })
+        ele_file_name = Path(root_path) / 'asset' / 'mesh' / 'armadillo_10k.ele'
+        node_file_name = Path(root_path) / 'asset' / 'mesh' / 'armadillo_10k.node'
+        verts, eles = read_tetgen_file(node_file_name, ele_file_name)
+        # To make the mesh consistent with our coordinate system, we need to:
+        # - rotate the model along +x by 90 degrees.
+        # - shift it so that its min_z = 0.
+        # - divide it by 1000.
+        R = ndarray([
+            [1, 0, 0],
+            [0, 0, -1],
+            [0, 1, 0]
+        ])
+        verts = verts @ R.T
+        # Next, rotate along z by 180 degrees.
+        R = ndarray([
+            [-1, 0, 0],
+            [0, -1, 0],
+            [0, 0, 1],
+        ])
+        verts = verts @ R.T
+        min_z = np.min(verts, axis=0)[2]
+        verts[:, 2] -= min_z
+        verts /= 1000
         tmp_bin_file_name = '.tmp.bin'
         generate_tet_mesh(verts, eles, tmp_bin_file_name)
         mesh = TetMesh3d()
@@ -49,9 +70,17 @@ class ArmadilloEnv3d(EnvBase):
         min_corner = np.min(all_verts, axis=0)
         center = (max_corner + min_corner) / 2
         min_z = min_corner[2]
+        min_x = min_corner[0]
+        max_x = max_corner[0]
         dirichlet_dofs = []
+        self.__min_x_nodes = []
+        self.__max_x_nodes = []
         for i in range(vert_num):
             vx, vy, vz = all_verts[i]
+            if vx - min_x < 1e-3:
+                self.__min_x_nodes.append(i)
+            if max_x - vx < 1e-3:
+                self.__max_x_nodes.append(i)
             if vz - min_z < 1e-3:
                 deformable.SetDirichletBoundaryCondition(3 * i, vx)
                 deformable.SetDirichletBoundaryCondition(3 * i + 1, vy)
@@ -124,6 +153,12 @@ class ArmadilloEnv3d(EnvBase):
             texture_img='chkbd_24_0.7', transforms=[('s', 2)])
 
         renderer.render()
+
+    def min_x_nodes(self):
+        return self.__min_x_nodes
+
+    def max_x_nodes(self):
+        return self.__max_x_nodes
 
     def _loss_and_grad(self, q, v):
         loss = q.dot(self.__loss_q_grad) + v.dot(self.__loss_v_grad)

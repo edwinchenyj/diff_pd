@@ -18,7 +18,8 @@ def test_armadillo_3d(verbose):
     seed = 42
     folder = Path('armadillo_3d')
     env = ArmadilloEnv3d(seed, folder, {
-        'init_rotate_angle': np.pi / 6,
+        'youngs_modulus': 5e5,
+        'init_rotate_angle': 0,
         'spp': 4
     })
     deformable = env.deformable()
@@ -30,21 +31,27 @@ def test_armadillo_3d(verbose):
                 'use_bfgs': 1, 'bfgs_history_size': 10 },
             { 'max_newton_iter': 5000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': 4 },)
 
+    # Compute the initial state.
     dofs = deformable.dofs()
     act_dofs = deformable.act_dofs()
     q0 = env.default_init_position()
     v0 = env.default_init_velocity()
     a0 = np.zeros(act_dofs)
-    f0 = np.zeros(dofs)
-
-    dt = 2e-3
-    frame_num = 50
+    dt = 1e-2
+    frame_num = 20
+    f0 = [np.zeros(dofs).reshape((-1, 3)) for _ in range(frame_num)]
+    for t in range(frame_num):
+        for i in env.min_x_nodes():
+            f0[t][i] = ndarray([1.0, -1.0, 0]) * t / frame_num
+        for i in env.max_x_nodes():
+            f0[t][i] = ndarray([-1.0, 1.0, 0]) * t / frame_num
+    f0 = [fi.ravel() for fi in f0]
 
     if verbose:
         for method, opt in zip(methods, opts):
             env.simulate(dt, frame_num, 'pd_eigen' if method == 'pd_no_bfgs' else method,
-                opt, q0, v0, [a0 for _ in range(frame_num)],
-                [f0 for _ in range(frame_num)], require_grad=False, vis_folder=method)
+                opt, q0, v0, [a0 for _ in range(frame_num)], f0, require_grad=False, vis_folder=method)
+    sys.exit(0)
 
     # Benchmark time.
     print('Reporting time cost. DoFs: {:d}, frames: {:d}, dt: {:3.3e}'.format(dofs, frame_num, dt))
