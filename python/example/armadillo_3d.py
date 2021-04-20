@@ -20,6 +20,7 @@ def test_armadillo_3d(verbose):
     env = ArmadilloEnv3d(seed, folder, {
         'youngs_modulus': 5e5,
         'init_rotate_angle': 0,
+        'state_force_parameters': [0, 0, 0],    # No gravity.
         'spp': 4
     })
     deformable = env.deformable()
@@ -37,14 +38,16 @@ def test_armadillo_3d(verbose):
     q0 = env.default_init_position()
     v0 = env.default_init_velocity()
     a0 = np.zeros(act_dofs)
-    dt = 1e-2
-    frame_num = 20
+    dt = 3e-2
+    frame_num = 30
     f0 = [np.zeros(dofs).reshape((-1, 3)) for _ in range(frame_num)]
     for t in range(frame_num):
+        f_min_x = ndarray([np.cos(-np.pi / 4 + t / frame_num * np.pi / 2),
+            np.sin(-np.pi / 4 + t / frame_num * np.pi / 2), 0]) * t / frame_num
         for i in env.min_x_nodes():
-            f0[t][i] = ndarray([1.0, -1.0, 0]) * t / frame_num
+            f0[t][i] = f_min_x
         for i in env.max_x_nodes():
-            f0[t][i] = ndarray([-1.0, 1.0, 0]) * t / frame_num
+            f0[t][i] = -f_min_x
     f0 = [fi.ravel() for fi in f0]
 
     if verbose:

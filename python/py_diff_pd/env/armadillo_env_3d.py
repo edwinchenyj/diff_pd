@@ -70,6 +70,7 @@ class ArmadilloEnv3d(EnvBase):
         min_corner = np.min(all_verts, axis=0)
         center = (max_corner + min_corner) / 2
         min_z = min_corner[2]
+        max_z = max_corner[2]
         min_x = min_corner[0]
         max_x = max_corner[0]
         dirichlet_dofs = []
@@ -86,6 +87,9 @@ class ArmadilloEnv3d(EnvBase):
                 deformable.SetDirichletBoundaryCondition(3 * i + 1, vy)
                 deformable.SetDirichletBoundaryCondition(3 * i + 2, vz)
                 dirichlet_dofs += [3 * i, 3 * i + 1, 3 * i + 2]
+            if max_z - vz < 1e-3:
+                deformable.SetDirichletBoundaryCondition(3 * i + 2, vz)
+                dirichlet_dofs += [3 * i + 2,]
         self.__dirichlet_dofs = dirichlet_dofs
         # State-based forces.
         deformable.AddStateForce('gravity', state_force_parameters)
