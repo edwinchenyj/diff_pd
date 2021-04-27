@@ -446,7 +446,6 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
             // Local step:
             const VectorXr pd_rhs = (inv_h2m * rhs + ProjectiveDynamicsLocalStep(q_sol, a, augmented_dirichlet)
                 + ElasticForce(q_sol)).array() * selected.array();
-            // 
             // Global step:
             q_sol = PdLhsSolve(method, pd_rhs, additional_dirichlet, use_acc);
             for (const auto& pair : augmented_dirichlet) q_sol(pair.first) = pair.second;

@@ -39,7 +39,7 @@ def test_armadillo_3d(verbose):
     v0 = env.default_init_velocity()
     a0 = np.zeros(act_dofs)
     dt = 3e-2
-    frame_num = 30
+    frame_num = 3
     f0 = [np.zeros(dofs).reshape((-1, 3)) for _ in range(frame_num)]
     for t in range(frame_num):
         f_min_x = ndarray([np.cos(-np.pi / 4 + t / frame_num * np.pi / 2),
@@ -50,11 +50,13 @@ def test_armadillo_3d(verbose):
             f0[t][i] = -f_min_x
     f0 = [fi.ravel() for fi in f0]
 
+    '''
     if verbose:
         for method, opt in zip(methods, opts):
             env.simulate(dt, frame_num, 'pd_eigen' if method == 'pd_no_bfgs' else method,
-                opt, q0, v0, [a0 for _ in range(frame_num)], f0, require_grad=False, vis_folder=method)
+                opt, q0, v0, [a0 for _ in range(frame_num)], f0, require_grad=False, vis_folder=None)
     sys.exit(0)
+    '''
 
     # Benchmark time.
     print('Reporting time cost. DoFs: {:d}, frames: {:d}, dt: {:3.3e}'.format(dofs, frame_num, dt))
@@ -90,10 +92,9 @@ def test_armadillo_3d(verbose):
                 opt['thread_ct'] = thread_ct
                 meth_thread_num = '{}_{}threads'.format(method, thread_ct)
                 loss, grad, info = env.simulate(dt, frame_num, 'pd_eigen' if method == 'pd_no_bfgs' else method,
-                    opt, q0, v0, [a0 for _ in range(frame_num)],
-                    [f0 for _ in range(frame_num)], require_grad=True, vis_folder=None)
+                    opt, q0, v0, [a0 for _ in range(frame_num)], f0, require_grad=True, vis_folder=None)
                 grad_q, grad_v, grad_a, grad_f = grad
-                grad = np.zeros(q0.size + v0.size + a0.size + f0.size)
+                grad = np.zeros(dofs + dofs + act_dofs + dofs)
                 grad[:dofs] = grad_q
                 grad[dofs:2 * dofs] = grad_v
                 grad[2 * dofs:2 * dofs + act_dofs] = np.sum(ndarray(grad_a), axis=0)
