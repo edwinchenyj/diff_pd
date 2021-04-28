@@ -1,6 +1,7 @@
 #include "fem/deformable.h"
 #include "common/common.h"
 #include "common/geometry.h"
+#include "solver/deformable_preconditioner.h"
 #include "Eigen/SparseCholesky"
 
 template<int vertex_dim, int element_dim>
@@ -229,20 +230,31 @@ void Deformable<vertex_dim, element_dim>::BackwardProjectiveDynamics(const std::
     // CheckError(cholesky.info() == Eigen::Success, "Cholesky solver failed.");
     VectorXr dl_drhs_intermediate;
     if (material_) {
-        // The user is using a non-PD material model. Need special treatment.
-        // Eigen::SimplicialLDLT<SparseMatrix> cholesky;
-        // const SparseMatrix op = NewtonMatrix(q_next, a, inv_h2m, augmented_dirichlet);
-        // cholesky.compute(op);
-        // const VectorXr dl_drhs_intermediate = cholesky.solve(dl_dq_next_agg);
-        // CheckError(cholesky.info() == Eigen::Success, "Cholesky solver failed.");
         const SparseMatrix op = NewtonMatrix(q_next, a, inv_h2m, augmented_dirichlet, use_precomputed_data);
-        // TODO: use pd_lhs as the preconditioner in PCG.
-        Eigen::ConjugateGradient<SparseMatrix, Eigen::Lower|Eigen::Upper> cg;
-        const real tol = rel_tol + abs_tol / dl_dq_next_agg.norm();
-        cg.setTolerance(tol);
-        cg.compute(op);
-        dl_drhs_intermediate = cg.solve(dl_dq_next_agg);
-        CheckError(cg.info() == Eigen::Success, "CG solver failed.");
+        if (EndsWith(method, "pcg")) {
+            // The user is using a non-PD material model. Need special treatment.
+            // Eigen::SimplicialLDLT<SparseMatrix> cholesky;
+            // const SparseMatrix op = NewtonMatrix(q_next, a, inv_h2m, augmented_dirichlet, use_precomputed_data);
+            // cholesky.compute(op);
+            // const VectorXr dl_drhs_intermediate = cholesky.solve(dl_dq_next_agg);
+            // CheckError(cholesky.info() == Eigen::Success, "Cholesky solver failed.");
+            global_additional_dirichlet_boundary = additional_dirichlet;
+            global_pd_backward_method = method;
+            AssignToGlobalDeformable();
+            Eigen::ConjugateGradient<SparseMatrix, Eigen::Lower|Eigen::Upper, Eigen::DeformablePreconditioner<real>> cg;
+            const real tol = rel_tol + abs_tol / dl_dq_next_agg.norm();
+            cg.setTolerance(tol);
+            cg.compute(op);
+            dl_drhs_intermediate = cg.solve(dl_dq_next_agg);
+            CheckError(cg.info() == Eigen::Success, "CG solver failed.");
+            ClearGlobalDeformable();
+        } else {
+            // Cholesky by default.
+            Eigen::SimplicialLDLT<SparseMatrix> cholesky;
+            cholesky.compute(op);
+            dl_drhs_intermediate = cholesky.solve(dl_dq_next_agg);
+            CheckError(cholesky.info() == Eigen::Success, "Cholesky solver failed.");
+        }
     } else {
         // The PD equivalent (using the notation from the paper:)
         // A is the matrix in PdLhsSolve.

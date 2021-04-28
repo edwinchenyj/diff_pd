@@ -152,6 +152,10 @@ public:
     void PyActuationForceDifferential(const std::vector<real>& q, const std::vector<real>& a, std::vector<std::vector<real>>& dq,
         std::vector<std::vector<real>>& da, std::vector<std::vector<real>>& dw) const;
 
+    // Unfortunately, the preconditioner would prefer seeing this PdLhsSolve function.
+    const VectorXr PdLhsSolve(const std::string& method, const VectorXr& rhs,
+        const std::map<int, real>& additional_dirichlet_boundary_condition, const bool use_acc) const;
+
 protected:
     void ForwardSemiImplicit(const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
         const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
@@ -203,6 +207,9 @@ protected:
     // End of methods and data members that need implementations from derived classes.
 
 private:
+    void AssignToGlobalDeformable() const;
+    void ClearGlobalDeformable() const;
+
     void InitializeAfterMesh(const real density,
         const std::string& material_type, const real youngs_modulus, const real poissons_ratio);
     const std::shared_ptr<Material<vertex_dim>> InitializeMaterial(const std::string& material_type,
@@ -227,8 +234,6 @@ private:
         const std::vector<std::vector<Eigen::Matrix<real, vertex_dim * element_dim, vertex_dim * element_dim>>>& pd_backward_local_muscle_matrices,
         const VectorXr& dq_cur) const;
     const VectorXr PdLhsMatrixOp(const VectorXr& q, const std::map<int, real>& additional_dirichlet_boundary_condition) const;
-    const VectorXr PdLhsSolve(const std::string& method, const VectorXr& rhs,
-        const std::map<int, real>& additional_dirichlet_boundary_condition, const bool use_acc) const;
 
     // Compute deformation gradient.
     const Eigen::Matrix<real, vertex_dim, element_dim> ScatterToElement(const VectorXr& q, const int element_idx) const;
@@ -287,5 +292,11 @@ private:
     // projections_[energy_cnt][element_idx][sample_idx].
     mutable std::vector<std::vector<std::vector<Eigen::Matrix<real, vertex_dim, vertex_dim>>>> projections_;
 };
+
+extern const void* global_deformable;
+extern int global_vertex_dim;
+extern int global_element_dim;
+extern std::map<int, real> global_additional_dirichlet_boundary;
+extern std::string global_pd_backward_method;
 
 #endif

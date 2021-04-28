@@ -229,8 +229,11 @@ const SparseMatrixElements Deformable<vertex_dim, element_dim>::ElasticForceDiff
 
     const int element_num = mesh_.NumOfElements();
     const int sample_num = GetNumOfSamplesInElement();
-    SparseMatrixElements nonzeros;
-    // TODO: should this be parallelized with OpenMP?
+    // The sequential version:
+    // SparseMatrixElements nonzeros;
+    SparseMatrixElements nonzeros(element_num * sample_num * element_dim * vertex_dim * element_dim * vertex_dim);
+
+    #pragma omp parallel for
     for (int i = 0; i < element_num; ++i) {
         const Eigen::Matrix<int, element_dim, 1> vi = mesh_.element(i);
         const auto deformed = ScatterToElement(q, i);
@@ -242,7 +245,7 @@ const SparseMatrixElements Deformable<vertex_dim, element_dim>::ElasticForceDiff
                     const Eigen::Matrix<real, vertex_dim, vertex_dim> dF_single =
                         Eigen::Matrix<real, vertex_dim, 1>::Unit(t) * finite_element_samples_[i][j].grad_undeformed_sample_weight().row(s);
                     dF.col(s * vertex_dim + t) += Flatten(dF_single);
-            }
+                }
             const auto dP = material_->StressTensorDifferential(F) * dF;
             const Eigen::Matrix<real, element_dim * vertex_dim, element_dim * vertex_dim> df_kd =
                 -dP.transpose() * finite_element_samples_[i][j].dF_dxkd_flattened() * element_volume_ / sample_num;
@@ -250,8 +253,16 @@ const SparseMatrixElements Deformable<vertex_dim, element_dim>::ElasticForceDiff
                 for (int d = 0; d < vertex_dim; ++d)
                     for (int s = 0; s < element_dim; ++s)
                         for (int t = 0; t < vertex_dim; ++t)
-                            nonzeros.push_back(Eigen::Triplet<real>(vertex_dim * vi(k) + d,
-                                vertex_dim * vi(s) + t, df_kd(s * vertex_dim + t, k * vertex_dim + d)));
+                            nonzeros[i * sample_num * element_dim * vertex_dim * element_dim * vertex_dim
+                                + j * element_dim * vertex_dim * element_dim * vertex_dim
+                                + k * vertex_dim * element_dim * vertex_dim
+                                + d * element_dim * vertex_dim
+                                + s * vertex_dim
+                                + t] = Eigen::Triplet<real>(vertex_dim * vi(k) + d, vertex_dim * vi(s) + t,
+                                    df_kd(s * vertex_dim + t, k * vertex_dim + d));
+                            // Below is the sequential version:
+                            // nonzeros.push_back(Eigen::Triplet<real>(vertex_dim * vi(k) + d,
+                            //     vertex_dim * vi(s) + t, df_kd(s * vertex_dim + t, k * vertex_dim + d)));
         }
     }
     return nonzeros;
@@ -349,7 +360,26 @@ const bool Deformable<vertex_dim, element_dim>::HasFlippedElement(const VectorXr
     return false;
 }
 
+template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::AssignToGlobalDeformable() const {
+    global_deformable = this;
+    global_vertex_dim = vertex_dim;
+    global_element_dim = element_dim;
+}
+
+template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::ClearGlobalDeformable() const {
+    global_deformable = nullptr;
+}
+
 template class Deformable<2, 3>;
 template class Deformable<2, 4>;
 template class Deformable<3, 4>;
 template class Deformable<3, 8>;
+
+// Initialize the global variable used for the preconditioner.
+const void* global_deformable = nullptr;
+int global_vertex_dim = 0;
+int global_element_dim = 0;
+std::map<int, real> global_additional_dirichlet_boundary = std::map<int, real>();
+std::string global_pd_backward_method = "";
