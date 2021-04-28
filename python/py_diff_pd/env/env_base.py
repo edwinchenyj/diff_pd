@@ -139,10 +139,6 @@ class EnvBase:
             forward_method, backward_method = method
         else:
             raise NotImplementedError
-        assert forward_method in [ 'semi_implicit', 'newton_pcg', 'newton_cholesky', 'newton_pardiso',
-            'pd_eigen', 'pd_pardiso' ]
-        assert backward_method in [ 'semi_implicit', 'newton_pcg', 'newton_cholesky', 'newton_pardiso',
-            'pd_eigen', 'pd_pardiso' ]
         if isinstance(opt, dict):
             forward_opt = opt
             backward_opt = opt
