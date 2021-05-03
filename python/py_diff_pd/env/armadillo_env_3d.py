@@ -140,8 +140,8 @@ class ArmadilloEnv3d(EnvBase):
             'light_map': 'uffizi-large.exr',
             'sample': self.__spp,
             'max_depth': 2,
-            'camera_pos': (0.15, -1.0, 0.4),
-            'camera_lookat': (0, 0, .1)
+            'camera_pos': (0.12, -0.8, 0.34),
+            'camera_lookat': (0, 0, .15)
         }
         renderer = PbrtRenderer(options)
 
