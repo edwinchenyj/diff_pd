@@ -93,3 +93,8 @@ Note that the `Cantilever` example is deprecated and not included in the paper.
 
 #### Sec. 7.4
 Examples in this section require non-trivial setup of deep reinforcement learning pipelines, so it is not included in the master branch.
+
+#### Sec. 7.5
+The sim-to-real experiment. Follow the steps below:
+- Run `python billiard_ball_calibration.py` to parse the input video. You will be asked to label the corners in the image in order to reconstruct the 3D trajectory of the billiard balls. Alternatively, you can skip this step and use the calibration data provided in the codebase.
+- Run `python billiard_ball_3d.py` to optimize the parameters in this example to match the sim to real.

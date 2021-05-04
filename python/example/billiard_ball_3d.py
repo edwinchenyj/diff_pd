@@ -35,13 +35,14 @@ if __name__ == '__main__':
     # Simulation parameters.
     substeps = 3
     dt = (1 / 60) / substeps
-    newton_method = 'newton_pcg'
-    pd_method = 'pd_eigen'
-    thread_ct = 6
+    thread_ct = 8
     newton_opt = { 'max_newton_iter': 2000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-9,
         'verbose': 0, 'thread_ct': thread_ct }
     pd_opt = { 'max_pd_iter': 2000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-9,
         'verbose': 0, 'thread_ct': thread_ct, 'use_bfgs': 1, 'bfgs_history_size': 10 }
+    pd_method = 'pd_eigen'
+    methods = ('newton_pcg', 'newton_cholesky', pd_method)
+    opts = (newton_opt, newton_opt, pd_opt)
 
     # Extract the initial information of the balls.
     ball_radius = 0.06858 / 2   # In meters and from measurement/googling the diameter of a tennis ball.
@@ -195,50 +196,25 @@ if __name__ == '__main__':
     bounds = scipy.optimize.Bounds(x_lower, x_upper)
     x_init = np.random.uniform(low=x_lower, high=x_upper)
 
-    data = []
-    def loss_and_grad(x):
-        init_info = get_init_state(x)
-        e = init_info['env']
-        q = init_info['q0']
-        v = init_info['v0']
-        loss, grad, info = e.simulate(dt, frame_num, (pd_method, newton_method), (pd_opt, newton_opt), q, v, a0, f0, require_grad=True)
-        # We start from 3: because the first three state parameters are gravitiy.
-        g = info['state_force_parameter_gradients'][3:] @ init_info['dp_dx'] \
-            + e.backprop_init_velocities(grad[1]) @ init_info['dw_dx'] \
-            + e.backprop_init_positions(grad[0]) @ init_info['dc_dx']
-        c_g = info['grad_custom']
-        g[12:15] += c_g['rpy']
-        g[15:18] += c_g['t']
-        g[18] += c_g['a']
-        print('loss: {:8.3f}, |grad|: {:8.3f}, forward time: {:6.3f}s, backward time: {:6.3f}s'.format(
-            loss, np.linalg.norm(g), info['forward_time'], info['backward_time']))
-        single_data = {}
-        single_data['loss'] = loss
-        single_data['grad'] = np.copy(g)
-        single_data['x'] = np.copy(x)
-        single_data['forward_time'] = info['forward_time']
-        single_data['backward_time'] = info['backward_time']
-        data.append(single_data)
-        return loss, ndarray(g).copy().ravel()
-
-    # Sanity check the gradients.
-    # check_gradients(loss_and_grad, x_init, eps=1e-6)
-
-    # Pick the best initial guess.
+    # Normalize the loss.
+    random_guess_num = 4
+    random_loss = []
     best_loss = np.inf
     best_x_init = None
-    for _ in range(4):
+    for _ in range(random_guess_num):
         x_guess = np.random.uniform(low=x_lower, high=x_upper)
         init_info = get_init_state(x_guess)
         e = init_info['env']
         v = init_info['v0']
         q = init_info['q0']
-        loss, _ = e.simulate(dt, frame_num, (pd_method, newton_method), (pd_opt, newton_opt),
-            q, v, a0, f0, require_grad=False)
+        loss, _ = e.simulate(dt, frame_num, pd_method, pd_opt, q, v, a0, f0, require_grad=False)
         print('loss:', loss)
+        random_loss.append(loss)
         if loss < best_loss:
             best_loss = loss
             best_x_init = np.copy(x_guess)
+    loss_range = ndarray([0, np.mean(random_loss)])
+    print_info('Loss range: {:3f}, {:3f}'.format(loss_range[0], loss_range[1]))
     x_init = best_x_init
 
     # Visualize the initial solution.
@@ -282,60 +258,93 @@ if __name__ == '__main__':
         plt.show()
         fig.savefig(folder / 'init/compare.png')
 
-    # Optimization.
-    t0 = time.time()
-    def callback(xk):
-        print_info('Another iteration is finished.')
-    result = scipy.optimize.minimize(loss_and_grad, np.copy(x_init),
-        method='L-BFGS-B', jac=True, bounds=bounds, options={ 'ftol': 1e-4, 'maxfun': 40, 'maxiter': 10 }, callback=callback)
-    t1 = time.time()
-    if not result.success:
-        print_warning('Optimization is not successful. Using the last iteration results.')
-        idx = np.argmin([d['loss'] for d in data])
-        print_warning('Using loss =', data[idx]['loss'])
-        x_final = data[idx]['x']
-    else:
-        x_final = result.x
-    print_info('Optimizing with {} finished in {:6.3f} seconds'.format(pd_method, t1 - t0))
-    pickle.dump(data, open(folder / 'data_{:04d}_threads.bin'.format(thread_ct), 'wb'))
+    data = { 'loss_range': loss_range }
+    for method, opt in zip(methods, opts):
+        data[method] = []
+        def loss_and_grad(x):
+            init_info = get_init_state(x)
+            e = init_info['env']
+            q = init_info['q0']
+            v = init_info['v0']
+            loss, grad, info = e.simulate(dt, frame_num, method, opt, q, v, a0, f0, require_grad=True)
+            # We start from 3: because the first three state parameters are gravitiy.
+            g = info['state_force_parameter_gradients'][3:] @ init_info['dp_dx'] \
+                + e.backprop_init_velocities(grad[1]) @ init_info['dw_dx'] \
+                + e.backprop_init_positions(grad[0]) @ init_info['dc_dx']
+            c_g = info['grad_custom']
+            g[12:15] += c_g['rpy']
+            g[15:18] += c_g['t']
+            g[18] += c_g['a']
+            print('loss: {:8.3f}, |grad|: {:8.3f}, forward time: {:6.3f}s, backward time: {:6.3f}s'.format(
+                loss, np.linalg.norm(g), info['forward_time'], info['backward_time']))
 
-    # Visualize the final results.
-    if not (folder / pd_method / '0000.png').is_file():
-        info = get_init_state(x_final)
-        e_init = info['env']
-        v_init = info['v0']
-        q_init = info['q0']
-        _, info = e_init.simulate(dt, frame_num, pd_method, pd_opt, q_init, v_init, a0, f0, require_grad=False, vis_folder=pd_method,
-            render_frame_skip=substeps)
-        pickle.dump((x_final, info), open(folder / pd_method / 'info.data', 'wb'))
-        fig = plt.figure()
-        ax = fig.add_subplot(211)
-        q = info['q']
-        traj = ndarray([np.mean(qi.reshape((2, -1, 3)), axis=1) for qi in q])
-        ax.plot(traj[:, 0, 0], traj[:, 0, 1], color='tab:red', marker='+', label='ball_0_sim')
-        ax.plot(traj[:, 1, 0], traj[:, 1, 1], color='tab:blue', marker='+', label='ball_1_sim')
-        ax.plot(ball_0_positions[:, 0], ball_0_positions[:, 1], 'tab:red', label='ball_0_real')
-        ax.plot(ball_1_positions[:, 0], ball_1_positions[:, 1], 'tab:blue', label='ball_1_real')
-        ax.set_aspect('equal')
-        ax.legend()
-        ax.set_title('top down view')
-        ax = fig.add_subplot(212)
-        # The camera view.
-        predicted_pixels = []
-        for i in range(start_frame, end_frame):
-            predicted_pixels.append(e_init.get_pixel_location(info['q'][int((i - start_frame) * substeps)]))
-        predicted_pixels = ndarray(predicted_pixels)
-        colors = ('tab:red', 'tab:blue')
-        for i in range(predicted_pixels.shape[1]):
-            px = predicted_pixels[:, i, 0]
-            py = predicted_pixels[:, i, 1]
-            ax.plot(px + img_width / 2, py + img_height / 2, color=colors[i], marker='+')
-            rx = reference_pixels[:, i, 0]
-            ry = reference_pixels[:, i, 1]
-            ax.plot(rx + img_width / 2, ry + img_height / 2, color=colors[i])
-        ax.set_xlim([0, img_width])
-        ax.set_ylim([0, img_height])
-        ax.set_aspect('equal')
-        ax.set_title('camera view')
-        plt.show()
-        fig.savefig(folder / pd_method / 'compare.png')
+            single_data = {}
+            single_data['loss'] = loss
+            single_data['grad'] = np.copy(g)
+            single_data['x'] = np.copy(x)
+            single_data['forward_time'] = info['forward_time']
+            single_data['backward_time'] = info['backward_time']
+            data[method].append(single_data)
+            return loss, ndarray(g).copy().ravel()
+
+        # Use the two lines below to sanity check the gradients.
+        # Note that you might need to fine tune the rel_tol in opt to make it work.
+        # from py_diff_pd.common.grad_check import check_gradients
+        # check_gradients(loss_and_grad, x_init, eps=1e-6)
+
+        t0 = time.time()
+        def callback(xk):
+            print_info('Another iteration is finished.')
+        result = scipy.optimize.minimize(loss_and_grad, np.copy(x_init),
+            method='L-BFGS-B', jac=True, bounds=bounds, options={ 'ftol': 1e-4, 'maxfun': 40, 'maxiter': 10 }, callback=callback)
+        t1 = time.time()
+        if not result.success:
+            print_warning('Optimization is not successful. Using the last iteration results.')
+            idx = np.argmin([d['loss'] for d in data[method]])
+            print_warning('Using loss =', data[method][idx]['loss'])
+            x_final = data[idx]['x']
+        else:
+            x_final = result.x
+        print_info('Optimizing with {} finished in {:6.3f} seconds'.format(method, t1 - t0))
+        pickle.dump(data, open(folder / 'data_{:04d}_threads.bin'.format(thread_ct), 'wb'))
+
+        # Visualize the final results.
+        if not (folder / method / '0000.png').is_file():
+            info = get_init_state(x_final)
+            e_init = info['env']
+            v_init = info['v0']
+            q_init = info['q0']
+            _, info = e_init.simulate(dt, frame_num, method, opt, q_init, v_init, a0, f0, require_grad=False, vis_folder=method,
+                render_frame_skip=substeps)
+            pickle.dump((x_final, info), open(folder / method / 'info.data', 'wb'))
+            fig = plt.figure()
+            ax = fig.add_subplot(211)
+            q = info['q']
+            traj = ndarray([np.mean(qi.reshape((2, -1, 3)), axis=1) for qi in q])
+            ax.plot(traj[:, 0, 0], traj[:, 0, 1], color='tab:red', marker='+', label='ball_0_sim')
+            ax.plot(traj[:, 1, 0], traj[:, 1, 1], color='tab:blue', marker='+', label='ball_1_sim')
+            ax.plot(ball_0_positions[:, 0], ball_0_positions[:, 1], 'tab:red', label='ball_0_real')
+            ax.plot(ball_1_positions[:, 0], ball_1_positions[:, 1], 'tab:blue', label='ball_1_real')
+            ax.set_aspect('equal')
+            ax.legend()
+            ax.set_title('top down view')
+            ax = fig.add_subplot(212)
+            # The camera view.
+            predicted_pixels = []
+            for i in range(start_frame, end_frame):
+                predicted_pixels.append(e_init.get_pixel_location(info['q'][int((i - start_frame) * substeps)]))
+            predicted_pixels = ndarray(predicted_pixels)
+            colors = ('tab:red', 'tab:blue')
+            for i in range(predicted_pixels.shape[1]):
+                px = predicted_pixels[:, i, 0]
+                py = predicted_pixels[:, i, 1]
+                ax.plot(px + img_width / 2, py + img_height / 2, color=colors[i], marker='+')
+                rx = reference_pixels[:, i, 0]
+                ry = reference_pixels[:, i, 1]
+                ax.plot(rx + img_width / 2, ry + img_height / 2, color=colors[i])
+            ax.set_xlim([0, img_width])
+            ax.set_ylim([0, img_height])
+            ax.set_aspect('equal')
+            ax.set_title('camera view')
+            plt.show()
+            fig.savefig(folder / method / 'compare.png')
