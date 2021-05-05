@@ -70,17 +70,15 @@ const VectorXr Deformable<vertex_dim, element_dim>::ApplyProjectiveDynamicsLocal
 
     // Implements w * S' * A' * (d(BP)/dF) * A * (Sx).
     const int element_num = mesh_.NumOfElements();
-    std::array<VectorXr, element_dim> pd_rhss;
-    for (int i = 0; i < element_dim; ++i) pd_rhss[i] = VectorXr::Zero(dofs_);
+    std::vector<Eigen::Matrix<real, vertex_dim, element_dim>> pd_rhss(element_num,
+        Eigen::Matrix<real, vertex_dim, element_dim>::Zero());
     // Project PdElementEnergy.
     #pragma omp parallel for
     for (int i = 0; i < element_num; ++i) {
         const auto ddeformed = ScatterToElementFlattened(dq_cur, i);
         const Eigen::Matrix<real, vertex_dim * element_dim, 1> wAtdBpAx = pd_backward_local_element_matrices[i] * ddeformed;
-        const Eigen::Matrix<int, element_dim, 1> vi = mesh_.element(i);
         for (int k = 0; k < element_dim; ++k)
-            for (int d = 0; d < vertex_dim; ++d)
-                pd_rhss[k](vertex_dim * vi(k) + d) += wAtdBpAx(k * vertex_dim + d);
+            pd_rhss[i].col(k) += wAtdBpAx.segment(k * vertex_dim, vertex_dim);
     }
 
     // Project PdMuscleEnergy:
@@ -93,17 +91,19 @@ const VectorXr Deformable<vertex_dim, element_dim>::ApplyProjectiveDynamicsLocal
             const int i = pair.second[ei];
             const auto ddeformed = ScatterToElementFlattened(dq_cur, i);
             const Eigen::Matrix<real, vertex_dim * element_dim, 1> wAtdBpAx = pd_backward_local_muscle_matrices[energy_idx][ei] * ddeformed;
-            const Eigen::Matrix<int, element_dim, 1> vi = mesh_.element(i);
             for (int k = 0; k < element_dim; ++k)
-                for (int d = 0; d < vertex_dim; ++d)
-                    pd_rhss[k](vertex_dim * vi(k) + d) += wAtdBpAx(k * vertex_dim + d);
+                pd_rhss[i].col(k) += wAtdBpAx.segment(k * vertex_dim, vertex_dim);
         }
         act_idx += element_cnt;
         ++energy_idx;
     }
     CheckError(act_idx == act_dofs_, "Your loop over actions has introduced a bug.");
     VectorXr pd_rhs = VectorXr::Zero(dofs_);
-    for (int i = 0; i < element_dim; ++i) pd_rhs += pd_rhss[i];
+    for (int i = 0; i < element_num; ++i) {
+        const Eigen::Matrix<int, element_dim, 1> vi = mesh_.element(i);
+        for (int j = 0; j < element_dim; ++j)
+            pd_rhs.segment(vertex_dim * vi(j), vertex_dim) += pd_rhss[i].col(j);
+    }
 
     // Project PdVertexEnergy.
     for (const auto& pair : pd_vertex_energies_) {
