@@ -345,7 +345,7 @@ void Deformable<vertex_dim, element_dim>::BackwardProjectiveDynamics(const std::
                     quasi_newton_direction = z;
                 }
                 quasi_newton_direction = quasi_newton_direction.array() * selected.array();
-                if (quasi_newton_direction.dot(grad_sol) < 0) {
+                if (quasi_newton_direction.dot(grad_sol) < -ToReal(1e-4)) { // TODO: replace 1e-4 with a relative threshold.
                     // This implies the (inverse of) Hessian is indefinite, which means the objective to be minimized will
                     // become unbounded below. In this case, we choose to switch back to Newton's method.
                     success = false;
