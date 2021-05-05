@@ -36,9 +36,9 @@ if __name__ == '__main__':
     substeps = 3
     dt = (1 / 60) / substeps
     thread_ct = 8
-    newton_opt = { 'max_newton_iter': 2000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-9,
+    newton_opt = { 'max_newton_iter': 2000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4,
         'verbose': 0, 'thread_ct': thread_ct }
-    pd_opt = { 'max_pd_iter': 2000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-9,
+    pd_opt = { 'max_pd_iter': 2000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4,
         'verbose': 0, 'thread_ct': thread_ct, 'use_bfgs': 1, 'bfgs_history_size': 10 }
     pd_method = 'pd_eigen'
     methods = ('newton_pcg', 'newton_cholesky', pd_method)
@@ -302,7 +302,7 @@ if __name__ == '__main__':
             print_warning('Optimization is not successful. Using the last iteration results.')
             idx = np.argmin([d['loss'] for d in data[method]])
             print_warning('Using loss =', data[method][idx]['loss'])
-            x_final = data[idx]['x']
+            x_final = data[method][idx]['x']
         else:
             x_final = result.x
         print_info('Optimizing with {} finished in {:6.3f} seconds'.format(method, t1 - t0))
