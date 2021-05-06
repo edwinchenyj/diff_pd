@@ -91,7 +91,7 @@ if __name__ == '__main__':
     ball_radius = 0.06858 / 2   # In meters and from measurement/googling the diameter of a tennis ball.
     experiment_data_folder = Path(root_path) / 'python/example/billiard_ball_calibration/experiment_video'
     optimization_data_folder = Path(root_path) / 'python/example/billiard_ball_3d'
-    opt_data = pickle.load(open(optimization_data_folder / 'data_0006_threads.bin', 'rb'))
+    opt_data = pickle.load(open(optimization_data_folder / 'data_0008_threads.bin', 'rb'))
 
     # Generate original video sequence and overlay video sequence.
     create_folder(folder / 'video', exist_ok=True)
@@ -218,6 +218,9 @@ if __name__ == '__main__':
     create_folder(folder / 'video_init_overlay', exist_ok=True)
     create_folder(folder / 'video_pd_eigen_normal', exist_ok=True)
     create_folder(folder / 'video_pd_eigen_overlay', exist_ok=True)
+    create_folder(folder / 'video_init_overlay_circle', exist_ok=True)
+    create_folder(folder / 'video_pd_eigen_overlay_circle', exist_ok=True)
+    centroids_so_far = {}
     for i in range(end_frame - start_frame):
         video_img = load_image(video_folder / '{:04d}.png'.format(i))[:, :, :3]
         video_overlay_img = load_image(video_overlay_folder / '{:04d}.png'.format(i))[:, :, :3]
@@ -233,12 +236,35 @@ if __name__ == '__main__':
             plt.imsave(folder / 'video_pd_eigen_normal' / '{:04d}.png'.format(i), video_pd_eigen_img)
 
         # Generate overlay image.
+        init_overlay_img_original = np.copy(init_overlay_img)
+        pd_eigen_overlay_img_original = np.copy(pd_eigen_overlay_img)
         for j in list(range(0, i, 10)) + [end_frame - start_frame - 1,]:
             if j > i: continue
             img_j = load_image(Path(root_path) / 'python/example/billiard_ball_calibration'
                 / 'experiment/{:04d}_filtered.png'.format(j + start_frame))[:, :, :3]
             init_overlay_img += img_j * 0.3
             pd_eigen_overlay_img += img_j * 0.3
+            centroid = pickle.load(open(Path(root_path) / 'python/example/billiard_ball_calibration/experiment'
+                / '{:04d}_centroid.data'.format(j + start_frame), 'rb'))
+            centroids_so_far[j] = centroid
+
+        # Generate overlay image with circles.
+        if not (folder / 'video_init_overlay_circle' / '{:04d}.png'.format(i)).is_file():
+            for _, centroid in centroids_so_far.items():
+                for px, py in centroid:
+                    px = int(px)
+                    py = int(py)
+                    init_overlay_img_original[py - 4:py + 5, px - 4:px + 5] = ndarray([1, 1, 0])
+            init_overlay_img_original = np.clip(init_overlay_img_original, 0, 1)
+            plt.imsave(folder / 'video_init_overlay_circle' / '{:04d}.png'.format(i), init_overlay_img_original)
+        if not (folder / 'video_pd_eigen_overlay_circle' / '{:04d}.png'.format(i)).is_file():
+            for _, centroid in centroids_so_far.items():
+                for px, py in centroid:
+                    px = int(px)
+                    py = int(py)
+                    pd_eigen_overlay_img_original[py - 4:py + 5, px - 4:px + 5] = ndarray([1, 1, 0])
+            pd_eigen_overlay_img_original = np.clip(pd_eigen_overlay_img_original, 0, 1)
+            plt.imsave(folder / 'video_pd_eigen_overlay_circle' / '{:04d}.png'.format(i), pd_eigen_overlay_img_original)
         init_overlay_img = np.clip(init_overlay_img, 0, 1)
         pd_eigen_overlay_img = np.clip(pd_eigen_overlay_img, 0, 1)
         video_init_overlay_img = np.concatenate([video_overlay_img, init_overlay_img], axis=1)
