@@ -98,3 +98,6 @@ Examples in this section require non-trivial setup of deep reinforcement learnin
 The sim-to-real experiment. Follow the steps below:
 - Run `python billiard_ball_calibration.py` to parse the input video. You will be asked to label the corners in the image in order to reconstruct the 3D trajectory of the billiard balls. Alternatively, you can skip this step and use the calibration data provided in the codebase.
 - Run `python billiard_ball_3d.py` to optimize the parameters in this example to match the sim to real.
+
+#### Sec. 8
+- `armadillo_3d.py`: generate the Armadillo experiment with Neohookean materials. This may take 5 minutes before rendering the results.
