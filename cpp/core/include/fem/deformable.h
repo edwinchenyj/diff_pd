@@ -153,8 +153,11 @@ public:
         std::vector<std::vector<real>>& da, std::vector<std::vector<real>>& dw) const;
 
     // Unfortunately, the preconditioner would prefer seeing this PdLhsSolve function.
+    // If you anticipate the number of contact DoFs to be small, set use_sparse = false. Otherwise, set it to true.
+    // By default we set use_sparse = false.
     const VectorXr PdLhsSolve(const std::string& method, const VectorXr& rhs,
-        const std::map<int, real>& additional_dirichlet_boundary_condition, const bool use_acc) const;
+        const std::map<int, real>& additional_dirichlet_boundary_condition,
+        const bool use_acc, const bool use_sparse) const;
 
 protected:
     void ForwardSemiImplicit(const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,

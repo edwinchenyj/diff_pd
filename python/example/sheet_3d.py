@@ -22,7 +22,7 @@ if __name__ == '__main__':
     opts = [
         { 'max_newton_iter': 200, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': 8 },
         { 'max_pd_iter': 200, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': 8,
-            'use_bfgs': 1, 'bfgs_history_size': 10 }]
+            'use_bfgs': 1, 'use_sparse': 1, 'bfgs_history_size': 10 }]
     for ratio in [0.1, 0.2, 0.4, 0.8, 1.6]:
         folder = parent_folder / 'ratio_{:3f}'.format(ratio)
         env = SheetEnv3d(seed, folder, {

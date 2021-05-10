@@ -2,6 +2,7 @@
 #include "common/common.h"
 #include "common/geometry.h"
 #include "Eigen/SparseCholesky"
+#include "Eigen/SparseLU"
 
 template<int vertex_dim, int element_dim>
 void Deformable<vertex_dim, element_dim>::SetupProjectiveDynamicsSolver(const std::string& method, const real dt,
@@ -289,6 +290,14 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
             PrintWarning("use_acc is disabled. Unless you are benchmarking speed, you should not disable use_acc.");
         }
     }
+    // Optional flag for using sparse matrices in PdLhsSolve.
+    bool use_sparse = false;
+    if (options.find("use_sparse") != options.end()) {
+        use_sparse = static_cast<bool>(options.at("use_sparse"));
+        if (use_sparse && verbose_level > 0) {
+            PrintWarning("use_sparse is enabled. This is recommended when contact DoFs are large (e.g., > 300).");
+        }
+    }
 
     std::map<int, real> augmented_dirichlet = dirichlet_;
     for (const auto& pair : additional_dirichlet)
@@ -345,7 +354,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
                 // Initially, the queue is empty. We use A as our initial guess of Hessian (not the inverse!).
                 xi_history.push_back(q_sol);
                 gi_history.push_back(grad_sol);
-                quasi_newton_direction = PdLhsSolve(method, grad_sol, additional_dirichlet, use_acc);
+                quasi_newton_direction = PdLhsSolve(method, grad_sol, additional_dirichlet, use_acc, use_sparse);
             } else {
                 const VectorXr q_sol_last = xi_history.back();
                 const VectorXr grad_sol_last = gi_history.back();
@@ -371,7 +380,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
                     q -= alphai * yi;
                 }
                 // H0k = PdLhsSolve(I);
-                VectorXr z = PdLhsSolve(method, q, additional_dirichlet, use_acc);
+                VectorXr z = PdLhsSolve(method, q, additional_dirichlet, use_acc, use_sparse);
                 auto sit = si_history.cbegin(), yit = yi_history.cbegin();
                 auto rhoit = rhoi_history.cbegin(), alphait = alphai_history.cbegin();
                 for (; sit != si_history.cend(); ++sit, ++yit, ++rhoit, ++alphait) {
@@ -447,7 +456,7 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdNonlinearSolve(const std::
             const VectorXr pd_rhs = (inv_h2m * rhs + ProjectiveDynamicsLocalStep(q_sol, a, augmented_dirichlet)
                 + ElasticForce(q_sol)).array() * selected.array();
             // Global step:
-            q_sol = PdLhsSolve(method, pd_rhs, additional_dirichlet, use_acc);
+            q_sol = PdLhsSolve(method, pd_rhs, additional_dirichlet, use_acc, use_sparse);
             for (const auto& pair : augmented_dirichlet) q_sol(pair.first) = pair.second;
             // Note that energy_sol and obj_sol is not needed in this non-bfgs iteration.
         }
@@ -617,7 +626,8 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdLhsMatrixOp(const VectorXr
 
 template<int vertex_dim, int element_dim>
 const VectorXr Deformable<vertex_dim, element_dim>::PdLhsSolve(const std::string& method, const VectorXr& rhs,
-    const std::map<int, real>& additional_dirichlet_boundary_condition, const bool use_acc) const {
+    const std::map<int, real>& additional_dirichlet_boundary_condition,
+    const bool use_acc, const bool use_sparse) const {
     CheckError(BeginsWith(method, "pd_eigen") || BeginsWith(method, "pd_pardiso"), "Invalid PD method: " + method);
 
     const int vertex_num = mesh_.NumOfVertices();
@@ -661,60 +671,135 @@ const VectorXr Deformable<vertex_dim, element_dim>::PdLhsSolve(const std::string
     if (use_acc) {
         // Use the O(nc^2) algorithm in the paper.
         for (int d = 0; d < vertex_dim; ++d) {
-            // Compute Acici.
-            MatrixXr Acici = MatrixXr::Zero(Ci_num, Ci_num);
-            int row_cnt = 0, col_cnt = 0;
-            for (const auto& pair_row : frozen_nodes) {
+            if (use_sparse) {
+                // TODO: eps should be an argument.
+                const real eps = ToReal(1e-6);
+                // Compute Acici.
+                SparseMatrixElements Acici_elements;
+                int row_cnt = 0, col_cnt = 0;
+                for (const auto& pair_row : frozen_nodes) {
+                    col_cnt = 0;
+                    for (const auto& pair_col : frozen_nodes) {
+                        const real val = Acc_[d](frictional_boundary_vertex_indices_.at(pair_row.first),
+                            frictional_boundary_vertex_indices_.at(pair_col.first));
+                        if (val != 0) Acici_elements.push_back(Eigen::Triplet<real>(row_cnt, col_cnt, val));
+                        ++col_cnt;
+                    }
+                    ++row_cnt;
+                }
+                SparseMatrix Acici = ToSparseMatrix(Ci_num, Ci_num, Acici_elements);
+                // Compute B1.
+                SparseMatrixElements B1_elements;
                 col_cnt = 0;
                 for (const auto& pair_col : frozen_nodes) {
-                    Acici(row_cnt, col_cnt) = Acc_[d](frictional_boundary_vertex_indices_.at(pair_row.first),
-                        frictional_boundary_vertex_indices_.at(pair_col.first));
+                    const VectorXr& c = AinvIc_[d].col(frictional_boundary_vertex_indices_.at(pair_col.first));
+                    for (int i = 0; i < vertex_num; ++i) {
+                        const real val = c(i);
+                        if (std::fabs(val) > eps) B1_elements.push_back(Eigen::Triplet<real>(i, col_cnt, val));
+                    }
                     ++col_cnt;
                 }
-                ++row_cnt;
-            }
-            // Compute B1.
-            MatrixXr B1 = MatrixXr::Zero(vertex_num, Ci_num);
-            col_cnt = 0;
-            for (const auto& pair_col : frozen_nodes) {
-                B1.col(col_cnt) = AinvIc_[d].col(frictional_boundary_vertex_indices_.at(pair_col.first));
-                ++col_cnt;
-            }
-            // Compute B2.
-            // MatrixXr B2 = -B1 * Acici;
-            MatrixXr B2 = -MatrixMatrixProduct(B1, Acici);
-            col_cnt = 0;
-            for (const auto& pair_col : frozen_nodes) {
-                B2(pair_col.first, col_cnt) += 1;
-                ++col_cnt;
-            }
-            // Assemble VPt.
-            SparseMatrixElements nonzeros_VPt;
-            row_cnt = 0;
-            for (const auto& pair : frozen_nodes) {
-                for (SparseMatrix::InnerIterator it(pd_lhs_[d], pair.first); it; ++it) {
-                    if (frozen_nodes.find(it.row()) == frozen_nodes.end())
-                        nonzeros_VPt.push_back(Eigen::Triplet<real>(row_cnt, it.row(), it.value()));
+                SparseMatrix B1 = ToSparseMatrix(vertex_num, Ci_num, B1_elements);
+                // Compute B2.
+                // MatrixXr B2 = -B1 * Acici;
+                SparseMatrix B2 = -B1 * Acici;
+                col_cnt = 0;
+                for (const auto& pair_col : frozen_nodes) {
+                    B2.coeffRef(pair_col.first, col_cnt) += 1;
+                    ++col_cnt;
                 }
-                nonzeros_VPt.push_back(Eigen::Triplet<real>(Ci_num + row_cnt, pair.first, 1));
-                ++row_cnt;
+                // Assemble VPt.
+                SparseMatrixElements nonzeros_VPt;
+                row_cnt = 0;
+                for (const auto& pair : frozen_nodes) {
+                    for (SparseMatrix::InnerIterator it(pd_lhs_[d], pair.first); it; ++it) {
+                        if (frozen_nodes.find(it.row()) == frozen_nodes.end())
+                            nonzeros_VPt.push_back(Eigen::Triplet<real>(row_cnt, it.row(), it.value()));
+                    }
+                    nonzeros_VPt.push_back(Eigen::Triplet<real>(Ci_num + row_cnt, pair.first, 1));
+                    ++row_cnt;
+                }
+                SparseMatrix VPt = ToSparseMatrix(2 * Ci_num, vertex_num, nonzeros_VPt);
+                // Compute B4.
+                // const SparseMatrix VPt = ToSparseMatrix(2 * Ci_num, vertex_num, nonzeros_VPt);
+                // MatrixXr B4 = -VPt * B3;
+                // MatrixXr B4(2 * Ci_num, 2 * Ci_num);
+                // B4.leftCols(Ci_num) = -SparseMatrixMatrixProduct(2 * Ci_num, vertex_num, nonzeros_VPt, B1);
+                // B4.rightCols(Ci_num) = -SparseMatrixMatrixProduct(2 * Ci_num, vertex_num, nonzeros_VPt, B2);
+                SparseMatrixElements B4_elements = FromSparseMatrix(-VPt * B1);
+                SparseMatrixElements B4_right_elements = FromSparseMatrix(-VPt * B2);
+                for (const auto& triplet : B4_right_elements) {
+                    B4_elements.push_back(Eigen::Triplet<real>(triplet.row(), triplet.col() + Ci_num, triplet.value()));
+                }
+                for (int i = 0; i < 2 * Ci_num; ++i) B4_elements.push_back(Eigen::Triplet<real>(i, i, 1));
+                SparseMatrix B4 = ToSparseMatrix(2 * Ci_num, 2 * Ci_num, B4_elements);
+                // y1 has been computed.
+                // Compute y2.
+                VectorXr y2 = VectorXr::Zero(2 * Ci_num);
+                y2.head(Ci_num) = RowVectorXr(rhs_reshape_rows[d]) * B2;
+                y2.tail(Ci_num) = RowVectorXr(rhs_reshape_rows[d]) * B1;
+                // Compute y3.
+                Eigen::SparseLU<SparseMatrix> B4_solver;
+                B4_solver.compute(B4);
+                const VectorXr y3 = B4_solver.solve(y2);
+                // Compute solution.
+                sol.row(d) += RowVectorXr(B1 * y3.head(Ci_num) + B2 * y3.tail(Ci_num));
+            } else {
+                // Compute Acici.
+                MatrixXr Acici = MatrixXr::Zero(Ci_num, Ci_num);
+                int row_cnt = 0, col_cnt = 0;
+                for (const auto& pair_row : frozen_nodes) {
+                    col_cnt = 0;
+                    for (const auto& pair_col : frozen_nodes) {
+                        Acici(row_cnt, col_cnt) = Acc_[d](frictional_boundary_vertex_indices_.at(pair_row.first),
+                            frictional_boundary_vertex_indices_.at(pair_col.first));
+                        ++col_cnt;
+                    }
+                    ++row_cnt;
+                }
+                // Compute B1.
+                MatrixXr B1 = MatrixXr::Zero(vertex_num, Ci_num);
+                col_cnt = 0;
+                for (const auto& pair_col : frozen_nodes) {
+                    B1.col(col_cnt) = AinvIc_[d].col(frictional_boundary_vertex_indices_.at(pair_col.first));
+                    ++col_cnt;
+                }
+                // Compute B2.
+                // MatrixXr B2 = -B1 * Acici;
+                MatrixXr B2 = -MatrixMatrixProduct(B1, Acici);
+                col_cnt = 0;
+                for (const auto& pair_col : frozen_nodes) {
+                    B2(pair_col.first, col_cnt) += 1;
+                    ++col_cnt;
+                }
+                // Assemble VPt.
+                SparseMatrixElements nonzeros_VPt;
+                row_cnt = 0;
+                for (const auto& pair : frozen_nodes) {
+                    for (SparseMatrix::InnerIterator it(pd_lhs_[d], pair.first); it; ++it) {
+                        if (frozen_nodes.find(it.row()) == frozen_nodes.end())
+                            nonzeros_VPt.push_back(Eigen::Triplet<real>(row_cnt, it.row(), it.value()));
+                    }
+                    nonzeros_VPt.push_back(Eigen::Triplet<real>(Ci_num + row_cnt, pair.first, 1));
+                    ++row_cnt;
+                }
+                // Compute B4.
+                // const SparseMatrix VPt = ToSparseMatrix(2 * Ci_num, vertex_num, nonzeros_VPt);
+                // MatrixXr B4 = -VPt * B3;
+                MatrixXr B4(2 * Ci_num, 2 * Ci_num);
+                B4.leftCols(Ci_num) = -SparseMatrixMatrixProduct(2 * Ci_num, vertex_num, nonzeros_VPt, B1);
+                B4.rightCols(Ci_num) = -SparseMatrixMatrixProduct(2 * Ci_num, vertex_num, nonzeros_VPt, B2);
+                for (int i = 0; i < 2 * Ci_num; ++i) B4(i, i) += 1;
+                // y1 has been computed.
+                // Compute y2.
+                VectorXr y2 = VectorXr::Zero(2 * Ci_num);
+                y2.head(Ci_num) = RowVectorXr(rhs_reshape_rows[d]) * B2;
+                y2.tail(Ci_num) = RowVectorXr(rhs_reshape_rows[d]) * B1;
+                // Compute y3.
+                const VectorXr y3 = B4.colPivHouseholderQr().solve(y2);
+                // Compute solution.
+                sol.row(d) += RowVectorXr(B1 * y3.head(Ci_num) + B2 * y3.tail(Ci_num));
             }
-            // Compute B4.
-            // const SparseMatrix VPt = ToSparseMatrix(2 * Ci_num, vertex_num, nonzeros_VPt);
-            // MatrixXr B4 = -VPt * B3;
-            MatrixXr B4(2 * Ci_num, 2 * Ci_num);
-            B4.leftCols(Ci_num) = -SparseMatrixMatrixProduct(2 * Ci_num, vertex_num, nonzeros_VPt, B1);
-            B4.rightCols(Ci_num) = -SparseMatrixMatrixProduct(2 * Ci_num, vertex_num, nonzeros_VPt, B2);
-            for (int i = 0; i < 2 * Ci_num; ++i) B4(i, i) += 1;
-            // y1 has been computed.
-            // Compute y2.
-            VectorXr y2 = VectorXr::Zero(2 * Ci_num);
-            y2.head(Ci_num) = RowVectorXr(rhs_reshape_rows[d]) * B2;
-            y2.tail(Ci_num) = RowVectorXr(rhs_reshape_rows[d]) * B1;
-            // Compute y3.
-            const VectorXr y3 = B4.colPivHouseholderQr().solve(y2);
-            // Compute solution.
-            sol.row(d) += RowVectorXr(B1 * y3.head(Ci_num) + B2 * y3.tail(Ci_num));
         }
     } else {
         // Use the O(n^2c) algorithm in the paper.

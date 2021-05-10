@@ -45,16 +45,16 @@ public:
         // - Solve A x = b and write the results back to x.
         if (global_vertex_dim == 2 && global_element_dim == 3) {
             x = reinterpret_cast<const Deformable<2, 3>*>(global_deformable)->PdLhsSolve(global_pd_backward_method,
-                b, global_additional_dirichlet_boundary, true);
+                b, global_additional_dirichlet_boundary, true, false);
         } else if (global_vertex_dim == 2 && global_element_dim == 4) {
             x = reinterpret_cast<const Deformable<2, 4>*>(global_deformable)->PdLhsSolve(global_pd_backward_method,
-                b, global_additional_dirichlet_boundary, true);
+                b, global_additional_dirichlet_boundary, true, false);
         } else if (global_vertex_dim == 3 && global_element_dim == 4) {
             x = reinterpret_cast<const Deformable<3, 4>*>(global_deformable)->PdLhsSolve(global_pd_backward_method,
-                b, global_additional_dirichlet_boundary, true);
+                b, global_additional_dirichlet_boundary, true, false);
         } else if (global_vertex_dim == 3 && global_element_dim == 8) {
             x = reinterpret_cast<const Deformable<3, 8>*>(global_deformable)->PdLhsSolve(global_pd_backward_method,
-                b, global_additional_dirichlet_boundary, true);
+                b, global_additional_dirichlet_boundary, true, false);
         } else {
             CheckError(false, "Unusual deformable.");
         }
