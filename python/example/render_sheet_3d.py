@@ -58,7 +58,7 @@ if __name__ == '__main__':
             obs_verts.append((0, 0, 1))
             for i in range(angle_num):
                 for j in range(circle_num):
-                    a = i * da
+                    a = (i + 1) * da
                     c = j * dc
                     v = ndarray([np.sin(a) * np.cos(c), np.sin(a) * np.sin(c), np.cos(a)])
                     obs_verts.append(v)
@@ -77,10 +77,12 @@ if __name__ == '__main__':
                 options = {
                     'file_name': render_folder / 'ratio_{:3f}'.format(ratio) / method / '{:04d}.png'.format(i),
                     'light_map': 'uffizi-large.exr',
-                    'sample': 1,
+                    'sample': 512,
                     'max_depth': 2,
-                    'camera_pos': (0.05, -1.2, .8),
-                    'camera_lookat': (0, .15, .4)
+                    'camera_pos': (0.06, -0.48, 0.88),
+                    'camera_lookat': (0, .0, .4),
+                    'resolution': (800, 800),
+                    'fov': 60
                 }
                 renderer = PbrtRenderer(options)
 
@@ -88,11 +90,17 @@ if __name__ == '__main__':
                     mesh = HexMesh3d()
                     mesh_file = str(render_folder / 'ratio_{:3f}'.format(ratio) / method / '{:04d}.bin'.format(i))
                     mesh.Initialize(mesh_file)
-                    renderer.add_hex_mesh(mesh, transforms=[('s', 1.)], render_voxel_edge=True, color=[.4, .32, .0])
+                    renderer.add_hex_mesh(mesh, transforms=[('s', 1.)], render_voxel_edge=True, color='F4A261')
                 # Draw ground.
                 renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj',
-                    texture_img='chkbd_24_0.7', transforms=[('s', 2)], color=(.4, .4, .4))
+                     transforms=[('s', 200)], color=(.4, .4, .4))
                 # Draw obstacle.
-                renderer.add_tri_mesh(obs_obj, transforms=[('s', 1.)], color=[.1, .9, .1])
+                renderer.add_tri_mesh(obs_obj, transforms=[('s', 1.)], color='264653')
+                renderer.add_shape_mesh({
+                    'name': 'cylinder',
+                    'radius': 0.005,
+                    'zmin': 0,
+                    'zmax': np.min(z)
+                }, transforms=[('s', 1.)], color='264653')
 
-                renderer.render(verbose=True)
+                renderer.render(verbose=True, light_rgb=(.5, .5, .5))

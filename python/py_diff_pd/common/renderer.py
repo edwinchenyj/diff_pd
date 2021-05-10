@@ -324,7 +324,6 @@ class PbrtRenderer(object):
         # Original shape.
         shape_name = shape_info['name']
         if shape_name == 'curve':
-            # This is the only viable option for now.
             points = ndarray(shape_info['point']).ravel()
             assert points.size == 12
             type_info = '"string type" "flat"'
@@ -341,6 +340,12 @@ class PbrtRenderer(object):
             assert center.size == 3
             lines.append('Translate {:f} {:f} {:f}\n'.format(center[0], center[1], center[2]))
             lines.append('Shape "sphere" "float radius" [{:f}]'.format(radius))
+        elif shape_name == 'cylinder':
+            radius = float(shape_info['radius'])
+            zmin = float(shape_info['zmin'])
+            zmax = float(shape_info['zmax'])
+            lines.append('Shape "cylinder" "float radius" [{:f}] "float zmin" [{:f}] "float zmax" [{:f}]'.format(
+                radius, zmin, zmax))
         else:
             raise NotImplementedError
 
