@@ -7,27 +7,36 @@ from py_diff_pd.common.common import ndarray
 # use this function to generate *2D* triangle meshes.
 # vertices: n x 2 numpy array.
 # faces: m x 3 numpy array.
-def generate_tri_mesh(vertices, faces, bin_file_name):
-    with open(bin_file_name, 'wb') as f:
-        f.write(struct.pack('i', 2))
-        f.write(struct.pack('i', 3))
-        # Vertices.
-        vert_num, _ = ndarray(vertices).shape
-        f.write(struct.pack('i', 2))
-        f.write(struct.pack('i', vert_num))
-        for v in vertices:
-            f.write(struct.pack('d', v[0]))
-        for v in vertices:
-            f.write(struct.pack('d', v[1]))
+def generate_tri_mesh(vertices, faces, file_name):
+    if str(file_name).endswith('.bin'):
+        with open(file_name, 'wb') as f:
+            f.write(struct.pack('i', 2))
+            f.write(struct.pack('i', 3))
+            # Vertices.
+            vert_num, _ = ndarray(vertices).shape
+            f.write(struct.pack('i', 2))
+            f.write(struct.pack('i', vert_num))
+            for v in vertices:
+                f.write(struct.pack('d', v[0]))
+            for v in vertices:
+                f.write(struct.pack('d', v[1]))
 
-        # Faces.
-        faces = ndarray(faces).astype(np.int)
-        face_num, _ = faces.shape
-        f.write(struct.pack('i', 3))
-        f.write(struct.pack('i', face_num))
-        for j in range(3):
-            for i in range(face_num):
-                f.write(struct.pack('i', faces[i, j]))
+            # Faces.
+            faces = ndarray(faces).astype(np.int)
+            face_num, _ = faces.shape
+            f.write(struct.pack('i', 3))
+            f.write(struct.pack('i', face_num))
+            for j in range(3):
+                for i in range(face_num):
+                    f.write(struct.pack('i', faces[i, j]))
+    elif str(file_name).endswith('.obj'):
+        with open(file_name, 'w') as f_obj:
+            for vv in vertices:
+                f_obj.write('v {} {} {}\n'.format(vv[0], vv[1], vv[2]))
+            for ff in faces:
+                f_obj.write('f {} {} {}\n'.format(ff[0] + 1, ff[1] + 1, ff[2] + 1))
+    else:
+        raise NotImplementedError
 
 # Given tri_mesh, return vert and faces:
 # - vertices: an n x 2 double array.
@@ -49,7 +58,7 @@ def tri2obj(tri_mesh, obj_file_name=None):
     if obj_file_name is not None:
         with open(obj_file_name, 'w') as f_obj:
             for vv in v:
-                f_obj.write('v {} {} 0\n'.format(vv[0], vv[1]))
+                f_obj.write('v {} {} {}\n'.format(vv[0], vv[1], vv[2]))
             for ff in f:
                 f_obj.write('f {} {} {}\n'.format(ff[0] + 1, ff[1] + 1, ff[2] + 1))
 

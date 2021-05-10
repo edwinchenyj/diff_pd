@@ -53,8 +53,8 @@ class SheetEnv3d(EnvBase):
         friction_node_idx = []
         max_radius = 0.2
         radius = max_radius * contact_ratio
-        for i in range(cell_nums[0]):
-            for j in range(cell_nums[1]):
+        for i in range(node_nums[0]):
+            for j in range(node_nums[1]):
                 px, py, _ = ndarray(mesh.py_vertex(i * node_nums[1] * node_nums[2] + j * node_nums[2]))
                 if px ** 2 + py ** 2 <= radius ** 2:
                     friction_node_idx.append(i * node_nums[1] * node_nums[2] + j * node_nums[2])
@@ -80,6 +80,7 @@ class SheetEnv3d(EnvBase):
         self.__loss_q_grad = np.random.normal(size=dofs)
         self.__loss_v_grad = np.random.normal(size=dofs)
         self.__spp = int(options['spp']) if 'spp' in options else 4
+        self.__friction_node_idx = friction_node_idx
 
     def material_stiffness_differential(self, youngs_modulus, poissons_ratio):
         jac = self._material_jacobian(youngs_modulus, poissons_ratio)
@@ -90,6 +91,9 @@ class SheetEnv3d(EnvBase):
 
     def is_dirichlet_dof(self, dof):
         return False
+
+    def friction_node_idx(self):
+        return self.__friction_node_idx
 
     def _display_mesh(self, mesh_file, file_name):
         options = {
