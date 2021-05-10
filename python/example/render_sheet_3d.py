@@ -33,9 +33,11 @@ if __name__ == '__main__':
         obs_radius = 0.5                # This is from SheetEnv3d.
         deformable = env.deformable()
         f_idx = env.friction_node_idx()
+        print_info('relative size of |C_i|:', len(f_idx) * 3 / deformable.dofs())
         folder = data_folder / 'ratio_{:3f}'.format(ratio)
         for method in methods:
             info = pickle.load(open(folder / '{}.data'.format(method), 'rb'))
+            print('{}: {}s'.format(method, info['forward_time']))
             q = info['q']
             assert len(q) == frame_num + 1
             create_folder(render_folder / 'ratio_{:3f}'.format(ratio) / method, exist_ok=True)
