@@ -23,7 +23,7 @@ if __name__ == '__main__':
     dt = 2e-3
     frame_num = 125
 
-    for ratio in [0.2, 0.4, 0.8, 1.6]:
+    for ratio in [0.2, 0.4, 0.8, 1.2, 1.6]:
         env = SheetEnv3d(seed, data_folder, {
             'contact_ratio': ratio,
             'cell_nums': (50, 50, 1),
