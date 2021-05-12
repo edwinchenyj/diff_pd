@@ -1,7 +1,7 @@
-#ifndef FEM_HYDRODYNAMICS_STATE_FORCE_H
-#define FEM_HYDRODYNAMICS_STATE_FORCE_H
+#ifndef STATE_FORCE_HYDRODYNAMICS_STATE_FORCE_H
+#define STATE_FORCE_HYDRODYNAMICS_STATE_FORCE_H
 
-#include "fem/state_force.h"
+#include "state_force/state_force.h"
 #include "common/common.h"
 
 // Please see Eq. (6) from the SoftCon paper for more details.

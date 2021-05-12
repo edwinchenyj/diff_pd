@@ -1,7 +1,7 @@
-#ifndef FEM_GRAVITATIONAL_STATE_FORCE_H
-#define FEM_GRAVITATIONAL_STATE_FORCE_H
+#ifndef STATE_FORCE_GRAVITATIONAL_STATE_FORCE_H
+#define STATE_FORCE_GRAVITATIONAL_STATE_FORCE_H
 
-#include "fem/state_force.h"
+#include "state_force/state_force.h"
 #include "common/common.h"
 
 template<int vertex_dim>

@@ -1,4 +1,4 @@
-#include "fem/gravitational_state_force.h"
+#include "state_force/gravitational_state_force.h"
 
 template<int vertex_dim>
 GravitationalStateForce<vertex_dim>::GravitationalStateForce()

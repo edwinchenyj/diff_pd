@@ -1,4 +1,4 @@
-#include "fem/planar_collision_state_force.h"
+#include "state_force/planar_collision_state_force.h"
 
 template<int vertex_dim>
 void PlanarCollisionStateForce<vertex_dim>::Initialize(const real stiffness, const real cutoff_dist,

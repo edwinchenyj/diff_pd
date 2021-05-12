@@ -1,7 +1,7 @@
-#ifndef FEM_BILLIARD_BALL_STATE_FORCE_H
-#define FEM_BILLIARD_BALL_STATE_FORCE_H
+#ifndef STATE_FORCE_BILLIARD_BALL_STATE_FORCE_H
+#define STATE_FORCE_BILLIARD_BALL_STATE_FORCE_H
 
-#include "fem/state_force.h"
+#include "state_force/state_force.h"
 #include "common/common.h"
 
 // Trainable parameters: 

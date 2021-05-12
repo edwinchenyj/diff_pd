@@ -1,8 +1,8 @@
 #include "fem/deformable.h"
-#include "fem/gravitational_state_force.h"
-#include "fem/planar_collision_state_force.h"
-#include "fem/hydrodynamics_state_force.h"
-#include "fem/billiard_ball_state_force.h"
+#include "state_force/gravitational_state_force.h"
+#include "state_force/planar_collision_state_force.h"
+#include "state_force/hydrodynamics_state_force.h"
+#include "state_force/billiard_ball_state_force.h"
 
 // Add state-based forces.
 template<int vertex_dim, int element_dim>

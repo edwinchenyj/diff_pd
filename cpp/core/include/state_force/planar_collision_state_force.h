@@ -1,7 +1,7 @@
-#ifndef FEM_PLANAR_COLLISION_STATE_FORCE_H
-#define FEM_PLANAR_COLLISION_STATE_FORCE_H
+#ifndef STATE_FORCE_PLANAR_COLLISION_STATE_FORCE_H
+#define STATE_FORCE_PLANAR_COLLISION_STATE_FORCE_H
 
-#include "fem/state_force.h"
+#include "state_force/state_force.h"
 #include "common/common.h"
 
 // Obstacle: normal.dot(q) + offset <= 0. In other words, the deformable body almost always stays on the positive side.

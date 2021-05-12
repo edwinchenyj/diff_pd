@@ -4,7 +4,7 @@
 #include "common/config.h"
 #include "mesh/mesh.h"
 #include "material/material.h"
-#include "fem/state_force.h"
+#include "state_force/state_force.h"
 #include "fem/finite_element_sample.h"
 #include "pd_energy/pd_vertex_energy.h"
 #include "pd_energy/pd_element_energy.h"

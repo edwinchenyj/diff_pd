@@ -1,11 +1,11 @@
 %module py_diff_pd_core
 %{
 #include "../include/mesh/mesh.h"
-#include "../include/fem/state_force.h"
-#include "../include/fem/gravitational_state_force.h"
-#include "../include/fem/planar_collision_state_force.h"
-#include "../include/fem/hydrodynamics_state_force.h"
-#include "../include/fem/billiard_ball_state_force.h"
+#include "../include/state_force/state_force.h"
+#include "../include/state_force/gravitational_state_force.h"
+#include "../include/state_force/planar_collision_state_force.h"
+#include "../include/state_force/hydrodynamics_state_force.h"
+#include "../include/state_force/billiard_ball_state_force.h"
 #include "../include/fem/tri_deformable.h"
 #include "../include/fem/quad_deformable.h"
 #include "../include/fem/tet_deformable.h"
@@ -31,11 +31,11 @@
 %include "../include/common/config.h"
 %include "../include/mesh/mesh.h"
 %include "../include/fem/deformable.h"
-%include "../include/fem/state_force.h"
-%include "../include/fem/gravitational_state_force.h"
-%include "../include/fem/planar_collision_state_force.h"
-%include "../include/fem/hydrodynamics_state_force.h"
-%include "../include/fem/billiard_ball_state_force.h"
+%include "../include/state_force/state_force.h"
+%include "../include/state_force/gravitational_state_force.h"
+%include "../include/state_force/planar_collision_state_force.h"
+%include "../include/state_force/hydrodynamics_state_force.h"
+%include "../include/state_force/billiard_ball_state_force.h"
 
 namespace std {
     %template(StdRealArray2d) array<real, 2>;

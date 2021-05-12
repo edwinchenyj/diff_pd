@@ -1,4 +1,4 @@
-#include "fem/state_force.h"
+#include "state_force/state_force.h"
 
 template<int vertex_dim>
 const VectorXr StateForce<vertex_dim>::ForwardForce(const VectorXr& q, const VectorXr& v) const {
