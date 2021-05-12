@@ -18,7 +18,6 @@ void Deformable<vertex_dim, element_dim>::AddStateForce(const std::string& force
         state_forces_.push_back(force);
     } else if (force_type == "planar_contact") {
         CheckError(param_size == 5 + vertex_dim, "Inconsistent params for PlanarContactStateForce.");
-        PrintWarning("Explicit planar collisions is not recommended. Consider using PdVertexEnergy instead.");
         Eigen::Matrix<real, vertex_dim, 1> normal;
         for (int i = 0; i < vertex_dim; ++i) normal(i) = params[i];
         const real offset = params[vertex_dim];
