@@ -10,13 +10,13 @@ import pickle
 from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.common import print_info, print_ok, print_error
 from py_diff_pd.common.grad_check import check_gradients
-from py_diff_pd.env.slope_env_2d import SlopeEnv2d
+from py_diff_pd.env.slope_env_3d import SlopeEnv3d
 
 if __name__ == '__main__':
     seed = 42
-    folder = Path('slope_2d')
-    env = SlopeEnv2d(seed, folder, {
-        'state_force_parameters': [0, -1, 1e4, 30, 1e2] })
+    folder = Path('slope_3d')
+    env = SlopeEnv3d(seed, folder, {
+        'state_force_parameters': [0, 0, -9.81, 1e5, 0.025, 1e4] })
     deformable = env.deformable()
 
     # Optimization parameters.
@@ -28,13 +28,15 @@ if __name__ == '__main__':
     opts = (newton_opt, newton_opt, pd_opt)
 
     dt = 5e-3
-    frame_num = 200
+    frame_num = 50
 
     # Initial state.
     dofs = deformable.dofs()
     act_dofs = deformable.act_dofs()
     q0 = env.default_init_position()
-    v0 = np.zeros(dofs)
+    v0 = np.zeros(dofs).reshape((-1, 3))
+    v0[:, 0] = -1
+    v0 = v0.ravel()
     a0 = [np.zeros(act_dofs) for _ in range(frame_num)]
     f0 = [np.zeros(dofs) for _ in range(frame_num)]
 
