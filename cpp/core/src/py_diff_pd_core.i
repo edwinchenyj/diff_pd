@@ -3,7 +3,7 @@
 #include "../include/mesh/mesh.h"
 #include "../include/state_force/state_force.h"
 #include "../include/state_force/gravitational_state_force.h"
-#include "../include/state_force/planar_collision_state_force.h"
+#include "../include/state_force/planar_contact_state_force.h"
 #include "../include/state_force/hydrodynamics_state_force.h"
 #include "../include/state_force/billiard_ball_state_force.h"
 #include "../include/fem/tri_deformable.h"
@@ -33,7 +33,7 @@
 %include "../include/fem/deformable.h"
 %include "../include/state_force/state_force.h"
 %include "../include/state_force/gravitational_state_force.h"
-%include "../include/state_force/planar_collision_state_force.h"
+%include "../include/state_force/planar_contact_state_force.h"
 %include "../include/state_force/hydrodynamics_state_force.h"
 %include "../include/state_force/billiard_ball_state_force.h"
 
@@ -68,8 +68,8 @@ namespace std {
 %template(StateForce3d) StateForce<3>;
 %template(GravitationalStateForce2d) GravitationalStateForce<2>;
 %template(GravitationalStateForce3d) GravitationalStateForce<3>;
-%template(PlanarCollisionStateForce2d) PlanarCollisionStateForce<2>;
-%template(PlanarCollisionStateForce3d) PlanarCollisionStateForce<3>;
+%template(PlanarContactStateForce2d) PlanarContactStateForce<2>;
+%template(PlanarContactStateForce3d) PlanarContactStateForce<3>;
 %template(TriHydrodynamicsStateForce) HydrodynamicsStateForce<2, 3>;
 %template(QuadHydrodynamicsStateForce) HydrodynamicsStateForce<2, 4>;
 %template(TetHydrodynamicsStateForce) HydrodynamicsStateForce<3, 4>;

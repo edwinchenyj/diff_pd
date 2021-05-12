@@ -1,6 +1,6 @@
 #include "fem/deformable.h"
 #include "state_force/gravitational_state_force.h"
-#include "state_force/planar_collision_state_force.h"
+#include "state_force/planar_contact_state_force.h"
 #include "state_force/hydrodynamics_state_force.h"
 #include "state_force/billiard_ball_state_force.h"
 
@@ -16,16 +16,18 @@ void Deformable<vertex_dim, element_dim>::AddStateForce(const std::string& force
         auto force = std::make_shared<GravitationalStateForce<vertex_dim>>();
         force->Initialize(mass, g);
         state_forces_.push_back(force);
-    } else if (force_type == "planar_collision") {
-        CheckError(param_size == 3 + vertex_dim, "Inconsistent params for PlanarCollisionStateForce.");
+    } else if (force_type == "planar_contact") {
+        CheckError(param_size == 5 + vertex_dim, "Inconsistent params for PlanarContactStateForce.");
         PrintWarning("Explicit planar collisions is not recommended. Consider using PdVertexEnergy instead.");
-        const real stiffness = params[0];
-        const real cutoff_dist = params[1];
         Eigen::Matrix<real, vertex_dim, 1> normal;
-        for (int i = 0; i < vertex_dim; ++i) normal(i) = params[2 + i];
-        const real offset = params[2 + vertex_dim];
-        auto force = std::make_shared<PlanarCollisionStateForce<vertex_dim>>();
-        force->Initialize(stiffness, cutoff_dist, normal, offset);
+        for (int i = 0; i < vertex_dim; ++i) normal(i) = params[i];
+        const real offset = params[vertex_dim];
+        const int p = static_cast<int>(params[vertex_dim + 1]);
+        const real kn = params[vertex_dim + 2];
+        const real kf = params[vertex_dim + 3];
+        const real mu = params[vertex_dim + 4];
+        auto force = std::make_shared<PlanarContactStateForce<vertex_dim>>();
+        force->Initialize(normal, offset, p, kn, kf, mu);
         state_forces_.push_back(force);
     } else if (force_type == "hydrodynamics") {
         const int face_dim = mesh_.GetNumOfVerticesInFace();

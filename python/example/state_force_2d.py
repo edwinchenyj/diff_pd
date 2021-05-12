@@ -7,7 +7,7 @@ import numpy as np
 
 from py_diff_pd.core.py_diff_pd_core import QuadDeformable, QuadMesh2d, StdRealVector
 from py_diff_pd.core.py_diff_pd_core import StdRealVector, StdRealArray2d
-from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce2d, PlanarCollisionStateForce2d, QuadHydrodynamicsStateForce
+from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce2d, PlanarContactStateForce2d, QuadHydrodynamicsStateForce
 from py_diff_pd.core.py_diff_pd_core import BilliardBallStateForce2d
 from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.common import print_info, print_error, print_ok
@@ -40,7 +40,7 @@ def test_state_force_2d(verbose):
     deformable = QuadDeformable()
     deformable.Initialize(str(bin_file_name), density, 'none', youngs_modulus, poissons_ratio)
     deformable.AddStateForce('gravity', [0.0, -9.81])
-    deformable.AddStateForce('planar_collision', [1e2, 0.01, 0.01, 0.99, -dx / 2])
+    deformable.AddStateForce('planar_contact', [0.01, 0.99, -dx / 2, 2, 1e2, 1e2, 0.5])
     # Hydrodynamics parameters.
     rho = 1e3
     v_water = [0.1, -0.4]   # Velocity of the water.
@@ -67,10 +67,10 @@ def test_state_force_2d(verbose):
     for i in range(2): g[i] = np.random.normal()
     gravity.PyInitialize(1.2, g)
 
-    collision = PlanarCollisionStateForce2d()
+    collision = PlanarContactStateForce2d()
     normal = StdRealArray2d()
     for i in range(2): normal[i] = np.random.normal()
-    collision.PyInitialize(1.2, 0.34, normal, 0.56)
+    collision.PyInitialize(normal, 0.56, 2, 1.2, 3.4, 0.56)
 
     hydro = QuadHydrodynamicsStateForce()
     flattened_surface_faces = [ll for l in surface_faces for ll in l]
@@ -159,9 +159,9 @@ def test_state_force_2d(verbose):
         p_deformable = QuadDeformable()
         p_deformable.Initialize(str(bin_file_name), density, 'none', youngs_modulus, poissons_ratio)
         p_deformable.AddStateForce('gravity', [p[0], p[1]])
-        p_deformable.AddStateForce('planar_collision', [p[2], p[3], 0.01, 0.99, -dx / 2])
-        Cd_points = p[4:12]
-        Ct_points = p[12:]
+        p_deformable.AddStateForce('planar_contact', [0.01, 0.99, -dx / 2, 2, p[2], p[3], p[4]])
+        Cd_points = p[5:13]
+        Ct_points = p[13:]
         p_deformable.AddStateForce('hydrodynamics', np.concatenate([[rho,], v_water, Cd_points, Ct_points, [max_force,],
             ndarray(surface_faces).ravel()]))
 
@@ -181,7 +181,7 @@ def test_state_force_2d(verbose):
     atol = 1e-4
     rtol = 1e-3
 
-    p0 = ndarray([0.0, -9.81, 1e2, 0.01, 0.0, 0.05, 0.4, 0.05, 0.7, 1.85, 1.0, 2.05, -1, -0.8, -0.3, -0.5, 0.3, 0.1, 1, 2.5])
+    p0 = ndarray([0.0, -9.81, 3.4, 1.2, 0.5, 0.0, 0.05, 0.4, 0.05, 0.7, 1.85, 1.0, 2.05, -1, -0.8, -0.3, -0.5, 0.3, 0.1, 1, 2.5])
     x0 = np.concatenate([q0, v0, p0])
     grads_equal = check_gradients(forward_and_backward, x0, eps, rtol, atol, verbose)
     if not grads_equal:
