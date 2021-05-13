@@ -75,10 +75,10 @@ class SlopeEnv3d(EnvBase):
         verts = ndarray([
             [(-c - c * initial_height) / s, -1.25, -1],
             [(-c - c * initial_height) / s, 1.25, -1],
-            [2, -1.25, (2 * s + c * initial_height) / c],
-            [2, 1.25, (2 * s + c * initial_height) / c],
-            [2, -1.25, -1],
-            [2, 1.25, -1]
+            [1, -1.25, (1 * s + c * initial_height) / c],
+            [1, 1.25, (1 * s + c * initial_height) / c],
+            [1, -1.25, -1],
+            [1, 1.25, -1]
         ])
         eles = [[1, 0, 2],
             [2, 3, 1],
@@ -117,8 +117,9 @@ class SlopeEnv3d(EnvBase):
             'light_map': 'uffizi-large.exr',
             'sample': self.__spp,
             'max_depth': 2,
-            'camera_pos': (-0.9, -.9, 0.9),
-            'camera_lookat': (0, 0, 0.1)
+            'camera_pos': (-0.52, -.52, 0.44),
+            'camera_lookat': (-0.05, 0, 0.05),
+            'resolution': (1024, 768)
         }
         renderer = PbrtRenderer(options)
 
