@@ -18,7 +18,6 @@ class SlopeEnv3d(EnvBase):
     def __init__(self, seed, folder, options):
         EnvBase.__init__(self, folder)
 
-        np.random.seed(seed)
         create_folder(folder, exist_ok=True)
 
         youngs_modulus = 4e6

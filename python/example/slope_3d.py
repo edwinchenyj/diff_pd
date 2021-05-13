@@ -14,6 +14,8 @@ from py_diff_pd.env.slope_env_3d import SlopeEnv3d
 
 if __name__ == '__main__':
     seed = 42
+    np.random.seed(seed)
+
     folder = Path('slope_3d')
     env = SlopeEnv3d(seed, folder, {
         'state_force_parameters': [0, 0, -9.81, 1e5, 0.025, 1e4],
@@ -30,7 +32,7 @@ if __name__ == '__main__':
     opts = (pd_opt, newton_opt, newton_opt)
 
     dt = 5e-3
-    frame_num = 100
+    frame_num = 200
 
     # Initial state.
     dofs = deformable.dofs()
@@ -66,14 +68,14 @@ if __name__ == '__main__':
 
     # Optimization.
     # Variables to be optimized:
-    x_lb = [4, 0.005, 3]
-    x_ub = [6, 0.050, 5]
+    x_lb = [2, 0, 3]
+    x_ub = [4, 3, 5]
     bounds = scipy.optimize.Bounds(x_lb, x_ub)
     loss_range = ndarray([0, 1])
     x_init = np.random.uniform(low=x_lb, high=x_ub)
 
     # Normalize the loss.
-    random_guess_num = 0
+    random_guess_num = 4
     if random_guess_num > 0:
         rand_state = np.random.get_state()
         random_loss = []
@@ -81,7 +83,7 @@ if __name__ == '__main__':
         for _ in range(random_guess_num):
             x_rand = np.random.uniform(low=x_lb, high=x_ub)
             init_env = variable_to_env(x_rand)
-            loss, _ = env.simulate(dt, frame_num, methods[2], opts[2], q0, v0, a0, f0, require_grad=False, vis_folder=None)
+            loss, _ = init_env.simulate(dt, frame_num, methods[0], opts[0], q0, v0, a0, f0, require_grad=False, vis_folder=None)
             print('loss: {:3f}'.format(loss))
             random_loss.append(loss)
             if loss < best_loss:
@@ -93,7 +95,7 @@ if __name__ == '__main__':
 
     # Visualize results.
     init_env = variable_to_env(x_init)
-    init_env.simulate(dt, frame_num, methods[2], opts[2], q0, v0, a0, f0, require_grad=False, vis_folder='init')
+    init_env.simulate(dt, frame_num, methods[0], opts[0], q0, v0, a0, f0, require_grad=False, vis_folder='init', render_frame_skip=10)
 
     data = { 'loss_range': loss_range }
     for method, opt in zip(methods, opts):
@@ -121,7 +123,7 @@ if __name__ == '__main__':
 
         t0 = time.time()
         result = scipy.optimize.minimize(loss_and_grad, np.copy(x_init),
-            method='L-BFGS-B', jac=True, bounds=bounds, options={ 'ftol': 1e-3 })
+            method='L-BFGS-B', jac=True, bounds=bounds, options={ 'ftol': 1e-4, 'maxiter': 10 })
         t1 = time.time()
         assert result.success
         x_final = result.x
@@ -130,4 +132,4 @@ if __name__ == '__main__':
 
         # Visualize results.
         final_env = variable_to_env(x_final)
-        final_env.simulate(dt, frame_num, method, opt, q0, v0, a0, f0, require_grad=False, vis_folder=method)
+        final_env.simulate(dt, frame_num, method, opt, q0, v0, a0, f0, require_grad=False, vis_folder=method, render_frame_skip=10)
