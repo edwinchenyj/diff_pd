@@ -57,6 +57,12 @@ if __name__ == '__main__':
     # Load data and render.
     data = pickle.load(open('slope_3d/data_{:04d}_threads.bin'.format(thread_ct), 'rb'))
     for method, opt in zip(methods, opts):
+        create_folder(folder / '{}/init'.format(method), exist_ok=True)
+        x_init = data[method][0]['x']
+        init_env = variable_to_env(x_init)
+        init_env.simulate(dt, frame_num, method, opt, q0, v0, a0, f0, require_grad=False, vis_folder='{}/init'.format(method))
+
+        create_folder(folder / '{}/final'.format(method), exist_ok=True)
         x_final = data[method][-1]['x']
         final_env = variable_to_env(x_final)
-        final_env.simulate(dt, frame_num, method, opt, q0, v0, a0, f0, require_grad=False, vis_folder=method)
+        final_env.simulate(dt, frame_num, method, opt, q0, v0, a0, f0, require_grad=False, vis_folder='{}/final'.format(method))
