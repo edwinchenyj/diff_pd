@@ -18,7 +18,7 @@ public:
         const real kn,
         const real kf,
         const real mu);
-    void PyInitialize(std::array<real, vertex_dim>& normal, const real offset, const int p,
+    void PyInitialize(const std::array<real, vertex_dim>& normal, const real offset, const int p,
         const real kn, const real kf, const real mu) {
         Eigen::Matrix<real, vertex_dim, 1> normal_eig;
         for (int i = 0; i < vertex_dim; ++i) normal_eig[i] = normal[i];

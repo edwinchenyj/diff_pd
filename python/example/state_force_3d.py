@@ -7,7 +7,8 @@ import numpy as np
 
 from py_diff_pd.core.py_diff_pd_core import HexDeformable, HexMesh3d, StdRealVector
 from py_diff_pd.core.py_diff_pd_core import StdRealVector, StdRealArray3d
-from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce3d, PlanarContactStateForce3d, HexHydrodynamicsStateForce
+from py_diff_pd.core.py_diff_pd_core import GravitationalStateForce3d, HexHydrodynamicsStateForce
+from py_diff_pd.core.py_diff_pd_core import PlanarContactStateForce3d, ArcContactStateForce3d
 from py_diff_pd.core.py_diff_pd_core import BilliardBallStateForce3d
 from py_diff_pd.common.common import ndarray, create_folder
 from py_diff_pd.common.common import print_info, print_ok, print_error
@@ -41,6 +42,7 @@ def test_state_force_3d(verbose):
     deformable.Initialize(str(bin_file_name), density, 'none', youngs_modulus, poissons_ratio)
     deformable.AddStateForce('gravity', [0.0, 0.0, -9.81])
     deformable.AddStateForce('planar_contact', [0.01, 0.2, 0.99, -dx / 2, 2, 1e2, 1e2, 0.5])
+    deformable.AddStateForce('arc_contact', [0.4, 0.3, 0.4, 0, 1, 0, 0, 0, -1, 0.42, np.pi / 3, 3, 1e2, 0.5, 1e2])
     # Hydrodynamics parameters.
     rho = 1e3
     v_water = [0.1, -0.4, 0.3]   # Velocity of the water.
@@ -68,10 +70,16 @@ def test_state_force_3d(verbose):
     for i in range(3): g[i] = np.random.normal()
     gravity.PyInitialize(1.2, g)
 
-    collision = PlanarContactStateForce3d()
+    planar_collision = PlanarContactStateForce3d()
     normal = StdRealArray3d()
     for i in range(3): normal[i] = np.random.normal()
-    collision.PyInitialize(normal, 0.56, 2, 1.2, 3.4, 0.56)
+    planar_collision.PyInitialize(normal, 0.56, 2, 1.2, 3.4, 0.56)
+
+    arc_collision = ArcContactStateForce3d()
+    arc_center = StdRealArray3d([0.4, 0.3, 0.4])
+    arc_dir = StdRealArray3d([0, 1, 0])
+    arc_start = StdRealArray3d([0, 0, -1])
+    arc_collision.PyInitialize(arc_center, arc_dir, arc_start, 0.42, np.pi / 2, 3, 1e2, 0.5, 1e2)
 
     hydro = HexHydrodynamicsStateForce()
     flattened_surface_faces = [ll for l in surface_faces for ll in l]
@@ -80,7 +88,7 @@ def test_state_force_3d(verbose):
     eps = 1e-8
     atol = 1e-4
     rtol = 1e-2
-    for state_force in [gravity, collision, hydro,]:
+    for state_force in [gravity, planar_collision, arc_collision, hydro]:
         def l_and_g(x):
             return loss_and_grad(x, f_weight, state_force, dofs)
         if not check_gradients(l_and_g, np.concatenate([q0, v0]), eps, rtol, atol, verbose):

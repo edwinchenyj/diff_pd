@@ -4,6 +4,7 @@
 #include "../include/state_force/state_force.h"
 #include "../include/state_force/gravitational_state_force.h"
 #include "../include/state_force/planar_contact_state_force.h"
+#include "../include/state_force/arc_contact_state_force.h"
 #include "../include/state_force/hydrodynamics_state_force.h"
 #include "../include/state_force/billiard_ball_state_force.h"
 #include "../include/fem/tri_deformable.h"
@@ -34,6 +35,7 @@
 %include "../include/state_force/state_force.h"
 %include "../include/state_force/gravitational_state_force.h"
 %include "../include/state_force/planar_contact_state_force.h"
+%include "../include/state_force/arc_contact_state_force.h"
 %include "../include/state_force/hydrodynamics_state_force.h"
 %include "../include/state_force/billiard_ball_state_force.h"
 
@@ -70,6 +72,8 @@ namespace std {
 %template(GravitationalStateForce3d) GravitationalStateForce<3>;
 %template(PlanarContactStateForce2d) PlanarContactStateForce<2>;
 %template(PlanarContactStateForce3d) PlanarContactStateForce<3>;
+%template(ArcContactStateForce2d) ArcContactStateForce<2>;
+%template(ArcContactStateForce3d) ArcContactStateForce<3>;
 %template(TriHydrodynamicsStateForce) HydrodynamicsStateForce<2, 3>;
 %template(QuadHydrodynamicsStateForce) HydrodynamicsStateForce<2, 4>;
 %template(TetHydrodynamicsStateForce) HydrodynamicsStateForce<3, 4>;

@@ -1,6 +1,7 @@
 #include "fem/deformable.h"
 #include "state_force/gravitational_state_force.h"
 #include "state_force/planar_contact_state_force.h"
+#include "state_force/arc_contact_state_force.h"
 #include "state_force/hydrodynamics_state_force.h"
 #include "state_force/billiard_ball_state_force.h"
 
@@ -27,6 +28,23 @@ void Deformable<vertex_dim, element_dim>::AddStateForce(const std::string& force
         const real mu = params[vertex_dim + 4];
         auto force = std::make_shared<PlanarContactStateForce<vertex_dim>>();
         force->Initialize(normal, offset, p, kn, kf, mu);
+        state_forces_.push_back(force);
+    } else if (force_type == "arc_contact") {
+        CheckError(param_size == 6 + 3 * vertex_dim, "Inconsistent params for ArcContactStateForce.");
+        Eigen::Matrix<real, vertex_dim, 1> center, dir, start;
+        for (int i = 0; i < vertex_dim; ++i) {
+            center(i) = params[i];
+            dir(i) = params[vertex_dim + i];
+            start(i) = params[2 * vertex_dim + i];
+        }
+        const real radius = params[3 * vertex_dim];
+        const real angle = params[3 * vertex_dim + 1];
+        const int p = static_cast<int>(params[3 * vertex_dim + 2]);
+        const real kn = params[3 * vertex_dim + 3];
+        const real kf = params[3 * vertex_dim + 4];
+        const real mu = params[3 * vertex_dim + 5];
+        auto force = std::make_shared<ArcContactStateForce<vertex_dim>>();
+        force->Initialize(center, dir, start, radius, angle, p, kn, kf, mu);
         state_forces_.push_back(force);
     } else if (force_type == "hydrodynamics") {
         const int face_dim = mesh_.GetNumOfVerticesInFace();
