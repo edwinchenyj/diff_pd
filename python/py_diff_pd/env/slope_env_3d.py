@@ -131,7 +131,7 @@ class SlopeEnv3d(EnvBase):
             transforms=[('s', 200)], color=(.4, .4, .4))
         renderer.add_tri_mesh(self._folder / 'obs.obj', transforms=[('s', 0.1)], color=(.3, .3, .3))
 
-        renderer.render(light_rgb=(.5, .5, .5))
+        renderer.render(light_rgb=(.5, .5, .5), verbose=True)
 
     def _loss_and_grad(self, q, v):
         q = ndarray(q).copy().reshape((-1, 3))
