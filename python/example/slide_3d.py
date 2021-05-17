@@ -132,6 +132,7 @@ if __name__ == '__main__':
             single_data['forward_time'] = info['forward_time']
             single_data['backward_time'] = info['backward_time']
             data[method].append(single_data)
+            pickle.dump(data, open(folder / 'data_{:04d}_threads.bin'.format(thread_ct), 'wb'))
             return loss, np.copy(grad_x)
 
         # Use the two lines below to sanity check the gradients.
@@ -141,9 +142,8 @@ if __name__ == '__main__':
 
         t0 = time.time()
         result = scipy.optimize.minimize(loss_and_grad, np.copy(x_init),
-            method='L-BFGS-B', jac=True, bounds=bounds, options={ 'ftol': 1e-4, 'maxiter': 10 })
+            method='L-BFGS-B', jac=True, bounds=bounds, options={ 'ftol': 1e-4, 'maxiter': 5 })
         t1 = time.time()
-        assert result.success
         x_final = result.x
         print_info('Optimizing with {} finished in {:6.3f} seconds'.format(method, t1 - t0))
         pickle.dump(data, open(folder / 'data_{:04d}_threads.bin'.format(thread_ct), 'wb'))
