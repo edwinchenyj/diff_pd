@@ -94,6 +94,59 @@ if __name__ == '__main__':
             _, info = final_env.simulate(dt, frame_num, method, opt, q0, v0, a0, f0, require_grad=False, vis_folder=None)
             pickle.dump(info, open(folder / method / 'final.data', 'wb'))
 
+    # Create paper figures.
+    for method in methods:
+        for name in ['init', 'final']:
+            img_file = folder / method / '{}_overlapped.png'.format(name)
+            options = {
+                'file_name': img_file,
+                'light_map': 'uffizi-large.exr',
+                'sample': 4,
+                'max_depth': 2,
+                'camera_pos': (-1.3, -1.2, 1.0),
+                'camera_lookat': (-0.2, 0.2, -0.1),
+                'resolution': (1600, 1000),
+                'fov': 27.7,
+            }
+            renderer = PbrtRenderer(options)
+            renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj',
+                transforms=[('s', 200)], color=(.4, .4, .4))
+            renderer.add_tri_mesh(folder / 'obs.obj', transforms=[('s', 0.1)], color=(.3, .3, .3))
+
+            # Plot the goal location.
+            goal_inner_radius = 1.0
+            goal_outer_radius = 1.2
+            circle_num = 64
+            dc = np.pi * 2 / circle_num
+            verts = []
+            eles = []
+            for i in range(circle_num):
+                c, s = np.cos(dc * i), np.sin(dc * i)
+                vi = ndarray([c, s, 0]) * goal_inner_radius
+                vo = ndarray([c, s, 0]) * goal_outer_radius
+                verts.append(vi)
+                verts.append(vo)
+                ei0 = 2 * i
+                ei1 = ei0 + 2 if i < circle_num - 1 else 0
+                eo0 = ei0 + 1
+                eo1 = ei1 + 1
+                eles.append((ei0, eo0, eo1))
+                eles.append((ei0, eo1, ei1))
+
+            verts = ndarray(verts) + target * ndarray([1, 1, 0])
+            eles = np.asarray(eles, dtype=int)
+            generate_tri_mesh(verts, eles, folder / 'target.obj')
+            renderer.add_tri_mesh(folder / 'target.obj', transforms=[('t', (0, 0, 0.01)), ('s', 0.1)], color=(.9, .9, .9))
+
+            for i in range(0, frame_num + 1, 50):
+                mesh_file = folder / method / name / '{:04d}.bin'.format(i)
+                mesh = TetMesh3d()
+                mesh.Initialize(str(mesh_file))
+            
+                renderer.add_tri_mesh(mesh, transforms=[('s', 0.1)], render_tet_edge=True, color=[1., .8, .0])
+
+            renderer.render(light_rgb=(.5, .5, .5), verbose=True)
+
     # Render.
     for method in methods:
         for name in ['init', 'final']:
