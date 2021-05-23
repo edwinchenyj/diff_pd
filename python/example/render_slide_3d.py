@@ -142,6 +142,6 @@ if __name__ == '__main__':
                 verts = ndarray(verts) + target * ndarray([1, 1, 0])
                 eles = np.asarray(eles, dtype=int)
                 generate_tri_mesh(verts, eles, folder / 'target.obj')
-                renderer.add_tri_mesh(folder / 'target.obj', transforms=[('s', 0.1)], color=(.9, .9, .9))
+                renderer.add_tri_mesh(folder / 'target.obj', transforms=[('t', (0, 0, 0.01)), ('s', 0.1)], color=(.9, .9, .9))
 
                 renderer.render(light_rgb=(.5, .5, .5), verbose=True)
