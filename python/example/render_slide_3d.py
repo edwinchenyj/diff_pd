@@ -14,6 +14,7 @@ from py_diff_pd.env.slide_env_3d import SlideEnv3d
 from py_diff_pd.common.renderer import PbrtRenderer
 from py_diff_pd.common.project_path import root_path
 from py_diff_pd.core.py_diff_pd_core import TetMesh3d, TetDeformable
+from py_diff_pd.common.display import export_mp4
 
 if __name__ == '__main__':
     seed = 42
@@ -145,3 +146,7 @@ if __name__ == '__main__':
                 renderer.add_tri_mesh(folder / 'target.obj', transforms=[('t', (0, 0, 0.01)), ('s', 0.1)], color=(.9, .9, .9))
 
                 renderer.render(light_rgb=(.5, .5, .5), verbose=True)
+
+    for method in methods:
+        for name in ['init', 'final']:
+            export_mp4(folder / method / name, folder / method / '{}.mp4'.format(name), fps=100)
