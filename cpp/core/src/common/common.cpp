@@ -274,6 +274,28 @@ const VectorXr LoadEigenVectorFromBinaryFile(const std::string& file_name) {
     return v;
 }
 
+void SaveEigenMatrixToBinaryFile(const MatrixXr& A, const std::string& file_name) {
+    std::ofstream fout(file_name);
+    const int row_num = static_cast<int>(A.rows());
+    const int col_num = static_cast<int>(A.cols());
+    Save<int>(fout, row_num);
+    Save<int>(fout, col_num);
+    for (int i = 0; i < row_num; ++i)
+        for (int j = 0; j < col_num; ++j)
+            Save<double>(fout, ToDouble(A(i, j)));
+}
+
+const MatrixXr LoadEigenMatrixFromBinaryFile(const std::string& file_name) {
+    std::ifstream fin(file_name);
+    const int row_num = Load<int>(fin);
+    const int col_num = Load<int>(fin);
+    MatrixXr A = MatrixXr::Zero(row_num, col_num);
+    for (int i = 0; i < row_num; ++i)
+        for (int j = 0; j < col_num; ++j)
+            A(i, j) = ToReal(Load<double>(fin));
+    return A;
+}
+
 const VectorXr VectorSparseMatrixProduct(const VectorXr& v,
     const int row, const int col, const SparseMatrixElements& A) {
     VectorXr vA = VectorXr::Zero(col);

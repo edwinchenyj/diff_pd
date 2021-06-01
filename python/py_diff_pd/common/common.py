@@ -149,3 +149,14 @@ def filter_unused_vertices(vertices, elements):
         new_elements.append(new_ei)
     new_elements = ndarray(new_elements).astype(np.int)
     return new_vertices, new_elements
+
+import struct
+# Read binary matrix data from cpp.
+def load_matrix(file_name):
+    with open(file_name, 'rb') as f:
+        content = f.read()
+        rows = struct.unpack('i', content[:4])[0]
+        cols = struct.unpack('i', content[4:8])[0]
+        offset = 8
+        A = ndarray(struct.unpack('d' * rows * cols, content[8:])).reshape((rows, cols))
+        return A
