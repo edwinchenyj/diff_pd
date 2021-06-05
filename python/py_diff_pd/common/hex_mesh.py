@@ -69,7 +69,7 @@ def generate_hex_mesh(voxels, dx, origin, bin_file_name, write=True):
 
 # Given a hex mesh, save it as an obj file with texture coordinates.
 def hex2obj_with_textures(hex_mesh, obj_file_name=None, pbrt_file_name=None,
-    texture_map=None):
+    texture_map=None, compute_normal=False):
     vertex_num = hex_mesh.NumOfVertices()
     element_num = hex_mesh.NumOfElements()
 
@@ -113,15 +113,41 @@ def hex2obj_with_textures(hex_mesh, obj_file_name=None, pbrt_file_name=None,
     texture_map = ndarray(texture_map)
     assert texture_map.shape == (4, 2)
 
+    # Normals.
+    vn = []
+    if compute_normal:
+        vert_num = len(v_out)
+        vn = np.zeros((vert_num, 3))
+        for ff in f_out:
+            v0, v1, v2 = v_out[ff[0]], v_out[ff[1]], v_out[ff[2]]
+            weighted_norm = np.cross(v1 - v0, v2 - v1)
+            for i in range(3):
+                vn[ff[i]] += weighted_norm
+        # Normalization.
+        vn_len = np.sqrt(np.sum(vn ** 2, axis=1)) + 1e-6
+        vn /= vn_len[:, None]
+
     if obj_file_name is not None:
         with open(obj_file_name, 'w') as f_obj:
-            for vv in v_out:
+            for i, vv in enumerate(v_out):
+                if compute_normal:
+                    f_obj.write('vn {:6f} {:6f} {:6f}\n'.format(vn[i][0], vn[i][1], vn[i][2]))
                 f_obj.write('v {:6f} {:6f} {:6f}\n'.format(vv[0], vv[1], vv[2]))
             for u, v in texture_map:
                 f_obj.write('vt {:6f} {:6f}\n'.format(u, v))
             for ff in f_out:
-                f_obj.write('f {:d}/1 {:d}/2 {:d}/3\n'.format(ff[0] + 1, ff[1] + 1, ff[2] + 1))
-                f_obj.write('f {:d}/1 {:d}/3 {:d}/4\n'.format(ff[0] + 1, ff[2] + 1, ff[3] + 1))
+                if compute_normal:
+                    f_obj.write('f {:d}/1/{:d} {:d}/2/{:d} {:d}/3/{:d}\n'.format(
+                        ff[0] + 1, ff[0] + 1,
+                        ff[1] + 1, ff[1] + 1,
+                        ff[2] + 1, ff[2] + 1))
+                    f_obj.write('f {:d}/1/{:d} {:d}/3/{:d} {:d}/4/{:d}\n'.format(
+                        ff[0] + 1, ff[0] + 1,
+                        ff[2] + 1, ff[2] + 1,
+                        ff[3] + 1, ff[3] + 1))
+                else:
+                    f_obj.write('f {:d}/1 {:d}/2 {:d}/3\n'.format(ff[0] + 1, ff[1] + 1, ff[2] + 1))
+                    f_obj.write('f {:d}/1 {:d}/3 {:d}/4\n'.format(ff[0] + 1, ff[2] + 1, ff[3] + 1))
 
     if pbrt_file_name is not None:
         with open(pbrt_file_name, 'w') as f_pbrt:
@@ -148,6 +174,13 @@ def hex2obj_with_textures(hex_mesh, obj_file_name=None, pbrt_file_name=None,
             for ff in f_out:
                 f_pbrt.write('  {:d} {:d} {:d} {:d} {:d} {:d}\n'.format(ff[0], ff[1], ff[2], ff[0], ff[2], ff[3]))
             f_pbrt.write(']\n')
+
+            # Log normal data.
+            f_pbrt.write('  "normal N" [\n')
+            for vv in vn:
+                f_pbrt.write('  {:6f} {:6f} {:6f}\n'.format(vv[0], vv[1], vv[2]))
+            f_pbrt.write(']\n')
+
             f_pbrt.write('AttributeEnd\n')
 
 # Given a hex mesh, return the following:

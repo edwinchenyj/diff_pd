@@ -106,10 +106,10 @@ class PbrtRenderer(object):
             hex_obj_name = self.__temporary_folder / 'hex_{:08d}.obj'.format(hex_num)
             if render_voxel_edge:
                 hex2obj_with_textures(hex_mesh, obj_file_name=hex_obj_name, pbrt_file_name=hex_pbrt_name,
-                    texture_map=texture_map)
+                    texture_map=texture_map, compute_normal=True)
             else:
                 tmp_error_name = self.__temporary_folder / '.tmp.error'
-                hex2obj(hex_mesh, obj_file_name=hex_obj_name)
+                hex2obj(hex_mesh, obj_file_name=hex_obj_name, compute_normal=True)
                 os.system('{} {} {} 2>{}'.format(str(Path(root_path) / 'external/pbrt_build/obj2pbrt'),
                     hex_obj_name, hex_pbrt_name, tmp_error_name))
 
