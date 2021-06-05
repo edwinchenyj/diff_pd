@@ -7,7 +7,7 @@ from py_diff_pd.common.common import ndarray
 # use this function to generate *2D* triangle meshes.
 # vertices: n x 2 numpy array.
 # faces: m x 3 numpy array.
-def generate_tri_mesh(vertices, faces, file_name):
+def generate_tri_mesh(vertices, faces, file_name, compute_normal=False):
     if str(file_name).endswith('.bin'):
         with open(file_name, 'wb') as f:
             f.write(struct.pack('i', 2))
@@ -31,10 +31,29 @@ def generate_tri_mesh(vertices, faces, file_name):
                     f.write(struct.pack('i', faces[i, j]))
     elif str(file_name).endswith('.obj'):
         with open(file_name, 'w') as f_obj:
-            for vv in vertices:
+            vn = []
+            if compute_normal:
+                vert_num = len(vertices)
+                vn = np.zeros((vert_num, 3))
+                for ff in faces:
+                    v0, v1, v2 = vertices[ff[0]], vertices[ff[1]], vertices[ff[2]]
+                    weighted_norm = np.cross(v1 - v0, v2 - v1)
+                    for i in range(3):
+                        vn[ff[i]] += weighted_norm
+                # Normalization.
+                vn_len = np.sqrt(np.sum(vn ** 2, axis=1)) + 1e-6
+                vn /= vn_len[:, None]
+            for i, vv in enumerate(vertices):
+                if compute_normal:
+                    f_obj.write('vn {} {} {}\n'.format(vn[i][0], vn[i][1], vn[i][2]))
                 f_obj.write('v {} {} {}\n'.format(vv[0], vv[1], vv[2]))
             for ff in faces:
-                f_obj.write('f {} {} {}\n'.format(ff[0] + 1, ff[1] + 1, ff[2] + 1))
+                if compute_normal:
+                    f_obj.write('f {}//{} {}//{} {}//{}\n'.format(ff[0] + 1, ff[0] + 1,
+                        ff[1] + 1, ff[1] + 1,
+                        ff[2] + 1, ff[2] + 1))
+                else:
+                    f_obj.write('f {} {} {}\n'.format(ff[0] + 1, ff[1] + 1, ff[2] + 1))
     else:
         raise NotImplementedError
 
