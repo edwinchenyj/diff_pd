@@ -1,6 +1,6 @@
 # Differentiable Projective Dynamics
 
-[![Travis CI Status](https://travis-ci.com/mit-gfx/diff_pd.svg?token=2N8A1xT9VhnH3M7Rxu74&branch=master)](https://travis-ci.com/mit-gfx/diff_pd)
+[![Travis CI Status](https://travis-ci.com/dut09/diff_pd.svg?branch=master)](https://travis-ci.com/dut09/diff_pd)
 
 This codebase contains our research code for a few publications relevant to differentiable projective dynamics:
 - [DiffPD: Differentiable Projective Dynamics](https://arxiv.org/pdf/2101.05917.pdf) (ACM Transactions on Graphics, accepted with minor revisions)
