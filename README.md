@@ -2,6 +2,11 @@
 
 [![Travis CI Status](https://travis-ci.com/mit-gfx/diff_pd.svg?token=2N8A1xT9VhnH3M7Rxu74&branch=master)](https://travis-ci.com/mit-gfx/diff_pd)
 
+This codebase contains our research code for a few publications relevant to differentiable projective dynamics:
+- [DiffPD: Differentiable Projective Dynamics](https://arxiv.org/pdf/2101.05917.pdf) (ACM Transactions on Graphics, accepted with minor revisions)
+- [DiffAqua: A Differentiable Computational Design Pipeline for Soft Underwater Swimmers with Shape Interpolation](http://diffaqua.csail.mit.edu/) (ACM SIGGRAPH 2021)
+- [Underwater Soft Robot Modeling and Control with Differentiable Simulation](https://people.csail.mit.edu/taodu/starfish/index.html) (IEEE RA-L/RoboSoft 2021)
+
 ## Recommended systems
 - Ubuntu 18.04
 - (Mini)conda 4.7.12 or higher
@@ -15,49 +20,52 @@ conda env create -f environment.yml
 conda activate diff_pd
 ./install.sh
 ```
-If you would like to enable multi-threading, set the thread_ct in the options object in the python script. The examples below all use a default of 8 threads for parallel processes. Using 1 will force the program to run sequentially.
 
 ## Examples
-Navigate to the `python/example` path and run `python [example_name].py` where the `example_name` could be the following:
+Navigate to the `python/example` path and run `python [example_name].py` where the `example_name` could be the following names. By default, we use 8 threads in OpenMP to run PD simulation. This number can be modified in most of the scripts below by changing the `thread_ct` variable. It is recommended to set `thread_ct` to be **strictly smaller** than the number of cores available.
 
-### Display
+For an extremely quick start, run the following script:
+```
+python tendon_routing_3d.py
+python print_tendon_routing_3d.py
+```
+
+### Utilities
+- `generate_texture` generates a square image with bounds. This is used for rendering only.
+- `generate_torus` generates a torus model used in the examples.
+- `pbrt_renderer_demo` shows how to interface pbrt using the python wrapper.
 - `render_hex_mesh` explains how to use the external renderer (pbrt) to render a 3D hex mesh.
 - `render_quad_mesh` explains how to use matplotlib to render a 2D quad mesh.
+- `tet_demo` shows how to tetrahedralize a mesh.
+- `voxelization_demo` shows how to voxelize a mesh.
 
 ### Numerical check
-- `state_force_2d` and `state_force_3d` test the implementation of state-based forces (e.g., friction, hydrodynamic force, penalty force for collisions) and their gradients w.r.t. position and velocity states.
-- `pd_energy_2d` and `pd_energy_3d` test the implementation of vertex-based and element-based projective dynamics energies.
 - `actuation_2d` and `actuation_3d` test the implementation of the muscle model.
-- `pd_forward` verifies the forward simulation of projective dynamics by comparing it to the solutions from Newton's method.
-- `deformable_backward_2d` uses central differencing to numerically check the gradients in Newton-PCG, Newton-Cholesky, and PD methods. A 2D rectangle is simulated with some fixed boundary conditions and a random but constant external force for 1 second at 30 fps. The loss is defined as a weighted sum of the final position and velocity and the gradients are computed by back-propagation.
-- `deformable_backward_3d` tests the forward simulation and back-propagation in 3D with three methods (Newton-PCG, Newton-Cholesky, and PD) and with dirichlet boundary conditions, gravity, and collisions. `deformable_backward_3d` also plots the loss and magnitude of the three methods against the relative tolerance that was used to compute them.
 - `collision_2d` compares the forward and backward implementation of collision models in Newton's methods and PD.
-
-### Quasi-static solvers
+- `deformable_backward_2d` and `deformable_backward_3d` uses central differencing to numerically check the gradients of forward simulation in Newton-PCG, Newton-Cholesky, and PD methods.
 - `deformable_quasi_static_3d` solves the quasi-static state of a 3D hex mesh. The hex mesh's bottom and top faces are fixed but the top face is twisted.
+- `pd_energy_2d` and `pd_energy_3d` test the implementation of vertex-based and element-based projective dynamics energies.
+- `pd_forward` verifies the forward simulation of projective dynamics by comparing it to the solutions from Newton's method.
+- `state_force_2d` and `state_force_3d` test the implementation of state-based forces (e.g., friction, hydrodynamic force, penalty force for collisions) and their gradients w.r.t. position and velocity states.
+- `run_all_tests` runs all numerical checks above.
 
-### Demos
+### Evaluation
 #### Sec. 6.1
-- `landscape_3d.py` and `print_landscape_3d_table.py`: generate Fig. 1 of the paper.
+- `landscape_3d.py` and `print_landscape_3d_table.py`: generate Fig. 2 of the paper.
 
 #### Sec. 6.2
-- `benchmark_3d.py` and `print_benchmark_3d_table.py`: generate Figs. 2 and 3 of the paper.
-![benchmark](python/example/benchmark_3d/benchmark.png)
-- `rolling_jelly_3d.py` and `print_rolling_jelly_3d_table.py`: generate Figs. 4 and 5 of the paper.
-![rolling_jelly](python/example/rolling_jelly_3d/rolling_jelly.png)
+- `benchmark_3d.py` and `print_benchmark_3d_table.py`: generate Figs. 3 of the paper.
+- `rolling_jelly_3d.py` and `print_rolling_jelly_3d_table.py`: generate Figs. 4 of the paper.
 - `render_benchmark_3d.py`: generate mesh data for the `Benchmark` video.
 - `render_rolling_jelly_3d.py`: generated mesh data for the `Rolling sphere` video.
 
 #### Sec. 6.3
-- `rope_2d.py`: generate the ablation study on the ratio of DoFs in the low-rank update. It may take up to 15 minutes.
-- `render_rope_2d.py`: render the results generated by rope_2d.py.
+- `slope_3d.py` and `render_slope_3d.py`: generate Fig. 5 of the paper.
+- `slide_3d.py` and `render_slide_3d.py`: generate Fig. 6 of the paper.
+- `sheet_3d.py` and `render_sheet_3d.py`: generate Fig. 7 of the paper.
 
+### Applications
 #### Sec. 7.1
-**Cantilever**
-Note that the `Cantilever` example is deprecated and not included in the paper.
-- `cantilever_3d.py`: run the `Cantilever` example on GCP (Google Cloud Platform).
-- `render_cantilever_3d.py`: generate mesh data for the `Cantilever` video.
-
 **Plant**
 - `plant_3d.py`: run the `Plant` example on GCP.
 - `print_plant_3d.py`: generate data for Table 3 and Fig. 1 in supplemental material.
@@ -96,12 +104,16 @@ Note that the `Cantilever` example is deprecated and not included in the paper.
 - `render_cow_3d.py`: generate mesh data for the `Cow` video.
 
 #### Sec. 7.4
-Examples in this section require non-trivial setup of deep reinforcement learning pipelines, so it is not included in the master branch.
+Examples in this section require non-trivial setup of deep reinforcement learning pipelines. Please check out the [code](https://github.com/mit-gfx/DiffAqua) from our related paper [DiffAqua](http://diffaqua.csail.mit.edu/) for running fish examples.
 
 #### Sec. 7.5
-The sim-to-real experiment. Follow the steps below:
-- Run `python billiard_ball_calibration.py` to parse the input video. You will be asked to label the corners in the image in order to reconstruct the 3D trajectory of the billiard balls. Alternatively, you can skip this step and use the calibration data provided in the codebase.
-- Run `python billiard_ball_3d.py` to optimize the parameters in this example to match the sim to real.
+This section requires taking videos manually. Contact `taodu@csail.mit.edu` for more details.
 
 #### Sec. 8
 - `armadillo_3d.py`: generate the Armadillo experiment with Neohookean materials. This may take 5 minutes before rendering the results.
+
+### Starfish
+- `soft_starfish_3d.py`, `display_soft_starfish_3d.py`, and `render_soft_starfish_3d.py` are the scripts we used to generate results in the IEEE RA-L paper [Underwater Soft Robot Modeling and Control with Differentiable Simulation](https://people.csail.mit.edu/taodu/starfish/index.html) (IEEE RA-L/RoboSoft 2021). It involves non-trivial setup of hardware. Contact `taodu@csail.mit.edu` for more details.
+
+## Contact
+If you have trouble running any scripts above, please feel free to open an issue or email `taodu@csail.mit.edu`.

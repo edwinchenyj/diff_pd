@@ -7,21 +7,20 @@ from py_diff_pd.common.common import print_ok, print_error
 if __name__ == '__main__':
     # If you want to add a new test, simply add its name here --- you can find their names from README.md.
     tests = [
-        # Display.
+        # Utilities.
         'render_quad_mesh',
         # Numerical check.
-        'state_force_2d',
-        'state_force_3d',
-        'pd_energy_2d',
-        'pd_energy_3d',
         'actuation_2d',
         'actuation_3d',
-        'pd_forward',
+        'collision_2d',
         'deformable_backward_2d',
         'deformable_backward_3d',
-        'collision_2d',
-        # Quasi-static solvers.
         'deformable_quasi_static_3d',
+        'pd_energy_2d',
+        'pd_energy_3d',
+        'pd_forward',
+        'state_force_2d',
+        'state_force_3d'
     ]
 
     failure_cnt = 0
