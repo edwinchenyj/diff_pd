@@ -186,8 +186,8 @@ def test_state_force_2d(verbose):
         return loss, grad
 
     eps = 1e-8
-    atol = 1e-4
-    rtol = 1e-3
+    atol = 1e-3
+    rtol = 1e-2
 
     p0 = ndarray([0.0, -9.81, 3.4, 1.2, 0.5, 0.0, 0.05, 0.4, 0.05, 0.7, 1.85, 1.0, 2.05, -1, -0.8, -0.3, -0.5, 0.3, 0.1, 1, 2.5])
     x0 = np.concatenate([q0, v0, p0])
