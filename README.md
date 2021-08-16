@@ -54,8 +54,8 @@ python print_tendon_routing_3d.py
 - `landscape_3d.py` and `print_landscape_3d_table.py`: generate Fig. 2 of the paper.
 
 #### Sec. 6.2
-- `benchmark_3d.py` and `print_benchmark_3d_table.py`: generate Figs. 3 of the paper.
-- `rolling_jelly_3d.py` and `print_rolling_jelly_3d_table.py`: generate Figs. 4 of the paper.
+- `benchmark_3d.py` and `print_benchmark_3d_table.py`: generate Fig. 3 of the paper.
+- `rolling_jelly_3d.py` and `print_rolling_jelly_3d_table.py`: generate Fig. 4 of the paper.
 - `render_benchmark_3d.py`: generate mesh data for the `Benchmark` video.
 - `render_rolling_jelly_3d.py`: generated mesh data for the `Rolling sphere` video.
 
@@ -67,7 +67,7 @@ python print_tendon_routing_3d.py
 ### Applications
 #### Sec. 7.1
 **Plant**
-- `plant_3d.py`: run the `Plant` example on GCP.
+- `plant_3d.py`: run the `Plant` example on GCP (Google Cloud Platform. See the paper for its detail specification).
 - `print_plant_3d.py`: generate data for Table 3 and Fig. 1 in supplemental material.
 - `render_plant_3d.py`: generate mesh data for the `Plant` video.
 
