@@ -18,7 +18,7 @@ def test_armadillo_3d(verbose):
     seed = 42
     folder = Path('armadillo_3d')
     env = ArmadilloEnv3d(seed, folder, {
-        'youngs_modulus': 5e5,
+        'youngs_modulus': 2e5,
         'init_rotate_angle': 0,
         'state_force_parameters': [0, 0, 0],    # No gravity.
         'spp': 4
@@ -27,10 +27,10 @@ def test_armadillo_3d(verbose):
 
     # Setting thread number.
     thread_cts = [8,]
-    methods = ('pd_eigen_pcg', 'newton_cholesky')
-    opts = ({ 'max_pd_iter': 5000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': 4,
+    methods = ('pd_pardiso', 'newton_pardiso')
+    opts = ({ 'max_pd_iter': 5000, 'max_ls_iter': 3, 'abs_tol': 1e-4, 'rel_tol': 1e-2, 'verbose': 1, 'thread_ct': 8,
                 'use_bfgs': 1, 'bfgs_history_size': 10 },
-            { 'max_newton_iter': 5000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': 4 },)
+            { 'max_newton_iter': 5000, 'max_ls_iter': 3, 'abs_tol': 1e-4, 'rel_tol': 1e-2, 'verbose': 1, 'thread_ct': 8 },)
 
     # Compute the initial state.
     dofs = deformable.dofs()

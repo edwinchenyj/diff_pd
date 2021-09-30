@@ -23,12 +23,11 @@ def test_benchmark_3d(verbose):
     # Setting thread number.
     thread_cts = [2, 4, 8, 12]
 
-    methods = ('newton_pcg', 'newton_cholesky', 'pd_eigen', 'pd_no_bfgs')
-    opts = ({ 'max_newton_iter': 5000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': 4 },
-        { 'max_newton_iter': 5000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': 4 },
-        { 'max_pd_iter': 5000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': 4,
+    methods = ( 'pd_eigen', 'pd_no_bfgs')
+    opts = (
+        { 'max_pd_iter': 1000, 'max_ls_iter': 10, 'abs_tol': 1e-5, 'rel_tol': 1e-3, 'verbose': 0, 'thread_ct': 4,
             'use_bfgs': 1, 'bfgs_history_size': 10 },
-        { 'max_pd_iter': 5000, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': 4,
+        { 'max_pd_iter': 1000, 'max_ls_iter': 10, 'abs_tol': 1e-5, 'rel_tol': 1e-3, 'verbose': 0, 'thread_ct': 4,
             'use_bfgs': 0, 'bfgs_history_size': 10 })
 
     dofs = deformable.dofs()
@@ -40,7 +39,7 @@ def test_benchmark_3d(verbose):
 
     # Visualization.
     dt = 1e-2
-    frame_num = 25
+    frame_num = 20
     if verbose:
         for method, opt in zip(methods, opts):
             env.simulate(dt, frame_num,

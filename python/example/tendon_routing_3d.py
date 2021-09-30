@@ -19,7 +19,7 @@ if __name__ == '__main__':
     folder = Path('tendon_routing_3d')
     youngs_modulus = 5e5
     poissons_ratio = 0.45
-    target = ndarray([0.2, 0.2, 0.45])
+    target = ndarray([0.2, 0., 0.25])
     refinement = 2
     muscle_cnt = 4
     muscle_ext = 4
@@ -45,11 +45,12 @@ if __name__ == '__main__':
     opts = (pd_opt, newton_opt, newton_opt)
 
     dt = 1e-2
-    frame_num = 100
+    frame_num = 1
 
     # Initial state.
     dofs = deformable.dofs()
     act_dofs = deformable.act_dofs()
+    print(f'act_dofs: {act_dofs}')
     q0 = env.default_init_position()
     v0 = np.zeros(dofs)
     f0 = [np.zeros(dofs) for _ in range(frame_num)]
