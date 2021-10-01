@@ -62,8 +62,7 @@ public:
 
     template<typename Rhs> inline const Solve<DeformablePreconditioner, Rhs>
     solve(const MatrixBase<Rhs>& b) const {
-        eigen_assert((rows_ == b.rows() && rows_ == cols_) &&
-            && "DiagonalPreconditioner::solve(): invalid number of rows of the right hand side matrix b");
+        eigen_assert((rows_ == b.rows() && rows_ == cols_));
         return Solve<DeformablePreconditioner, Rhs>(*this, b.derived());
     }
 
