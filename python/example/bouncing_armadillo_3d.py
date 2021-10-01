@@ -28,11 +28,11 @@ if __name__ == '__main__':
     newton_opt = { 'max_newton_iter': 500, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': thread_ct }
     pd_opt = { 'max_pd_iter': 500, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 0, 'thread_ct': thread_ct,
         'use_bfgs': 1, 'bfgs_history_size': 10 }
-    methods = ('newton_pcg', 'newton_cholesky', 'pd_eigen')
+    methods = ('newton_pcg', 'newton_cholesky', 'sibe')
     opts = (newton_opt, newton_opt, pd_opt)
 
     dt = 4e-3
-    frame_num = 50
+    frame_num = 1
 
     # Compute the initial state.
     dofs = deformable.dofs()

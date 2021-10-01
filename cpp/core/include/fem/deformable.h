@@ -166,6 +166,9 @@ protected:
     void ForwardNewton(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
         const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
         std::vector<int>& active_contact_idx) const;
+    void ForwardSIBE(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
+        const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
+        std::vector<int>& active_contact_idx) const;
     void ForwardProjectiveDynamics(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a,
         const VectorXr& f_ext, const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
         std::vector<int>& active_contact_idx) const;
