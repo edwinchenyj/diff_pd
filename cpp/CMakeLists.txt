@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 project(diff_pd)
 
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(CMAKE_CXX_STANDARD 14)
@@ -21,7 +21,7 @@ if(OpenMP_CXX_FOUND)
 endif()
 
 # Pardiso.
-option(PARDISO_AVAILABLE "Pardiso" OFF)
+option(PARDISO_AVAILABLE "Pardiso" ON)
 if(PARDISO_AVAILABLE)
     add_definitions(-DPARDISO_AVAILABLE)
     add_library(pardiso SHARED IMPORTED)
@@ -60,3 +60,42 @@ endif()
 file(GLOB DEMO_CPP "./main.cpp")
 add_executable(diff_pd_demo ${DEMO_CPP})
 target_link_libraries(diff_pd_demo diff_pd_core)
+
+include(FetchContent)
+include(CTest)
+
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+
+# Get Catch2
+FetchContent_Declare(Catch2 URL
+https://github.com/catchorg/Catch2/archive/v2.13.7.zip)
+  # Use FetchContent to to download and make Catch2 part of our CMake build.
+set(CATCH_INSTALL_HELPERS OFF)
+set(CATCH_BUILD_EXAMPLES OFF)
+set(CATCH_BUILD_EXTRA_TESTS OFF)
+set(CATCH_BUILD_TESTING OFF)
+set(CATCH_INSTALL_DOCS OFF)
+
+FetchContent_MakeAvailable(Catch2)
+
+file(GLOB test-sources CONFIGURE_DEPENDS tests/*.cxx)
+add_executable(${PROJECT_NAME}-tests "${test-sources}")
+
+# Mark the tests as needing Catch benchmark infrastructure which
+# off by default
+target_compile_definitions(${PROJECT_NAME}-tests
+  PRIVATE
+  CATCH_CONFIG_ENABLE_BENCHMARKING
+  )
+
+#
+target_link_libraries(${PROJECT_NAME}-tests
+  PRIVATE
+    Catch2::Catch2
+    diff_pd_core
+  )
+
+# catch_discover_tests will automatically convert each catch2
+# test case into a separate ctest entry
+include(${Catch2_SOURCE_DIR}/contrib/Catch.cmake)
+catch_discover_tests(${PROJECT_NAME}-tests)
