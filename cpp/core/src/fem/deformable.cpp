@@ -25,6 +25,16 @@ void Deformable<vertex_dim, element_dim>::Initialize(const Eigen::Matrix<real, v
     const std::string& material_type, const real youngs_modulus, const real poissons_ratio) {
     mesh_.Initialize(vertices, elements);
     InitializeAfterMesh(density, material_type, youngs_modulus, poissons_ratio);
+    lumped_mass.resize(vertices.rows()*vertices.cols());
+    const int element_num = static_cast<int>(elements.cols());
+    for (int e = 0; e < element_num; ++e) {
+        for(int k = 0; k < element_dim; ++k){
+            int vertex_index = elements(k,e);
+            for(int vi = 0; vi < vertex_dim; ++vi){
+                lumped_mass[vertex_dim*vertex_index +vi] += density*mesh_.element_volume(e)/element_dim;
+            }
+        }
+    }
 }
 
 template<int vertex_dim, int element_dim>
@@ -32,6 +42,7 @@ void Deformable<vertex_dim, element_dim>::InitializeAfterMesh(const real density
     const std::string& material_type, const real youngs_modulus, const real poissons_ratio) {
     density_ = density;
     element_volume_ = mesh_.average_element_volume();
+    
     material_ = InitializeMaterial(material_type, youngs_modulus, poissons_ratio);
     dofs_ = vertex_dim * mesh_.NumOfVertices();
     InitializeFiniteElementSamples();
@@ -57,6 +68,12 @@ const std::shared_ptr<Material<vertex_dim>> Deformable<vertex_dim, element_dim>:
         PrintError("Unidentified material: " + material_type);
     }
     return material;
+}
+template<int vertex_dim, int element_dim>
+const SparseMatrix Deformable<vertex_dim, element_dim>::LumpedMassMatrix(const std::map<int, real>& dirichlet_with_friction) const {
+    SparseMatrixElements nonzeros(dofs_);
+    return ToSparseMatrix(dofs_, dofs_, nonzeros);
+
 }
 
 template<int vertex_dim, int element_dim>

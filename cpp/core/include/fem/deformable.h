@@ -211,6 +211,9 @@ protected:
     // See the header file for a detailed explanation.
     std::vector<std::vector<FiniteElementSample<vertex_dim, element_dim>>> finite_element_samples_;
     // End of methods and data members that need implementations from derived classes.
+    const SparseMatrix LumpedMassMatrix(const std::map<int, real>& dirichlet_with_friction) const;
+    std::vector<real> lumped_mass;
+    std::vector<real> inv_lumped_mass;
 
 private:
     void AssignToGlobalDeformable() const;
@@ -223,6 +226,10 @@ private:
     const VectorXr NewtonMatrixOp(const VectorXr& q_sol, const VectorXr& a, const real inv_h2m,
         const std::map<int, real>& dirichlet_with_friction, const VectorXr& dq) const;
     const SparseMatrix NewtonMatrix(const VectorXr& q_sol, const VectorXr& a, const real inv_h2m,
+        const std::map<int, real>& dirichlet_with_friction, const bool use_precomputed_data) const;
+    const SparseMatrix NewtonMatrix(const VectorXr& q_sol, const VectorXr& a, const std::vector<real> inv_h2m,
+        const std::map<int, real>& dirichlet_with_friction, const bool use_precomputed_data) const;
+    const SparseMatrix StiffnessMatrix(const VectorXr& q_sol, const VectorXr& a, const real inv_h2m,
         const std::map<int, real>& dirichlet_with_friction, const bool use_precomputed_data) const;
     const VectorXr QuasiStaticMatrixOp(const VectorXr& q, const VectorXr& a, const VectorXr& dq) const;
     const SparseMatrix QuasiStaticMatrix(const VectorXr& q, const VectorXr& a) const;

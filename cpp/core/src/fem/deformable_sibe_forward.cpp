@@ -30,9 +30,13 @@ void Deformable<vertex_dim, element_dim>::ForwardSIBE(const std::string& method,
         // TODO: this mass is wrong for tri or tet meshes.
         const real mass = element_volume_ * density_;
         const real h2m = dt * dt / mass;
-        const VectorXr force = ForwardStateForce(q, v);
+        const VectorXr state_force = ForwardStateForce(q, v);
         const real inv_h2m = mass / (h * h);
+        std::vector<real> inv_h2_lumped_mass;
+        std::transform(lumped_mass.begin(),lumped_mass.end(), std::back_inserter(inv_h2_lumped_mass),[&h](real mass)-> real { return mass/(h * h);});
         const int max_contact_iter = 5;
+
+        const bool use_precomputed_data = !pd_element_energies_.empty();
         for (int contact_iter = 0; contact_iter < max_contact_iter; ++contact_iter) {
             if (verbose_level > 0) std::cout << "Contact iteration " << contact_iter << std::endl;
             // Fix dirichlet_ + active_contact_nodes.
@@ -49,11 +53,76 @@ void Deformable<vertex_dim, element_dim>::ForwardSIBE(const std::string& method,
                 q_sol(pair.first) = pair.second;
                 selected(pair.first) = 0;
             }
-
+            if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol);
+            VectorXr force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_precomputed_data) + ActuationForce(q_sol, a);
+            real energy_sol = ElasticEnergy(q_sol) + ComputePdEnergy(q_sol, use_precomputed_data) + ActuationEnergy(q_sol, a);
+            if (verbose_level > 1) Tic();
+            const SparseMatrix op = NewtonMatrix(q_sol, a, inv_h2m, augmented_dirichlet, use_precomputed_data);
+            if (verbose_level > 1) Toc("Assemble NewtonMatrix");
         }
 
 
     }
+
+    
+template<int vertex_dim, int element_dim>
+const SparseMatrix Deformable<vertex_dim, element_dim>::StiffnessMatrix(const VectorXr& q_sol, const VectorXr& a,
+    const real inv_h2m, const std::map<int, real>& dirichlet_with_friction, const bool use_precomputed_data) const {
+    SparseMatrixElements nonzeros = ElasticForceDifferential(q_sol);
+    SparseMatrixElements nonzeros_pd, nonzeros_dummy;
+    PdEnergyForceDifferential(q_sol, true, false, use_precomputed_data, nonzeros_pd, nonzeros_dummy);
+    SparseMatrixElements nonzeros_act_dq, nonzeros_act_da, nonzeros_act_dw;
+    ActuationForceDifferential(q_sol, a, nonzeros_act_dq, nonzeros_act_da, nonzeros_act_dw);
+    nonzeros.insert(nonzeros.end(), nonzeros_pd.begin(), nonzeros_pd.end());
+    nonzeros.insert(nonzeros.end(), nonzeros_act_dq.begin(), nonzeros_act_dq.end());
+    SparseMatrixElements nonzeros_new;
+    for (const auto& element : nonzeros) {
+        const int row = element.row();
+        const int col = element.col();
+        const real val = element.value();
+        if (dirichlet_with_friction.find(row) != dirichlet_with_friction.end()
+            || dirichlet_with_friction.find(col) != dirichlet_with_friction.end()) continue;
+        nonzeros_new.push_back(Eigen::Triplet<real>(row, col, -val));
+    }
+    for (int i = 0; i < dofs_; ++i) {
+        if (dirichlet_with_friction.find(i) != dirichlet_with_friction.end())
+            nonzeros_new.push_back(Eigen::Triplet<real>(i, i, 1));
+        else
+            nonzeros_new.push_back(Eigen::Triplet<real>(i, i, inv_h2m));
+    }
+    return ToSparseMatrix(dofs_, dofs_, nonzeros_new);
+}
+
+
+template<int vertex_dim, int element_dim>
+const SparseMatrix Deformable<vertex_dim, element_dim>::NewtonMatrix(const VectorXr& q_sol, const VectorXr& a,
+    const std::vector<real> inv_h2m, const std::map<int, real>& dirichlet_with_friction, const bool use_precomputed_data) const {
+    SparseMatrixElements nonzeros = ElasticForceDifferential(q_sol);
+    SparseMatrixElements nonzeros_pd, nonzeros_dummy;
+    PdEnergyForceDifferential(q_sol, true, false, use_precomputed_data, nonzeros_pd, nonzeros_dummy);
+    SparseMatrixElements nonzeros_act_dq, nonzeros_act_da, nonzeros_act_dw;
+    ActuationForceDifferential(q_sol, a, nonzeros_act_dq, nonzeros_act_da, nonzeros_act_dw);
+    nonzeros.insert(nonzeros.end(), nonzeros_pd.begin(), nonzeros_pd.end());
+    nonzeros.insert(nonzeros.end(), nonzeros_act_dq.begin(), nonzeros_act_dq.end());
+    SparseMatrixElements nonzeros_new;
+    for (const auto& element : nonzeros) {
+        const int row = element.row();
+        const int col = element.col();
+        const real val = element.value();
+        if (dirichlet_with_friction.find(row) != dirichlet_with_friction.end()
+            || dirichlet_with_friction.find(col) != dirichlet_with_friction.end()) continue;
+        nonzeros_new.push_back(Eigen::Triplet<real>(row, col, -val));
+    }
+    for (int i = 0; i < dofs_; ++i) {
+        if (dirichlet_with_friction.find(i) != dirichlet_with_friction.end())
+            nonzeros_new.push_back(Eigen::Triplet<real>(i, i, 1));
+        else
+            nonzeros_new.push_back(Eigen::Triplet<real>(i, i, inv_h2m[i]));
+    }
+    return ToSparseMatrix(dofs_, dofs_, nonzeros_new);
+}
+
+
 
 
 template class Deformable<2, 3>;
