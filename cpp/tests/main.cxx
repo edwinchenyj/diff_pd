@@ -99,59 +99,7 @@ TEST_CASE("Initialize single hex"){
     hex.Initialize(undeformed_vertices, elements, density, "neohookean", youngs_modulus, poissons_ratio);
     REQUIRE(hex.GetLumpedMassMatrixSize() == 24);
     REQUIRE(hex.GetLumpedMassSum() == 3 * 1 * density);
-    REQUIRE(hex.GetQNextStepForward().size() == 24);
 
-}
-
-TEST_CASE("Spot Forward sim for hex mesh"){
-    std::string file = "spot.bin";
-    HexTest hex;
-    real density = 1000;
-    real youngs_modulus = 1e5;
-    real poissons_ratio = 0.45;
-    hex.Initialize(file, density, "neohookean", youngs_modulus, poissons_ratio);
-    
-    REQUIRE(hex.GetQNextStepForward().size() == 24);
-}
-TEST_CASE("Torus Forward sim for hex mesh"){
-    std::string file = "torus.bin";
-    HexTest hex;
-    real density = 1000;
-    real youngs_modulus = 1e5;
-    real poissons_ratio = 0.45;
-    hex.Initialize(file, density, "neohookean", youngs_modulus, poissons_ratio);
-    
-    REQUIRE(hex.GetQNextStepForward().size() == 24);
-}
-TEST_CASE("lock Forward sim for hex mesh"){
-    std::string file = "lock.bin";
-    HexTest hex;
-    real density = 1000;
-    real youngs_modulus = 1e5;
-    real poissons_ratio = 0.45;
-    hex.Initialize(file, density, "neohookean", youngs_modulus, poissons_ratio);
-    
-    REQUIRE(hex.GetQNextStepForward().size() == 24);
-}
-TEST_CASE("plant Forward sim for hex mesh"){
-    std::string file = "plant.bin";
-    HexTest hex;
-    real density = 1000;
-    real youngs_modulus = 1e5;
-    real poissons_ratio = 0.45;
-    hex.Initialize(file, density, "neohookean", youngs_modulus, poissons_ratio);
-    
-    REQUIRE(hex.GetQNextStepForward().size() == 24);
-}
-TEST_CASE("bunny Forward sim for hex mesh"){
-    std::string file = "bunny_watertight.bin";
-    HexTest hex;
-    real density = 1000;
-    real youngs_modulus = 1e5;
-    real poissons_ratio = 0.45;
-    hex.Initialize(file, density, "neohookean", youngs_modulus, poissons_ratio);
-    
-    REQUIRE(hex.GetQNextStepForward().size() == 24);
 }
 
 
