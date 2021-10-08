@@ -54,27 +54,6 @@ class HexTest: public HexDeformable {
         return sum;
     }
 
-    VectorXr GetQNextStepForward(){
-        std::map<std::string, real> options;
-        options["max_newton_iter"] = 500;
-        options["max_ls_iter"] = 10;
-        options["abs_tol"] = 1e-9;
-        options["rel_tol"] = 1e-4;
-        options["verbose"] = 2;
-        options["thread_ct"] = 1;
-        Eigen::Map<const VectorXr> q(mesh().vertices().data(), mesh().vertices().size());
-        VectorXr v(mesh().vertices().size()), f_ext(mesh().vertices().size()), q_next(mesh().vertices().size()), v_next(mesh().vertices().size());
-        f_ext.setZero();
-        q_next.setZero();
-        v_next.setZero();
-        VectorXr a(0);
-        std::vector<int> contact;
-        real dt = 0.005;
-        Forward("newton_pardiso",q,v,a,f_ext,dt,options,q_next,v_next,contact);
-
-        return q_next;
-    }
-
 };
 
 
@@ -121,6 +100,63 @@ TEST_CASE("Initialize single tet"){
     REQUIRE(tet.GetLumpedMassMatrixSize() == 12);
     REQUIRE(tet.GetLumpedMassSum() == 3.0 * 1/6 * density);
 
+}
+
+TEST_CASE("Forward sim for a single tet with free bc with gravity"){
+    Eigen::Matrix<real, 3, 4> undeformed_vertices;
+    Eigen::Matrix<int, 4, 1> elements;
+    real density = 1000;
+    real youngs_modulus = 1e5;
+    real poissons_ratio = 0.45;
+    undeformed_vertices <<  0, 0, 0, 1,
+                            0, 0, 1, 0, 
+                            0, 1, 0, 0;
+    elements << 0,
+                1,
+                2,
+                3;
+    TetTest tet;
+    tet.Initialize(undeformed_vertices, elements, density, "neohookean", youngs_modulus, poissons_ratio);
+    
+    std::vector<real> state_force_params{0,0,-9.81};
+    tet.AddStateForce("gravity",state_force_params);
+    std::map<std::string, real> options;
+    options["max_newton_iter"] = 500;
+    options["max_ls_iter"] = 10;
+    options["abs_tol"] = 1e-9;
+    options["rel_tol"] = 1e-4;
+    options["verbose"] = 2;
+    options["thread_ct"] = 1;
+    VectorXr v(12), f_ext(12), q_next(12), v_next(12);
+    Eigen::Map<VectorXr> q(undeformed_vertices.data(), undeformed_vertices.size());
+    v.setZero();
+    f_ext.setZero();
+    q_next.setZero();
+    v_next.setZero();
+    VectorXr a(0);
+    std::vector<int> contact;
+    real dt = 0.005;
+    REQUIRE(tet.GetQNextStepForward("newton_pardiso",q,v,a,f_ext,dt,options,q_next,v_next,contact).size() == 12);
+    REQUIRE(q_next[2] != q[2]);
+    REQUIRE(q_next[5] != q[5]);
+    REQUIRE(q_next[8] != q[8]);
+}
+
+TEST_CASE("Forward sim for a single tet with free bc no gravity"){
+    Eigen::Matrix<real, 3, 4> undeformed_vertices;
+    Eigen::Matrix<int, 4, 1> elements;
+    real density = 1000;
+    real youngs_modulus = 1e5;
+    real poissons_ratio = 0.45;
+    undeformed_vertices <<  0, 0, 0, 1,
+                            0, 0, 1, 0, 
+                            0, 1, 0, 0;
+    elements << 0,
+                1,
+                2,
+                3;
+    TetTest tet;
+    tet.Initialize(undeformed_vertices, elements, density, "neohookean", youngs_modulus, poissons_ratio);
     
     std::map<std::string, real> options;
     options["max_newton_iter"] = 500;
@@ -139,47 +175,92 @@ TEST_CASE("Initialize single tet"){
     std::vector<int> contact;
     real dt = 0.005;
     REQUIRE(tet.GetQNextStepForward("newton_pardiso",q,v,a,f_ext,dt,options,q_next,v_next,contact).size() == 12);
+    REQUIRE(q_next[2] == q[2]);
+    REQUIRE(q_next[5] == q[5]);
+    REQUIRE(q_next[8] == q[8]);
 }
 
-// TEST_CASE("Initialize deformable with single hex"){
-//     Eigen::Matrix<real, 3, 4> undeformed_vertices;
-//     undeformed_vertices <<  0, 1, 1, 0, 0, 1, 1, 0,
-//                             0, 0, 1, 1, 0, 0, 1, 1,
-//                             0, 0, 0, 1, 1, 1, 1, 1;
-//     Eigen::Matrix<int, 4, 1> elements;
-//     elements << 0,
-//                 1,
-//                 2,
-//                 3,
-//                 4,
-//                 5,
-//                 6,
-//                 7;
-//     HexDeformable hex;
+TEST_CASE("Forward sim for a single tet with one fixed bc no gravity"){
+    Eigen::Matrix<real, 3, 4> undeformed_vertices;
+    Eigen::Matrix<int, 4, 1> elements;
+    real density = 1000;
+    real youngs_modulus = 1e5;
+    real poissons_ratio = 0.45;
+    undeformed_vertices <<  0, 0, 0, 1,
+                            0, 0, 1, 0, 
+                            0, 1, 0, 0;
+    elements << 0,
+                1,
+                2,
+                3;
+    TetTest tet;
+    tet.Initialize(undeformed_vertices, elements, density, "neohookean", youngs_modulus, poissons_ratio);
+    
+    std::map<std::string, real> options;
+    options["max_newton_iter"] = 500;
+    options["max_ls_iter"] = 10;
+    options["abs_tol"] = 1e-9;
+    options["rel_tol"] = 1e-4;
+    options["verbose"] = 2;
+    options["thread_ct"] = 1;
+    VectorXr v(12), f_ext(12), q_next(12), v_next(12);
+    Eigen::Map<VectorXr> q(undeformed_vertices.data(), undeformed_vertices.size());
+    v.setZero();
+    f_ext.setZero();
+    q_next.setZero();
+    v_next.setZero();
+    VectorXr a(0);
+    std::vector<int> contact{0,1,2};
+    real dt = 0.005;
+    tet.GetQNextStepForward("newton_pardiso",q,v,a,f_ext,dt,options,q_next,v_next,contact);
+    REQUIRE(q_next.size() == 12);
+    REQUIRE(q_next[0] == q[0]);
+    REQUIRE(q_next[1] == q[1]);
+    REQUIRE(q_next[2] == q[2]);
+}
 
-//     real youngs_modulus = 1e5;
-//     real poissons_ratio = 0.45;
-//     hex.Initialize(undeformed_vertices, elements, 1000, "neohookean", youngs_modulus, poissons_ratio);
-//     REQUIRE(hex.LumpedMassMatrix().rows() == 24);
-//     std::map<std::string, real> options;
-//     options["max_newton_iter"] = 500;
-//     options["max_ls_iter"] = 10;
-//     options["abs_tol"] = 1e-9;
-//     options["rel_tol"] = 1e-4;
-//     options["verbose"] = 2;
-//     options["thread_ct"] = 1;
-//     VectorXr v(24), f_ext(24), q_next(24), v_next(24);
-//     Eigen::Map<VectorXr> q(undeformed_vertices.data(), undeformed_vertices.size());
-//     v.setZero();
-//     f_ext.setZero();
-//     q_next.setZero();
-//     v_next.setZero();
-//     VectorXr a(0);
-//     std::vector<int> contact;
-//     real dt = 0.005;
+TEST_CASE("Forward sim for a single tet with one fixed bc with gravity"){
+    Eigen::Matrix<real, 3, 4> undeformed_vertices;
+    Eigen::Matrix<int, 4, 1> elements;
+    real density = 1000;
+    real youngs_modulus = 1e5;
+    real poissons_ratio = 0.45;
+    undeformed_vertices <<  0, 0, 0, 1,
+                            0, 0, 1, 0, 
+                            0, 1, 0, 0;
+    elements << 0,
+                1,
+                2,
+                3;
+    TetTest tet;
+    tet.Initialize(undeformed_vertices, elements, density, "neohookean", youngs_modulus, poissons_ratio);
+    
+    std::vector<real> state_force_params{0,0,-9.81};
+    tet.AddStateForce("gravity",state_force_params);
 
-//     tet.Forward("newton_pardiso",q,v,a,f_ext,dt,options,q_next,v_next,contact);
-// }
+    std::map<std::string, real> options;
+    options["max_newton_iter"] = 500;
+    options["max_ls_iter"] = 10;
+    options["abs_tol"] = 1e-9;
+    options["rel_tol"] = 1e-4;
+    options["verbose"] = 2;
+    options["thread_ct"] = 1;
+    VectorXr v(12), f_ext(12), q_next(12), v_next(12);
+    Eigen::Map<VectorXr> q(undeformed_vertices.data(), undeformed_vertices.size());
+    v.setZero();
+    f_ext.setZero();
+    q_next.setZero();
+    v_next.setZero();
+    VectorXr a(0);
+    std::vector<int> contact{0};
+    real dt = 0.005;
+    tet.GetQNextStepForward("newton_pardiso",q,v,a,f_ext,dt,options,q_next,v_next,contact);
+    REQUIRE(q_next.size() == 12);
+    REQUIRE(q_next[2] == q[2]);
+    REQUIRE(q_next[5] != q[5]);
+    REQUIRE(q_next[8] != q[8]);
+}
+
 // TEST_CASE("Initialize deformable with single tet"){
 //     Eigen::Matrix<real, 3, 4> undeformed_vertices;
 //     undeformed_vertices <<  0, 0, 0, 1,
