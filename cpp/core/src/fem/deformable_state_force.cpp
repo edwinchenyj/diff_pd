@@ -13,9 +13,8 @@ void Deformable<vertex_dim, element_dim>::AddStateForce(const std::string& force
         CheckError(param_size == vertex_dim, "Inconsistent params for GravitionalStateForce.");
         Eigen::Matrix<real, vertex_dim, 1> g;
         for (int i = 0; i < vertex_dim; ++i) g[i] = params[i];
-        const real mass = density_ * element_volume_;
         auto force = std::make_shared<GravitationalStateForce<vertex_dim>>();
-        force->Initialize(mass, g);
+        force->Initialize(lumped_mass_, g);
         state_forces_.push_back(force);
     } else if (force_type == "planar_contact") {
         CheckError(param_size == 5 + vertex_dim, "Inconsistent params for PlanarContactStateForce.");

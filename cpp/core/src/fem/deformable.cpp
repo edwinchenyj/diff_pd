@@ -25,13 +25,13 @@ void Deformable<vertex_dim, element_dim>::Initialize(const Eigen::Matrix<real, v
     const std::string& material_type, const real youngs_modulus, const real poissons_ratio) {
     mesh_.Initialize(vertices, elements);
     InitializeAfterMesh(density, material_type, youngs_modulus, poissons_ratio);
-    lumped_mass.resize(vertices.rows()*vertices.cols());
+    lumped_mass_.resize(vertices.rows()*vertices.cols());
     const int element_num = static_cast<int>(elements.cols());
     for (int e = 0; e < element_num; ++e) {
         for(int k = 0; k < element_dim; ++k){
             int vertex_index = elements(k,e);
             for(int vi = 0; vi < vertex_dim; ++vi){
-                lumped_mass[vertex_dim*vertex_index +vi] += density*mesh_.element_volume(e)/element_dim;
+                lumped_mass_[vertex_dim*vertex_index +vi] += density*mesh_.element_volume(e)/element_dim;
             }
         }
     }

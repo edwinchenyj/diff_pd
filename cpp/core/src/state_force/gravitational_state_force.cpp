@@ -11,12 +11,23 @@ void GravitationalStateForce<vertex_dim>::Initialize(const real mass, const Eige
 }
 
 template<int vertex_dim>
+void GravitationalStateForce<vertex_dim>::Initialize(const std::vector<real> lumped_mass, const Eigen::Matrix<real, vertex_dim, 1>& g) {
+    lumped_mass_ = lumped_mass;
+    StateForce<vertex_dim>::set_parameters(g);
+}
+
+template<int vertex_dim>
 const VectorXr GravitationalStateForce<vertex_dim>::ForwardForce(const VectorXr& q, const VectorXr& v) const {
     const int dofs = static_cast<int>(q.size());
     CheckError(dofs % vertex_dim == 0, "Incompatible dofs and vertex_dim.");
     VectorXr f = VectorXr::Zero(dofs);
     for (int i = 0; i < dofs; ++i)
-        f(i) = mass_ * g()(i % vertex_dim);
+    {
+        if(!lumped_mass_.empty())
+            f(i) = lumped_mass_[i] * g()(i % vertex_dim);
+        else
+            f(i) = mass_ *  g() (i % vertex_dim); //
+    }
     return f;
 }
 

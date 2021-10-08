@@ -33,7 +33,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIBE(const std::string& method,
         const VectorXr state_force = ForwardStateForce(q, v);
         const real inv_h2m = mass / (h * h);
         std::vector<real> inv_h2_lumped_mass;
-        std::transform(lumped_mass.begin(),lumped_mass.end(), std::back_inserter(inv_h2_lumped_mass),[&h](real mass)-> real { return mass/(h * h);});
+        std::transform(lumped_mass_.begin(),lumped_mass_.end(), std::back_inserter(inv_h2_lumped_mass),[&h](real mass)-> real { return mass/(h * h);});
         const int max_contact_iter = 5;
 
         const bool use_precomputed_data = !pd_element_energies_.empty();
