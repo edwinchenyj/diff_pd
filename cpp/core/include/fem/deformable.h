@@ -213,7 +213,7 @@ protected:
     // End of methods and data members that need implementations from derived classes.
     const SparseMatrix LumpedMassMatrix(const std::map<int, real>& dirichlet_with_friction) const;
     std::vector<real> lumped_mass_;
-    std::vector<real> inv_lumped_mass;
+    
 
 private:
     void AssignToGlobalDeformable() const;
@@ -229,7 +229,7 @@ private:
         const std::map<int, real>& dirichlet_with_friction, const bool use_precomputed_data) const;
     const SparseMatrix NewtonMatrix(const VectorXr& q_sol, const VectorXr& a, const std::vector<real> inv_h2m,
         const std::map<int, real>& dirichlet_with_friction, const bool use_precomputed_data) const;
-    const SparseMatrix StiffnessMatrix(const VectorXr& q_sol, const VectorXr& a, const real inv_h2m,
+    const SparseMatrix StiffnessMatrix(const VectorXr& q_sol, const VectorXr& a,
         const std::map<int, real>& dirichlet_with_friction, const bool use_precomputed_data) const;
     const VectorXr QuasiStaticMatrixOp(const VectorXr& q, const VectorXr& a, const VectorXr& dq) const;
     const SparseMatrix QuasiStaticMatrix(const VectorXr& q, const VectorXr& a) const;

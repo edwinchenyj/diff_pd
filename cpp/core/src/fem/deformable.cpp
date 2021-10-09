@@ -71,9 +71,15 @@ const std::shared_ptr<Material<vertex_dim>> Deformable<vertex_dim, element_dim>:
 }
 template<int vertex_dim, int element_dim>
 const SparseMatrix Deformable<vertex_dim, element_dim>::LumpedMassMatrix(const std::map<int, real>& dirichlet_with_friction) const {
-    SparseMatrixElements nonzeros(dofs_);
-    return ToSparseMatrix(dofs_, dofs_, nonzeros);
+    SparseMatrixElements nonzeros_new;
+        for (int i = 0; i < dofs_; ++i) {
+        if (dirichlet_with_friction.find(i) != dirichlet_with_friction.end())
+            nonzeros_new.push_back(Eigen::Triplet<real>(i, i, 1));
+        else
+            nonzeros_new.push_back(Eigen::Triplet<real>(i, i, lumped_mass_[i]));
+    }
 
+    return ToSparseMatrix(dofs_, dofs_, nonzeros_new);
 }
 
 template<int vertex_dim, int element_dim>

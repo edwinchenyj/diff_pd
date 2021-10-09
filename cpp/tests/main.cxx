@@ -142,33 +142,63 @@ TEST_CASE("Forward sim for a single tet"){
         tet.AddStateForce("gravity",state_force_params);
         SECTION("With no constraint"){
             std::vector<int> constraint;
-            q_next = tet.GetQNextStepForward("newton_pardiso",constraint);
-            REQUIRE(q_next.size() == 12);
-            REQUIRE(q_next[2] != q[2]);
-            REQUIRE(q_next[5] != q[5]);
-            REQUIRE(q_next[8] != q[8]);
+            SECTION("Newton pardiso"){
+                q_next = tet.GetQNextStepForward("newton_pardiso",constraint);
+                REQUIRE(q_next.size() == 12);
+                REQUIRE(q_next[2] != q[2]);
+                REQUIRE(q_next[5] != q[5]);
+                REQUIRE(q_next[8] != q[8]);
+            }
+            SECTION("SIBE"){
+                q_next = tet.GetQNextStepForward("sibe",constraint);
+                REQUIRE(q_next.size() == 12);
+                REQUIRE(q_next[2] != q[2]);
+                REQUIRE(q_next[5] != q[5]);
+                REQUIRE(q_next[8] != q[8]);
+            }
 
         }
 
         SECTION("With 1 constraint"){
             std::vector<int> constraint{0};
-            q_next = tet.GetQNextStepForward("newton_pardiso",constraint);
-            REQUIRE(q_next.size() == 12);
-            REQUIRE(q_next[2] == q[2]);
-            REQUIRE(q_next[5] != q[5]);
-            REQUIRE(q_next[8] != q[8]);
+            SECTION("Newton pardiso"){
+                q_next = tet.GetQNextStepForward("newton_pardiso",constraint);
+                REQUIRE(q_next.size() == 12);
+                REQUIRE(q_next[2] == q[2]);
+                REQUIRE(q_next[5] != q[5]);
+                REQUIRE(q_next[8] != q[8]);
+            }
+            SECTION("SIBE"){
+                q_next = tet.GetQNextStepForward("sibe",constraint);
+                REQUIRE(q_next.size() == 12);
+                REQUIRE(q_next[2] == q[2]);
+                REQUIRE(q_next[5] != q[5]);
+                REQUIRE(q_next[8] != q[8]);
+            }
 
         }
    }
 
     SECTION("Without out gravity"){
         std::vector<int> constraint;
-        q_next = tet.GetQNextStepForward("newton_pardiso",constraint);
-        REQUIRE(q_next.size() == 12);
-        REQUIRE(q_next[2] == q[2]);
-        REQUIRE(q_next[5] == q[5]);
-        REQUIRE(q_next[8] == q[8]);
+
+        SECTION("Newton pardiso"){
+            q_next = tet.GetQNextStepForward("newton_pardiso",constraint);
+            REQUIRE(q_next.size() == 12);
+            REQUIRE(q_next[2] == q[2]);
+            REQUIRE(q_next[5] == q[5]);
+            REQUIRE(q_next[8] == q[8]);
+        }
+        SECTION("SIBE"){
+            q_next = tet.GetQNextStepForward("sibe",constraint);
+            REQUIRE(q_next.size() == 12);
+            REQUIRE(q_next[2] == q[2]);
+            REQUIRE(q_next[5] == q[5]);
+            REQUIRE(q_next[8] == q[8]);
+        }
     }
+
+
 }
 
 // TEST_CASE("Initialize deformable with single tet"){
