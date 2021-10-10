@@ -10,17 +10,11 @@ public:
     GravitationalStateForce();
 
     void Initialize(const real mass, const Eigen::Matrix<real, vertex_dim, 1>& g);
-    void Initialize(const std::vector<real> lumped_mass, const Eigen::Matrix<real, vertex_dim, 1>& g);
     void PyInitialize(const real mass, const std::array<real, vertex_dim>& g) {
         Eigen::Matrix<real, vertex_dim, 1> g_eig;
         for (int i = 0; i < vertex_dim; ++i) g_eig[i] = g[i];
         Initialize(mass, g_eig);
     }
-    // void PyInitialize(const std::vector<real> lumped_mass, const std::array<real, vertex_dim>& g) {
-    //     Eigen::Matrix<real, vertex_dim, 1> g_eig;
-    //     for (int i = 0; i < vertex_dim; ++i) g_eig[i] = g[i];
-    //     Initialize(lumped_mass, g_eig);
-    // }
 
     const real mass() const { return mass_; }
     const Eigen::Matrix<real, vertex_dim, 1> g() const { return StateForce<vertex_dim>::parameters().head(vertex_dim); }
@@ -31,7 +25,6 @@ public:
 
 private:
     real mass_;
-    std::vector<real> lumped_mass_;
 };
 
 #endif
