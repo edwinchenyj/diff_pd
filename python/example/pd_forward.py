@@ -28,7 +28,7 @@ def test_pd_forward(verbose):
         'spp': 4
     })
         # env = BenchmarkEnv3d(seed, folder, { 'refinement': 8 })
-        methods = ['pd_pardiso']
+        methods = ['sibe']
         opts = [{ 'max_pd_iter': 1000, 'max_ls_iter': 1, 'abs_tol': 1e-4, 'rel_tol': 1e-6, 'verbose': 0, 'thread_ct': 4,
                 'use_bfgs': 1, 'bfgs_history_size': 10 }]
         # Check if Pardiso is available
@@ -52,24 +52,6 @@ def test_pd_forward(verbose):
             q[method] = info['q']
             # print(f'forward time: {info['forward_time']}')
         
-        # Compare results.
-    #     atol = 1e-4
-    #     rtol = 5e-3
-    #     for qn, qp in zip(q['newton_pcg'], q['pd_eigen']):
-    #         state_equal = np.linalg.norm(qn - qp) < rtol * np.linalg.norm(qn) + atol
-    #         if not state_equal:
-    #             if verbose:
-    #                 print_error(np.linalg.norm(qn - qp), np.linalg.norm(qn))
-    #             return False
-
-    #     if pardiso_available:
-    #         for qn, qp in zip(q['newton_pcg'], q['pd_pardiso']):
-    #             state_equal = np.linalg.norm(qn - qp) < rtol * np.linalg.norm(qn) + atol
-    #             if not state_equal:
-    #                 if verbose:
-    #                     print_error(np.linalg.norm(qn - qp), np.linalg.norm(qn))
-    #                 return False
-
     #     # Visualize results.
         if verbose:
             print_info('PD and Newton solutions are the same.')
