@@ -34,6 +34,7 @@ endif()
 
 # Include directories.
 include_directories("../external/eigen")
+include_directories("../external/spectra/include")
 include_directories("./core/include")
 execute_process(COMMAND bash -c "python3-config --includes|sed 's/-I//g'|awk '{print $1;}'" OUTPUT_VARIABLE PYTHON_INCLUDES)
 include_directories(${PYTHON_INCLUDES})

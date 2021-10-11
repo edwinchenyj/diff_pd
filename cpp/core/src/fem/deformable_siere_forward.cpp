@@ -3,8 +3,9 @@
 #include "solver/matrix_op.h"
 #include "solver/pardiso_spd_solver.h"
 #include "Eigen/SparseCholesky"
+#include "Spectra/GenEigsBase.h"
 template<int vertex_dim, int element_dim>
-void Deformable<vertex_dim, element_dim>::ForwardSIBE(const std::string& method,
+void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method,
     const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext, const real dt,
     const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next, std::vector<int>& active_contact_idx) const {
         std::cout<<"forward sibe\n";
@@ -55,18 +56,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIBE(const std::string& method,
             if (verbose_level > 1) Tic();
             SparseMatrix lumped_mass = LumpedMassMatrix(augmented_dirichlet);
             if (verbose_level > 1) Toc("Assemble Mass Matrix");
-            SparseMatrix A = lumped_mass + h*h * stiffness;
-            VectorXr b = h * ((force_sol + state_force) -h*stiffness*v).array() * selected.array();
-
-            if (verbose_level > 1) Tic();
-            PardisoSpdSolver solver;
-            solver.Compute(A, options);
-            if (verbose_level > 1) Toc("Newton-Pardiso: decomposition");
-            if (verbose_level > 1) Tic();
-            VectorXr dv = solver.Solve(b);
-
-            v_next = v + dv;
-            q_next = q + h * v_next;
+            // TODO: implement siere
             break; // skip contact for now
 
             
