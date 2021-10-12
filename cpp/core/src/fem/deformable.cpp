@@ -69,6 +69,30 @@ const std::shared_ptr<Material<vertex_dim>> Deformable<vertex_dim, element_dim>:
     }
     return material;
 }
+
+
+template<int vertex_dim, int element_dim>
+const SparseMatrix Deformable<vertex_dim, element_dim>::StiffnessMatrix(const VectorXr& q_sol, const VectorXr& a, const std::map<int, real>& dirichlet_with_friction, const bool use_precomputed_data) const {
+    SparseMatrixElements nonzeros = ElasticForceDifferential(q_sol);
+    SparseMatrixElements nonzeros_pd, nonzeros_dummy;
+    PdEnergyForceDifferential(q_sol, true, false, use_precomputed_data, nonzeros_pd, nonzeros_dummy);
+    SparseMatrixElements nonzeros_act_dq, nonzeros_act_da, nonzeros_act_dw;
+    ActuationForceDifferential(q_sol, a, nonzeros_act_dq, nonzeros_act_da, nonzeros_act_dw);
+    nonzeros.insert(nonzeros.end(), nonzeros_pd.begin(), nonzeros_pd.end());
+    nonzeros.insert(nonzeros.end(), nonzeros_act_dq.begin(), nonzeros_act_dq.end());
+    SparseMatrixElements nonzeros_new;
+    for (const auto& element : nonzeros) {
+        const int row = element.row();
+        const int col = element.col();
+        const real val = element.value();
+        if (dirichlet_with_friction.find(row) != dirichlet_with_friction.end()
+            || dirichlet_with_friction.find(col) != dirichlet_with_friction.end()) continue;
+        nonzeros_new.push_back(Eigen::Triplet<real>(row, col, -val));
+    }
+    return ToSparseMatrix(dofs_, dofs_, nonzeros_new);
+}
+    
+
 template<int vertex_dim, int element_dim>
 const SparseMatrix Deformable<vertex_dim, element_dim>::LumpedMassMatrix(const std::map<int, real>& dirichlet_with_friction) const {
     SparseMatrixElements nonzeros_new;
@@ -77,6 +101,18 @@ const SparseMatrix Deformable<vertex_dim, element_dim>::LumpedMassMatrix(const s
             nonzeros_new.push_back(Eigen::Triplet<real>(i, i, 1));
         else
             nonzeros_new.push_back(Eigen::Triplet<real>(i, i, lumped_mass_[i]));
+    }
+
+    return ToSparseMatrix(dofs_, dofs_, nonzeros_new);
+}
+template<int vertex_dim, int element_dim>
+const SparseMatrix Deformable<vertex_dim, element_dim>::LumpedMassMatrixInverse(const std::map<int, real>& dirichlet_with_friction) const {
+    SparseMatrixElements nonzeros_new;
+        for (int i = 0; i < dofs_; ++i) {
+        if (dirichlet_with_friction.find(i) != dirichlet_with_friction.end())
+            nonzeros_new.push_back(Eigen::Triplet<real>(i, i, 1));
+        else
+            nonzeros_new.push_back(Eigen::Triplet<real>(i, i, 1/lumped_mass_[i]));
     }
 
     return ToSparseMatrix(dofs_, dofs_, nonzeros_new);

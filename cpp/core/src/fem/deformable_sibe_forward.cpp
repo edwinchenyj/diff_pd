@@ -15,8 +15,6 @@ void Deformable<vertex_dim, element_dim>::ForwardSIBE(const std::string& method,
         CheckError(options.find("thread_ct") != options.end(), "Missing option thread_ct.");
         const int max_newton_iter = static_cast<int>(options.at("max_newton_iter"));
         const int max_ls_iter = static_cast<int>(options.at("max_ls_iter"));
-        const real abs_tol = options.at("abs_tol");
-        const real rel_tol = options.at("rel_tol");
         const int verbose_level = static_cast<int>(options.at("verbose"));
         const int thread_ct = static_cast<int>(options.at("thread_ct"));
         CheckError(max_newton_iter > 0, "Invalid max_newton_iter: " + std::to_string(max_newton_iter));
@@ -76,28 +74,6 @@ void Deformable<vertex_dim, element_dim>::ForwardSIBE(const std::string& method,
     }
 
     
-template<int vertex_dim, int element_dim>
-const SparseMatrix Deformable<vertex_dim, element_dim>::StiffnessMatrix(const VectorXr& q_sol, const VectorXr& a, const std::map<int, real>& dirichlet_with_friction, const bool use_precomputed_data) const {
-    SparseMatrixElements nonzeros = ElasticForceDifferential(q_sol);
-    SparseMatrixElements nonzeros_pd, nonzeros_dummy;
-    PdEnergyForceDifferential(q_sol, true, false, use_precomputed_data, nonzeros_pd, nonzeros_dummy);
-    SparseMatrixElements nonzeros_act_dq, nonzeros_act_da, nonzeros_act_dw;
-    ActuationForceDifferential(q_sol, a, nonzeros_act_dq, nonzeros_act_da, nonzeros_act_dw);
-    nonzeros.insert(nonzeros.end(), nonzeros_pd.begin(), nonzeros_pd.end());
-    nonzeros.insert(nonzeros.end(), nonzeros_act_dq.begin(), nonzeros_act_dq.end());
-    SparseMatrixElements nonzeros_new;
-    for (const auto& element : nonzeros) {
-        const int row = element.row();
-        const int col = element.col();
-        const real val = element.value();
-        if (dirichlet_with_friction.find(row) != dirichlet_with_friction.end()
-            || dirichlet_with_friction.find(col) != dirichlet_with_friction.end()) continue;
-        nonzeros_new.push_back(Eigen::Triplet<real>(row, col, -val));
-    }
-    return ToSparseMatrix(dofs_, dofs_, nonzeros_new);
-}
-    
-
 
 template<int vertex_dim, int element_dim>
 const SparseMatrix Deformable<vertex_dim, element_dim>::NewtonMatrix(const VectorXr& q_sol, const VectorXr& a,

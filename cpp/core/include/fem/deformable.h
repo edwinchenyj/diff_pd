@@ -215,6 +215,7 @@ protected:
     std::vector<std::vector<FiniteElementSample<vertex_dim, element_dim>>> finite_element_samples_;
     // End of methods and data members that need implementations from derived classes.
     const SparseMatrix LumpedMassMatrix(const std::map<int, real>& dirichlet_with_friction) const;
+    const SparseMatrix LumpedMassMatrixInverse(const std::map<int, real>& dirichlet_with_friction) const;
     std::vector<real> lumped_mass_;
     
 

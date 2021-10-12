@@ -1,6 +1,6 @@
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
-
+#include <cmath>
 
 #include <fem/tet_deformable.h>
 #include <fem/hex_deformable.h>
@@ -20,10 +20,25 @@ class TetTest: public TetDeformable {
         std::map<int, real> fake_dirichlet;
         return LumpedMassMatrix(fake_dirichlet).rows();
     }
-    int GetLumpedMassSum(){
+    real GetLumpedMassSum(){
         real sum = std::accumulate(lumped_mass_.begin(), lumped_mass_.end(),0.0);
         return sum;
     }
+    int GetLumpedMassMatrixInverseSize(){
+        std::map<int, real> fake_dirichlet;
+        return LumpedMassMatrixInverse(fake_dirichlet).rows();
+    }
+    real GetLumpedMassMatrixInverseInverseSum(){
+        std::map<int, real> fake_dirichlet;
+        SparseMatrix mass_inv = LumpedMassMatrixInverse(fake_dirichlet);
+        real sum = 0.0;
+        for(int i = 0; i < mass_inv.rows(); ++i){
+            sum += 1.0/mass_inv.coeff(i,i);
+        }
+        return sum;
+    }
+
+
 
     VectorXr GetQNextStepForward(const std::string& method, std::vector<int>& active_contact_idx){
         
@@ -112,7 +127,9 @@ TEST_CASE("Initialize single tet"){
     TetTest tet;
     tet.Initialize(undeformed_vertices, elements, density, "neohookean", youngs_modulus, poissons_ratio);
     REQUIRE(tet.GetLumpedMassMatrixSize() == 12);
-    REQUIRE(tet.GetLumpedMassSum() == 3.0 * 1/6 * density);
+    REQUIRE(std::abs(tet.GetLumpedMassSum() - 3.0 * 1/6 * density) < 1);
+    REQUIRE(tet.GetLumpedMassMatrixInverseSize() == 12);
+    REQUIRE(std::abs(tet.GetLumpedMassMatrixInverseInverseSum() - 3.0 * 1/6 * density) < 1);
 
 }
 
@@ -156,6 +173,13 @@ TEST_CASE("Forward sim for a single tet"){
                 REQUIRE(q_next[5] != q[5]);
                 REQUIRE(q_next[8] != q[8]);
             }
+            SECTION("SIERE"){
+                q_next = tet.GetQNextStepForward("siere",constraint);
+                REQUIRE(q_next.size() == 12);
+                REQUIRE(q_next[2] != q[2]);
+                REQUIRE(q_next[5] != q[5]);
+                REQUIRE(q_next[8] != q[8]);
+            }
 
         }
 
@@ -170,6 +194,13 @@ TEST_CASE("Forward sim for a single tet"){
             }
             SECTION("SIBE"){
                 q_next = tet.GetQNextStepForward("sibe",constraint);
+                REQUIRE(q_next.size() == 12);
+                REQUIRE(q_next[2] == q[2]);
+                REQUIRE(q_next[5] != q[5]);
+                REQUIRE(q_next[8] != q[8]);
+            }
+            SECTION("SIERE"){
+                q_next = tet.GetQNextStepForward("siere",constraint);
                 REQUIRE(q_next.size() == 12);
                 REQUIRE(q_next[2] == q[2]);
                 REQUIRE(q_next[5] != q[5]);
@@ -191,6 +222,13 @@ TEST_CASE("Forward sim for a single tet"){
         }
         SECTION("SIBE"){
             q_next = tet.GetQNextStepForward("sibe",constraint);
+            REQUIRE(q_next.size() == 12);
+            REQUIRE(q_next[2] == q[2]);
+            REQUIRE(q_next[5] == q[5]);
+            REQUIRE(q_next[8] == q[8]);
+        }
+        SECTION("SIERE"){
+            q_next = tet.GetQNextStepForward("siere",constraint);
             REQUIRE(q_next.size() == 12);
             REQUIRE(q_next[2] == q[2]);
             REQUIRE(q_next[5] == q[5]);
