@@ -167,7 +167,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             std::vector<int> stiffness0_outer_ind_ptr;
             std::vector<int> stiffness0_inner_ind;
 
-            Spectra::GenEigsRealShiftSolver<Spectra::SparseGenRealShiftSolve<real>> eigs(op, m_numModes, 5*m_numModes, 0.0);
+            Spectra::GenEigsRealShiftSolver<Spectra::SparseGenRealShiftSolve<real>> eigs(op, m_numModes, 2*m_numModes, 0.0);
             
             // Initialize and compute
             eigs.init();
