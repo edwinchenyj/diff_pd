@@ -6,7 +6,8 @@
 #include "Spectra/GenEigsSolver.h"
 #include "Spectra/MatOp/SparseGenMatProd.h"
 #include "Spectra/GenEigsRealShiftSolver.h"
-#include "Spectra/MatOp/SparseGenRealShiftSolve.h"
+#include "Spectra/SymEigsShiftSolver.h"
+#include "Spectra/MatOp/SparseSymShiftSolve.h"
 
 
 void phi(MatrixXr &A, MatrixXr &output)
@@ -51,7 +52,7 @@ template<int vertex_dim, int element_dim>
 void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method,
     const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext, const real dt,
     const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next, std::vector<int>& active_contact_idx) const {
-        std::cout<<"forward sibe\n";
+        std::cout<<"forward siere\n";
         CheckError(options.find("max_ls_iter") != options.end(), "Missing option max_ls_iter.");
         CheckError(options.find("abs_tol") != options.end(), "Missing option abs_tol.");
         CheckError(options.find("rel_tol") != options.end(), "Missing option rel_tol.");
@@ -98,12 +99,24 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             }
             if (verbose_level > 1) Tic();
             SparseMatrix stiffness = StiffnessMatrix(q_sol, a, augmented_dirichlet, use_precomputed_data);
+            #ifndef NDEBUG
+            MatrixXr dense_stiffness;
+            dense_stiffness = MatrixXr(stiffness);
+            #endif
             if (verbose_level > 1) Toc("Assemble Stiffness Matrix");
             if (verbose_level > 1) Tic();
             SparseMatrix lumped_mass = LumpedMassMatrix(augmented_dirichlet);
+            #ifndef NDEBUG
+            MatrixXr dense_lumped_mass;
+            dense_lumped_mass = MatrixXr(lumped_mass);
+            #endif
             if (verbose_level > 1) Toc("Assemble Mass Matrix");
             if (verbose_level > 1) Tic();
             SparseMatrix lumped_mass_inv = LumpedMassMatrixInverse(augmented_dirichlet);
+            #ifndef NDEBUG
+            MatrixXr dense_lumped_mass_inv;
+            dense_lumped_mass_inv = MatrixXr(lumped_mass_inv);
+            #endif
             if (verbose_level > 1) Toc("Assemble Mass Matrix Inverse");
             // TODO: implement siere
 
@@ -112,7 +125,13 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
 
 
             SparseMatrix MinvK = lumped_mass_inv * stiffness;
-            Spectra::SparseGenRealShiftSolve<real> op(MinvK);
+            #ifndef NDEBUG
+            MatrixXr dense_MinvK;
+            dense_MinvK = MatrixXr(MinvK);
+            #endif
+            
+
+            Spectra::SparseSymShiftSolve<real> op(MinvK);
             
             int m_numModes = 5;
 
@@ -157,9 +176,10 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             SparseMatrix Identity;
             
             std::vector<int> J21_J22_outer_ind_ptr;
+            std::vector<int> J21_outer_ind_ptr;
+            std::vector<int> J22_outer_ind_ptr;
             std::vector<int> J22i_outer_ind_ptr;
             std::vector<int> J21_inner_ind;
-    //        std::vector<int> J22_outer_ind_ptr;
             std::vector<int> J22_inner_ind;
             std::vector<int> J22i_inner_ind;
             std::vector<double> J22i_identity_val;
@@ -167,59 +187,108 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             std::vector<int> stiffness0_outer_ind_ptr;
             std::vector<int> stiffness0_inner_ind;
 
-            Spectra::GenEigsRealShiftSolver<Spectra::SparseGenRealShiftSolve<real>> eigs(op, m_numModes, 2*m_numModes, 0.0);
-            
-            // Initialize and compute
-            eigs.init();
-            eigs.compute(Spectra::SortRule::LargestMagn);
-            Eigen::VectorXd normalizing_const;
-            if(eigs.info() == Spectra::CompInfo::Successful)
-            {
-                m_Us = std::make_pair(eigs.eigenvectors().real(), eigs.eigenvalues().real());
-                normalizing_const.noalias() = (m_Us.first.transpose() * lumped_mass * m_Us.first).diagonal();
-                normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
+            if(active_contact_idx.size() == 0){
+
+                Spectra::SymEigsShiftSolver<Spectra::SparseSymShiftSolve<real>> eigs(op, m_numModes+6, std::min(2*(m_numModes+6),dofs()), 0.01);
                 
-                m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
+                // Initialize and compute
+                eigs.init();
+                eigs.compute(Spectra::SortRule::LargestMagn);
+                Eigen::VectorXd normalizing_const;
+                if(eigs.info() == Spectra::CompInfo::Successful)
+                {
+                    m_Us = std::make_pair(eigs.eigenvectors().real().leftCols(m_numModes), eigs.eigenvalues().real().head(m_numModes));
+                    normalizing_const.noalias() = (m_Us.first.transpose() * lumped_mass * m_Us.first).diagonal();
+                    normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
+                    
+                    m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
+                }
+                else{
+                    std::cout<<"eigen solve failed"<<std::endl;
+                    exit(1);
+                }
             }
             else{
-                std::cout<<"eigen solve failed"<<std::endl;
-                exit(1);
+                Spectra::SymEigsShiftSolver<Spectra::SparseSymShiftSolve<real>> eigs(op, m_numModes, 2*m_numModes, 0.01);
+                
+                // Initialize and compute
+                eigs.init();
+                eigs.compute(Spectra::SortRule::LargestMagn);
+                Eigen::VectorXd normalizing_const;
+                if(eigs.info() == Spectra::CompInfo::Successful)
+                {
+                    m_Us = std::make_pair(eigs.eigenvectors().real(), eigs.eigenvalues().real());
+                    normalizing_const.noalias() = (m_Us.first.transpose() * lumped_mass * m_Us.first).diagonal();
+                    normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
+                    
+                    m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
+                }
+                else{
+                    std::cout<<"eigen solve failed"<<std::endl;
+                    exit(1);
+                }
+
             }
 
                 
             J21_J22_outer_ind_ptr.erase(J21_J22_outer_ind_ptr.begin(),J21_J22_outer_ind_ptr.end());
+            J21_outer_ind_ptr.erase(J21_outer_ind_ptr.begin(),J21_outer_ind_ptr.end());
             J22i_outer_ind_ptr.erase(J22i_outer_ind_ptr.begin(),J22i_outer_ind_ptr.end());
             for (int i_row = 0; i_row < MinvK.rows(); i_row++) {
-                J21_J22_outer_ind_ptr.push_back(0);
+                // J21_J22_outer_ind_ptr.push_back(0);
                 J22i_outer_ind_ptr.push_back(0);
+                J22_outer_ind_ptr.push_back(0);
             }
             
+            J21_outer_ind_ptr.erase(J21_outer_ind_ptr.begin(),J21_outer_ind_ptr.end());
+
             J22i_inner_ind.erase(J22i_inner_ind.begin(),J22i_inner_ind.end());
             J22i_identity_val.erase(J22i_identity_val.begin(),J22i_identity_val.end());
             for (int i_row = 0; i_row < MinvK.rows() + 1; i_row++) {
                 J21_J22_outer_ind_ptr.push_back(*(MinvK.outerIndexPtr()+i_row));
+                J21_outer_ind_ptr.push_back(*(MinvK.outerIndexPtr()+i_row));
                 J22i_outer_ind_ptr.push_back(i_row);
                 J22i_inner_ind.push_back(i_row + MinvK.rows());
                 J22i_identity_val.push_back(1.0);
             }
+
+            for (int i_row = 0; i_row < MinvK.rows(); i_row++) {
+                J21_outer_ind_ptr.push_back(0);
+                J22i_outer_ind_ptr.push_back(0);
+                J22_outer_ind_ptr.push_back(0);
+            }
+            
             J21_inner_ind.erase(J21_inner_ind.begin(),J21_inner_ind.end());
             J22_inner_ind.erase(J22_inner_ind.begin(),J22_inner_ind.end());
             
             for (int i_nnz = 0; i_nnz < MinvK.nonZeros(); i_nnz++)
             {
-                J21_inner_ind.push_back(*(MinvK.innerIndexPtr()+i_nnz));
+                J21_inner_ind.push_back(*(MinvK.innerIndexPtr()+i_nnz) + MinvK.cols());
                 J22_inner_ind.push_back(*(MinvK.innerIndexPtr()+i_nnz) + MinvK.cols());
             }
             
-            Eigen::Map<SparseMatrix> J21_map((MinvK.rows())*2, (MinvK.cols())*2, MinvK.nonZeros(), J21_J22_outer_ind_ptr.data(), MinvK.innerIndexPtr(), (MinvK).valuePtr());
+            Eigen::Map<SparseMatrix> J21_map((MinvK.rows())*2, (MinvK.cols())*2, MinvK.nonZeros(), J21_outer_ind_ptr.data(), J21_inner_ind.data(), (MinvK).valuePtr());
             Eigen::Map<SparseMatrix> J22_map((MinvK.rows())*2, (MinvK.cols())*2, MinvK.nonZeros(), J21_J22_outer_ind_ptr.data(), J22_inner_ind.data(), (MinvK).valuePtr());
             Eigen::Map<SparseMatrix> J22i_map((MinvK.rows())*2, (MinvK.cols())*2, MinvK.cols(), J22i_outer_ind_ptr.data(), J22i_inner_ind.data(),J22i_identity_val.data());
             
+            
+            U1.resize((MinvK.rows())*2,m_numModes);
+            V1.resize((MinvK.rows())*2,m_numModes);
+            U2.resize((MinvK.rows())*2,m_numModes);
+            V2.resize((MinvK.rows())*2,m_numModes);
+            
+            U1.setZero();
+            V1.setZero();
+            U2.setZero();
+            V2.setZero();
+            
+
             U1.block(0,0,m_Us.first.rows(),m_Us.first.cols()) << m_Us.first;
             V1.block(m_Us.first.rows(),0,m_Us.first.rows(),m_Us.first.cols()) << lumped_mass * m_Us.first;
             U2.block(m_Us.first.rows(),0,m_Us.first.rows(),m_Us.first.cols()) << m_Us.first * (m_Us.second.asDiagonal());
             V2.block(0,0,m_Us.first.rows(),m_Us.first.cols()) << lumped_mass * m_Us.first;
             
+            dt_J_G_reduced.resize(m_numModes*2,m_numModes*2);
             dt_J_G_reduced.setZero();
             dt_J_G_reduced.block(0,m_Us.first.cols(),m_Us.first.cols(),m_Us.first.cols()).setIdentity();
             for (int ind = 0; ind < m_Us.first.cols() ; ind++) {
@@ -235,9 +304,20 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             fG.noalias() = (lumped_mass * m_Us.first ) * (m_Us.first.transpose() * force_sol);
             fH = force_sol - fG;
             
-            A.setIdentity();
-            A -= h * (J12 + J21_map);
+            #ifndef NDEBUG
+            MatrixXr dense_J12, dense_J21;
+            dense_J12 = MatrixXr(J12);
+            dense_J21 = MatrixXr(J21_map);
+            #endif
             
+            A.resize((J12).rows(), (J12).cols());
+            
+            A.setIdentity();
+            A -= h * (J12 - J21_map);
+             #ifndef NDEBUG
+            MatrixXr dense_A;
+            dense_A = MatrixXr(A);
+            #endif
             VectorXr rhs1;
             rhs1.resize(dofs()*2);
             VectorXr rhs2;
@@ -270,7 +350,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             
             rhs = rhs1 + rhs2;
             
-            PardisoSpdSolver solver;
+            PardisoSolver solver;
             if (verbose_level > 1) Toc("SIERE: decomposition");
             solver.Compute(A, options);
             if (verbose_level > 1) Tic();
