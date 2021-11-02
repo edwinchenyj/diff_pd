@@ -3,19 +3,25 @@
 
 #include "common/config.h"
 
-class PardisoSpdSolver {
-public:
-    PardisoSpdSolver(): ia_(nullptr), ja_(nullptr), a_(nullptr) {}
-    ~PardisoSpdSolver();
+class PardisoSolver {
+    public:
+    PardisoSolver(): ia_(nullptr), ja_(nullptr), a_(nullptr) {}
+    ~PardisoSolver();
 
-    void Compute(const SparseMatrix& lhs, const std::map<std::string, real>& options);
-    const VectorXr Solve(const VectorXr& rhs);
+    virtual void Compute(const SparseMatrix& lhs, const std::map<std::string, real>& options);
+    virtual const VectorXr Solve(VectorXr& rhs);
+    virtual const MatrixXr Solve(MatrixXr& rhs);
+    virtual const VectorXr Solve(const VectorXr& rhs);
+    virtual const MatrixXr Solve(const MatrixXr& rhs);
 
-private:
+protected:
     int n_;
     int* ia_;
     int* ja_;
     double* a_;
+
+    std::vector<int> m_outerArray, m_innerArray;
+    std::vector<double> m_a;
 
     // Solver parameters.
     int mtype_; // Use -2 for real symmetric indefinte matrix, 2 for real SPD, and 1 for structurally symmetric.
@@ -28,6 +34,19 @@ private:
     void* pt_[64];
     int iparm_[64];
     double dparm_[64];
+};
+
+class PardisoSpdSolver : PardisoSolver {
+    public:
+    PardisoSpdSolver(): PardisoSolver() {};
+    ~PardisoSpdSolver() {};
+
+    void Compute(const SparseMatrix& lhs, const std::map<std::string, real>& options) override;
+    const VectorXr Solve(const VectorXr& rhs) override;
+    const MatrixXr Solve(const MatrixXr& rhs) override;
+    
+
+
 };
 
 #endif

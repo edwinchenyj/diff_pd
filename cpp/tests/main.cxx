@@ -5,7 +5,244 @@
 #include <fem/tet_deformable.h>
 #include <fem/hex_deformable.h>
 #include <Eigen/Dense>
+#include "common/config.h"
+#include "common/common.h"
+#include "solver/pardiso_spd_solver.h"
+#include "solver/SparseGenRealShiftSolvePardiso.h"
+#include <Spectra/MatOp/SparseGenRealShiftSolve.h>
+#include <Spectra/MatOp/SparseSymShiftSolve.h>
+#include <Spectra/GenEigsRealShiftSolver.h>
+#include <Spectra/SymEigsShiftSolver.h>
 
+class PardisoSPDTest: public PardisoSpdSolver {
+    SparseMatrix AtA;
+    VectorXr b;
+    PardisoSpdSolver solver;
+    std::map<std::string, real> options;
+    
+    public:
+    PardisoSPDTest(int size){
+        const int n = size;
+        const SparseMatrix A = MatrixXr::Random(n, n).sparseView(1, 0.25);
+        AtA = A.transpose() * A;
+        #ifndef NDEBUG
+        MatrixXr mat = MatrixXr(AtA);
+        #endif
+        b = VectorXr::Random(n);
+
+        options["thread_ct"] = 4;
+    }
+
+    ~PardisoSPDTest(){}
+
+    real GetResidualNorm(){
+        solver.Compute(AtA, options);
+
+        const VectorXr x = solver.Solve(b);
+        const real abs_error = (AtA * x - b).norm();
+        const real rel_error = abs_error / b.norm();
+        return rel_error;
+    }
+};
+
+class PardisoTest: public PardisoSolver {
+    SparseMatrix A;
+    VectorXr b;
+    PardisoSolver solver;
+    std::map<std::string, real> options;
+    
+    public:
+    PardisoTest(int size){
+        const int n = size;
+        A = MatrixXr::Random(n, n).sparseView(1, 0.25);
+        #ifndef NDEBUG
+        MatrixXr mat = MatrixXr(A);
+        #endif
+        b = VectorXr::Random(n);
+
+        options["thread_ct"] = 4;
+    }
+
+    ~PardisoTest(){}
+
+    real GetResidualNorm(){
+        solver.Compute(A, options);
+
+        const VectorXr x = solver.Solve(b);
+        const real abs_error = (A * x - b).norm();
+        const real rel_error = abs_error / b.norm();
+        return rel_error;
+    }
+};
+
+class SpectraTest{
+    SparseMatrix AtA;
+    SparseMatrix rankDeficient;
+    int numModes_;
+    public:
+    SpectraTest(int size, int numModes){
+        const int n = size;
+        numModes_ = numModes;
+
+        SparseMatrix A = MatrixXr::Random(n, n).sparseView(1, 0.5);
+        AtA = A.transpose() * A;
+        A.setZero();
+        MatrixXr B(n,n);
+        B.setIdentity();
+        rankDeficient = B.sparseView(1,0);
+        rankDeficient.coeffRef(0,0) = 0;
+        rankDeficient.coeffRef(1,1) = 0;
+        #ifndef NDEBUG
+        MatrixXr mat = MatrixXr(rankDeficient);
+        #endif
+
+    }
+
+    ~SpectraTest(){}
+
+    real GetSymmetricMatrixError(){
+        Spectra::SparseSymShiftSolve<real> op(AtA);
+
+        Spectra::SymEigsShiftSolver<Spectra::SparseSymShiftSolve<real>> eigs(op, numModes_, 2*numModes_, 0.01);
+        
+        std::pair<MatrixXr, VectorXr > m_Us;
+
+        // Initialize and compute
+        eigs.init();
+        eigs.compute(Spectra::SortRule::LargestMagn);
+        VectorXr normalizing_const;
+        if(eigs.info() == Spectra::CompInfo::Successful)
+        {
+            m_Us = std::make_pair(eigs.eigenvectors().real(), eigs.eigenvalues().real());
+            normalizing_const.noalias() = (m_Us.first.transpose() * m_Us.first).diagonal();
+            normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
+            
+            m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
+        }
+        else{
+            std::cout<<"eigen solve failed"<<std::endl;
+            exit(1);
+        }
+
+        return m_Us.first.col(0).norm() - 1;
+    }
+
+    real GetRankDeficientMatrixError(){
+        Spectra::SparseSymShiftSolve<real> op(rankDeficient);
+
+        Spectra::SymEigsShiftSolver<Spectra::SparseSymShiftSolve<real>> eigs(op, numModes_, 2*numModes_, 0.01);
+        
+        std::pair<MatrixXr, VectorXr > m_Us;
+
+        // Initialize and compute
+        eigs.init();
+        eigs.compute(Spectra::SortRule::LargestMagn);
+        VectorXr normalizing_const;
+        if(eigs.info() == Spectra::CompInfo::Successful)
+        {
+            m_Us = std::make_pair(eigs.eigenvectors().real(), eigs.eigenvalues().real());
+            normalizing_const.noalias() = (m_Us.first.transpose() * m_Us.first).diagonal();
+            normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
+            
+            m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
+        }
+        else{
+            std::cout<<"eigen solve failed"<<std::endl;
+            exit(1);
+        }
+
+        return m_Us.first.col(0).norm() - 1;
+    }
+
+    real GetSymmetricMatrixErrorPardiso(){
+        Spectra::SparseGenRealShiftSolvePardiso<real> op(AtA);
+
+        Spectra::SymEigsShiftSolver<Spectra::SparseGenRealShiftSolvePardiso<real>> eigs(op, numModes_, 2*numModes_, 0.01);
+        
+        std::pair<MatrixXr, VectorXr > m_Us;
+
+        // Initialize and compute
+        eigs.init();
+        eigs.compute(Spectra::SortRule::LargestMagn);
+        VectorXr normalizing_const;
+        if(eigs.info() == Spectra::CompInfo::Successful)
+        {
+            m_Us = std::make_pair(eigs.eigenvectors().real(), eigs.eigenvalues().real());
+            normalizing_const.noalias() = (m_Us.first.transpose() * m_Us.first).diagonal();
+            normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
+            
+            m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
+        }
+        else{
+            std::cout<<"eigen solve failed"<<std::endl;
+            exit(1);
+        }
+
+        return m_Us.first.col(0).norm() - 1;
+    }
+
+    real GetRankDeficientMatrixErrorPardiso(){
+        Spectra::SparseGenRealShiftSolvePardiso<real> op(rankDeficient);
+
+        Spectra::SymEigsShiftSolver<Spectra::SparseGenRealShiftSolvePardiso<real>> eigs(op, numModes_, 2*numModes_, 0.01);
+        
+        std::pair<MatrixXr, VectorXr > m_Us;
+
+        // Initialize and compute
+        eigs.init();
+        eigs.compute(Spectra::SortRule::LargestMagn);
+        VectorXr normalizing_const;
+        if(eigs.info() == Spectra::CompInfo::Successful)
+        {
+            m_Us = std::make_pair(eigs.eigenvectors().real(), eigs.eigenvalues().real());
+            normalizing_const.noalias() = (m_Us.first.transpose() * m_Us.first).diagonal();
+            normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
+            
+            m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
+        }
+        else{
+            std::cout<<"eigen solve failed"<<std::endl;
+            exit(1);
+        }
+
+        return m_Us.first.col(0).norm() - 1;
+    }
+};
+
+TEST_CASE("TEST spectra"){
+
+    SpectraTest test1(10,5);
+    REQUIRE(test1.GetSymmetricMatrixError() < 1e-12);
+    REQUIRE(test1.GetRankDeficientMatrixError() < 1e-12);
+    REQUIRE(test1.GetSymmetricMatrixErrorPardiso() < 1e-12);
+    REQUIRE(test1.GetRankDeficientMatrixErrorPardiso() < 1e-12);
+    SpectraTest test2(100,5);
+    REQUIRE(test2.GetSymmetricMatrixError() < 1e-10);
+    REQUIRE(test2.GetRankDeficientMatrixError() < 1e-10);
+    REQUIRE(test2.GetSymmetricMatrixErrorPardiso() < 1e-10);
+    REQUIRE(test2.GetRankDeficientMatrixErrorPardiso() < 1e-10);
+    // SpectraTest test3(1000,5);
+    // REQUIRE(test3.GetError() < 1e-8);
+
+}
+
+TEST_CASE("Test pardiso SPD solver"){
+    PardisoSPDTest test1(10);
+    REQUIRE(test1.GetResidualNorm() < 1e-12);
+    PardisoSPDTest test2(100);
+    REQUIRE(test2.GetResidualNorm() < 1e-10);
+    PardisoSPDTest test3(1000);
+    REQUIRE(test3.GetResidualNorm() < 1e-8);
+}
+
+TEST_CASE("Test pardiso unsymmetric solver"){
+    PardisoTest test1(10);
+    REQUIRE(test1.GetResidualNorm() < 1e-12);
+    PardisoTest test2(100);
+    REQUIRE(test2.GetResidualNorm() < 1e-10);
+    PardisoTest test3(1000);
+    REQUIRE(test3.GetResidualNorm() < 1e-8);
+}
 
 class TetTest: public TetDeformable {
     public:
