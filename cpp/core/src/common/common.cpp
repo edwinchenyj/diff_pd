@@ -121,6 +121,31 @@ void PrintNumpyStyleVector(const VectorXr& vec) {
     std::cout << "])" << std::endl;
 }
 
+// Debugging.
+void PrintMatrix(const MatrixXr& mat) {
+    
+    const int n_row = static_cast<int>(mat.rows());
+    const int n_col = static_cast<int>(mat.cols());
+    std::cout << "mat = [" << std::endl;
+    for (int i = 0; i < n_row; ++i) {
+        std::cout << "\t\t\t";
+        for (int j = 0; j < n_col; ++j) {
+            std::cout << mat(i, j) << (j == n_col - 1 ? "" : ", ");
+        }
+        std::cout << (i == n_row - 1 ? "" : ";") << std::endl;
+    }
+    std::cout << "]" << std::endl;
+}
+
+void PrintVector(const VectorXr& vec) {
+    std::cout << "vec = ([";
+    const int n = static_cast<int>(vec.size());
+    for (int i = 0; i < n; ++i) {
+        std::cout << vec(i) << (i == n - 1 ? "" : "; ");
+    }
+    std::cout << "])" << std::endl;
+}
+
 const real Clip(const real val, const real min, const real max) {
     if (val < min) return min;
     if (val > max) return max;

@@ -32,6 +32,10 @@ void CheckError(const bool condition, const std::string& error_message);
 void PrintNumpyStyleMatrix(const MatrixXr& mat);
 void PrintNumpyStyleVector(const VectorXr& vec);
 
+// Debugging.
+void PrintMatrix(const MatrixXr& mat);
+void PrintVector(const VectorXr& vec);
+
 const real Clip(const real val, const real min, const real max);
 const real ClipWithGradient(const real val, const real min, const real max, real& grad);
 
