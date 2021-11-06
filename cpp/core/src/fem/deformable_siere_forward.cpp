@@ -68,7 +68,14 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
         omp_set_num_threads(thread_ct);
 
         const real h = dt;
-        const VectorXr state_force = ForwardStateForce(q, v);
+        VectorXr g;
+        CheckError(state_forces_.size() <= 1, "Only one state force, gravity, is supported for SIERE");
+        if(state_forces_.size() == 1) {
+            g = state_forces_[0]->parameters().head(vertex_dim);
+        } else {
+            g = VectorXr::Zero(vertex_dim);
+        }
+        
         std::vector<real> inv_h2_lumped_mass;
         std::transform(lumped_mass_.begin(),lumped_mass_.end(), std::back_inserter(inv_h2_lumped_mass),[&h](real mass)-> real { return mass/(h * h);});
         const int max_contact_iter = 5;
@@ -93,10 +100,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
                 selected(pair.first) = 0;
             }
             if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol);
-            VectorXr force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_precomputed_data) + ActuationForce(q_sol, a);
-            for (const auto& pair : augmented_dirichlet) {
-                force_sol(pair.first) = 0;
-            }
+            
             if (verbose_level > 1) Tic();
             SparseMatrix stiffness = StiffnessMatrix(q_sol, a, augmented_dirichlet, use_precomputed_data);
             #ifndef NDEBUG
@@ -106,6 +110,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             if (verbose_level > 1) Toc("Assemble Stiffness Matrix");
             if (verbose_level > 1) Tic();
             SparseMatrix lumped_mass = LumpedMassMatrix(augmented_dirichlet);
+            const VectorXr gravitational_force = lumped_mass * g.replicate(dofs()/vertex_dim, 1);
             #ifndef NDEBUG
             MatrixXr dense_lumped_mass;
             dense_lumped_mass = MatrixXr(lumped_mass);
@@ -118,6 +123,12 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             dense_lumped_mass_inv = MatrixXr(lumped_mass_inv);
             #endif
             if (verbose_level > 1) Toc("Assemble Mass Matrix Inverse");
+
+            VectorXr force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_precomputed_data) + ActuationForce(q_sol, a) + gravitational_force;
+            for (const auto& pair : augmented_dirichlet) {
+                force_sol(pair.first) = 0;
+            }
+            
             // TODO: implement siere
 
             // SparseMatirx MinvK0;
@@ -149,7 +160,9 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             tripletListJ12.reserve(dofs());
             for(int i = 0; i < dofs(); i++)
             {
-                tripletListJ12.push_back(T(i,i+dofs(),1.0));
+                if(std::find(active_contact_idx.begin(),active_contact_idx.end(),i/vertex_dim) == active_contact_idx.end()){          
+                    tripletListJ12.push_back(T(i,i+dofs(),1.0));
+                }
             }
             J12.setFromTriplets(tripletListJ12.begin(),tripletListJ12.end());
             
@@ -187,48 +200,33 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             std::vector<int> stiffness0_outer_ind_ptr;
             std::vector<int> stiffness0_inner_ind;
 
-            if(active_contact_idx.size() == 0){
-
-                Spectra::SymEigsShiftSolver<Spectra::SparseSymShiftSolve<real>> eigs(op, m_numModes+6, std::min(2*(m_numModes+6),dofs()), 0.01);
+            int DecomposedDim = std::max(m_numModes+2*vertex_dim,m_numModes + vertex_dim * (int)active_contact_idx.size());
+            Spectra::SymEigsShiftSolver<Spectra::SparseSymShiftSolve<real>> eigs(op, DecomposedDim, std::min(2*(DecomposedDim),dofs()), 0.01);
+            
+            // Initialize and compute
+            eigs.init();
+            eigs.compute(Spectra::SortRule::LargestMagn);
+            Eigen::VectorXd normalizing_const;
+            if(eigs.info() == Spectra::CompInfo::Successful)
+            {
+                m_Us = std::make_pair(eigs.eigenvectors().real().leftCols(m_numModes), eigs.eigenvalues().real().head(m_numModes));
+                normalizing_const.noalias() = (m_Us.first.transpose() * lumped_mass * m_Us.first).diagonal();
+                normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
                 
-                // Initialize and compute
-                eigs.init();
-                eigs.compute(Spectra::SortRule::LargestMagn);
-                Eigen::VectorXd normalizing_const;
-                if(eigs.info() == Spectra::CompInfo::Successful)
-                {
-                    m_Us = std::make_pair(eigs.eigenvectors().real().leftCols(m_numModes), eigs.eigenvalues().real().head(m_numModes));
-                    normalizing_const.noalias() = (m_Us.first.transpose() * lumped_mass * m_Us.first).diagonal();
-                    normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
-                    
-                    m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
-                }
-                else{
-                    std::cout<<"eigen solve failed"<<std::endl;
-                    exit(1);
-                }
+                m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
+
             }
             else{
-                Spectra::SymEigsShiftSolver<Spectra::SparseSymShiftSolve<real>> eigs(op, m_numModes, 2*m_numModes, 0.01);
-                
-                // Initialize and compute
-                eigs.init();
-                eigs.compute(Spectra::SortRule::LargestMagn);
-                Eigen::VectorXd normalizing_const;
-                if(eigs.info() == Spectra::CompInfo::Successful)
-                {
-                    m_Us = std::make_pair(eigs.eigenvectors().real(), eigs.eigenvalues().real());
-                    normalizing_const.noalias() = (m_Us.first.transpose() * lumped_mass * m_Us.first).diagonal();
-                    normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
-                    
-                    m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
-                }
-                else{
-                    std::cout<<"eigen solve failed"<<std::endl;
-                    exit(1);
-                }
-
+                std::cout<<"eigen solve failed"<<std::endl;
+                exit(1);
             }
+
+            for(auto i: active_contact_idx){
+                for(int j = 0; j < vertex_dim; j++){
+                    m_Us.first.row(i*vertex_dim+j).setZero();
+                }
+            }
+        
 
                 
             J21_J22_outer_ind_ptr.erase(J21_J22_outer_ind_ptr.begin(),J21_J22_outer_ind_ptr.end());
@@ -282,17 +280,39 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             U2.setZero();
             V2.setZero();
             
+            MatrixXr inertial = lumped_mass * m_Us.first;
+
+            for(auto i: active_contact_idx){
+                for(int j = 0; j < vertex_dim; j++){
+                    inertial.row(i*vertex_dim+j).setZero();
+                }
+            }
+
 
             U1.block(0,0,m_Us.first.rows(),m_Us.first.cols()) << m_Us.first;
-            V1.block(m_Us.first.rows(),0,m_Us.first.rows(),m_Us.first.cols()) << lumped_mass * m_Us.first;
+            V1.block(m_Us.first.rows(),0,m_Us.first.rows(),m_Us.first.cols()) << inertial;
             U2.block(m_Us.first.rows(),0,m_Us.first.rows(),m_Us.first.cols()) << m_Us.first * (m_Us.second.asDiagonal());
-            V2.block(0,0,m_Us.first.rows(),m_Us.first.cols()) << lumped_mass * m_Us.first;
+            V2.block(0,0,m_Us.first.rows(),m_Us.first.cols()) << inertial;
             
+            for(auto i: active_contact_idx){
+                for(int j = 0; j < vertex_dim; j++){
+                    U1.row(i*vertex_dim+j).setZero();
+                    U2.row(i*vertex_dim+j).setZero();
+                    V1.row(i*vertex_dim+j).setZero();
+                    V2.row(i*vertex_dim+j).setZero();
+                    U1.row(i*vertex_dim+j + dofs()).setZero();
+                    U2.row(i*vertex_dim+j + dofs()).setZero();
+                    V1.row(i*vertex_dim+j + dofs()).setZero();
+                    V2.row(i*vertex_dim+j + dofs()).setZero();
+                }
+            }
+
+
             dt_J_G_reduced.resize(m_numModes*2,m_numModes*2);
             dt_J_G_reduced.setZero();
             dt_J_G_reduced.block(0,m_Us.first.cols(),m_Us.first.cols(),m_Us.first.cols()).setIdentity();
             for (int ind = 0; ind < m_Us.first.cols() ; ind++) {
-                dt_J_G_reduced(m_Us.first.cols() + ind ,0 + ind ) = m_Us.second(ind);
+                dt_J_G_reduced(m_Us.first.cols() + ind ,0 + ind ) = -m_Us.second(ind);
             }
             dt_J_G_reduced *= h;
             
@@ -330,7 +350,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             
             VectorXr reduced_vec;
             reduced_vec.resize(dt_J_G_reduced.cols());
-            reduced_vec.head(dt_J_G_reduced.cols()/2).noalias() = m_Us.first.transpose() * (lumped_mass * (q_sol));
+            reduced_vec.head(dt_J_G_reduced.cols()/2).noalias() = m_Us.first.transpose() * (lumped_mass * (v_sol));
             reduced_vec.tail(dt_J_G_reduced.cols()/2).noalias() = (m_Us.first.transpose() * (force_sol));
             
             MatrixXr block_diag_eigv;
@@ -356,13 +376,36 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             if (verbose_level > 1) Tic();
             VectorXr x0 = solver.Solve(rhs);
             
+            for(auto i: active_contact_idx){
+                for(int j = 0; j < vertex_dim; j++){
+                    x0.row(i*vertex_dim+j).setZero();
+                    x0.row(i*vertex_dim+j+dofs()).setZero();
+                }
+            }
+
             U1 *= h;
             MatrixXr x1;
             x1 = solver.Solve(U1);
+
+            for(auto i: active_contact_idx){
+                for(int j = 0; j < vertex_dim; j++){
+                    x1.row(i*vertex_dim+j).setZero();
+                    x1.row(i*vertex_dim+j+dofs()).setZero();
+                }
+            }
+
             
             U2 *= dt;
             MatrixXr x2;
             x2 = solver.Solve(U2);
+
+            for(auto i: active_contact_idx){
+                for(int j = 0; j < vertex_dim; j++){
+                    x2.row(i*vertex_dim+j).setZero();
+                    x2.row(i*vertex_dim+j+dofs()).setZero();
+                }
+            }
+
             
             
             MatrixXr Is;
@@ -383,6 +426,9 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             y0.noalias() -= x2 * (sol2LHS).ldlt().solve(sol2RHS);
             
 
+
+            q_next = q;
+            v_next = v;
             q_next -= y0.head(dofs());
             v_next -= y0.tail(dofs());
             break; // skip contact for now

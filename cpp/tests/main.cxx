@@ -420,27 +420,27 @@ TEST_CASE("Forward sim for a single tet"){
 
         }
 
-        SECTION("With 1 constraint"){
-            std::vector<int> constraint{0};
+        SECTION("With 2 constraint"){
+            std::vector<int> constraint{0,1};
             SECTION("Newton pardiso"){
                 q_next = tet.GetQNextStepForward("newton_pardiso",constraint);
                 REQUIRE(q_next.size() == 12);
                 REQUIRE(q_next[2] == q[2]);
-                REQUIRE(q_next[5] != q[5]);
+                REQUIRE(q_next[5] == q[5]);
                 REQUIRE(q_next[8] != q[8]);
             }
             SECTION("SIBE"){
                 q_next = tet.GetQNextStepForward("sibe",constraint);
                 REQUIRE(q_next.size() == 12);
                 REQUIRE(q_next[2] == q[2]);
-                REQUIRE(q_next[5] != q[5]);
+                REQUIRE(q_next[5] == q[5]);
                 REQUIRE(q_next[8] != q[8]);
             }
             SECTION("SIERE"){
                 q_next = tet.GetQNextStepForward("siere",constraint);
                 REQUIRE(q_next.size() == 12);
                 REQUIRE(q_next[2] == q[2]);
-                REQUIRE(q_next[5] != q[5]);
+                REQUIRE(q_next[5] == q[5]);
                 REQUIRE(q_next[8] != q[8]);
             }
 
