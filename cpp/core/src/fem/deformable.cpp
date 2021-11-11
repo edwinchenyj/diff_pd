@@ -17,6 +17,16 @@ void Deformable<vertex_dim, element_dim>::Initialize(const std::string& binary_f
     const std::string& material_type, const real youngs_modulus, const real poissons_ratio) {
     mesh_.Initialize(binary_file_name);
     InitializeAfterMesh(density, material_type, youngs_modulus, poissons_ratio);
+    lumped_mass_.resize(mesh_.vertices().rows()*mesh_.vertices().cols());
+    const int element_num = static_cast<int>(mesh_.elements().cols());
+    for (int e = 0; e < element_num; ++e) {
+        for(int k = 0; k < element_dim; ++k){
+            int vertex_index = mesh_.elements()(k,e);
+            for(int vi = 0; vi < vertex_dim; ++vi){
+                lumped_mass_[vertex_dim*vertex_index +vi] += density*mesh_.element_volume(e)/element_dim;
+            }
+        }
+    }
 }
 
 template<int vertex_dim, int element_dim>
@@ -75,11 +85,6 @@ template<int vertex_dim, int element_dim>
 const SparseMatrix Deformable<vertex_dim, element_dim>::StiffnessMatrix(const VectorXr& q_sol, const VectorXr& a, const std::map<int, real>& dirichlet_with_friction, const bool use_precomputed_data) const {
     SparseMatrixElements nonzeros = ElasticForceDifferential(q_sol);
     SparseMatrixElements nonzeros_pd, nonzeros_dummy;
-    PdEnergyForceDifferential(q_sol, true, false, use_precomputed_data, nonzeros_pd, nonzeros_dummy);
-    SparseMatrixElements nonzeros_act_dq, nonzeros_act_da, nonzeros_act_dw;
-    ActuationForceDifferential(q_sol, a, nonzeros_act_dq, nonzeros_act_da, nonzeros_act_dw);
-    nonzeros.insert(nonzeros.end(), nonzeros_pd.begin(), nonzeros_pd.end());
-    nonzeros.insert(nonzeros.end(), nonzeros_act_dq.begin(), nonzeros_act_dq.end());
     SparseMatrixElements nonzeros_new;
     for (const auto& element : nonzeros) {
         const int row = element.row();
