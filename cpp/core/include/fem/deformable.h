@@ -159,6 +159,40 @@ public:
         const std::map<int, real>& additional_dirichlet_boundary_condition,
         const bool use_acc, const bool use_sparse) const;
 
+    
+    MatrixXr U1;
+    MatrixXr V1;
+    MatrixXr U2;
+    MatrixXr V2;
+    
+    std::pair<MatrixXr, VectorXr > m_Us;
+    std::pair<MatrixXr, VectorXr > m_Us2;
+    
+    MatrixXr dt_J_G_reduced;
+    
+    VectorXr vG;
+    VectorXr vH;
+    
+    VectorXr fG;
+    
+    VectorXr fH;
+    
+    SparseMatrix A;
+    
+    SparseMatrix Identity;
+    
+    std::vector<int> J21_J22_outer_ind_ptr;
+    std::vector<int> J21_outer_ind_ptr;
+    std::vector<int> J22_outer_ind_ptr;
+    std::vector<int> J22i_outer_ind_ptr;
+    std::vector<int> J21_inner_ind;
+    std::vector<int> J22_inner_ind;
+    std::vector<int> J22i_inner_ind;
+    std::vector<double> J22i_identity_val;
+    std::vector<double> stiffness0_val;
+    std::vector<int> stiffness0_outer_ind_ptr;
+    std::vector<int> stiffness0_inner_ind;
+
 protected:
     void ForwardSemiImplicit(const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
         const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
@@ -217,6 +251,8 @@ protected:
     const SparseMatrix LumpedMassMatrix(const std::map<int, real>& dirichlet_with_friction) const;
     const SparseMatrix LumpedMassMatrixInverse(const std::map<int, real>& dirichlet_with_friction) const;
     std::vector<real> lumped_mass_;
+
+
     
 
 private:

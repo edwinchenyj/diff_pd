@@ -79,7 +79,7 @@ set(CATCH_INSTALL_DOCS OFF)
 
 FetchContent_MakeAvailable(Catch2)
 
-file(GLOB test-sources CONFIGURE_DEPENDS tests/*.cxx)
+file(GLOB test-sources CONFIGURE_DEPENDS tests/main.cxx)
 add_executable(${PROJECT_NAME}-tests "${test-sources}")
 
 # Mark the tests as needing Catch benchmark infrastructure which
@@ -100,3 +100,12 @@ target_link_libraries(${PROJECT_NAME}-tests
 # test case into a separate ctest entry
 include(${Catch2_SOURCE_DIR}/contrib/Catch.cmake)
 catch_discover_tests(${PROJECT_NAME}-tests)
+
+
+add_executable(${PROJECT_NAME}-example tests/example.cxx)
+
+#
+target_link_libraries(${PROJECT_NAME}-example
+  PRIVATE
+    diff_pd_core
+  )

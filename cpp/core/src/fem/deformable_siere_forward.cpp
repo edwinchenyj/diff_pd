@@ -88,7 +88,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             // Fix dirichlet_ + active_contact_nodes.
             std::cout<<"before fix dirichlet\n";
             std::map<int, real> augmented_dirichlet = dirichlet_;
-
+            // PrintVector(q);
             std::cout<<"before active contact idx\n";
             std::cout<<active_contact_idx.size()<<"\n";
             for (const int idx : active_contact_idx) {
@@ -108,7 +108,8 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
                 v_sol(pair.first) = 0;
                 selected(pair.first) = 0;
             }
-
+            std::cout<<"q_sol\n";
+            PrintVector(q_sol);
             // std::cout<<"before use_precomputed_data\n";
             // if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol);
             
@@ -249,6 +250,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
                 std::cout<<"eigen solve failed"<<std::endl;
                 exit(1);
             }
+            
 
             for(auto i: active_contact_idx){
                 for(int j = 0; j < vertex_dim; j++){

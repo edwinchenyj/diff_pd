@@ -229,18 +229,18 @@ TEST_CASE("TEST spectra"){
 TEST_CASE("Test pardiso SPD solver"){
     PardisoSPDTest test1(10);
     REQUIRE(test1.GetResidualNorm() < 1e-12);
-    PardisoSPDTest test2(100);
+    PardisoSPDTest test2(20);
     REQUIRE(test2.GetResidualNorm() < 1e-10);
-    PardisoSPDTest test3(1000);
+    PardisoSPDTest test3(30);
     REQUIRE(test3.GetResidualNorm() < 1e-8);
 }
 
 TEST_CASE("Test pardiso unsymmetric solver"){
     PardisoTest test1(10);
     REQUIRE(test1.GetResidualNorm() < 1e-12);
-    PardisoTest test2(100);
+    PardisoTest test2(20);
     REQUIRE(test2.GetResidualNorm() < 1e-10);
-    PardisoTest test3(1000);
+    PardisoTest test3(30);
     REQUIRE(test3.GetResidualNorm() < 1e-8);
 }
 
