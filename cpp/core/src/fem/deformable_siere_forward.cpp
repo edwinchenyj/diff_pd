@@ -54,21 +54,22 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
     const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next, std::vector<int>& active_contact_idx) const {
         std::cout<<"forward siere\n";
         CheckError(options.find("max_ls_iter") != options.end(), "Missing option max_ls_iter.");
+        std::cout<<"max_ls_iter: "<<options.at("max_ls_iter")<<"\n";
         CheckError(options.find("abs_tol") != options.end(), "Missing option abs_tol.");
+        std::cout<<"abs_tol: "<<options.at("abs_tol")<<"\n";
         CheckError(options.find("rel_tol") != options.end(), "Missing option rel_tol.");
+        std::cout<<"rel_tol: "<<options.at("rel_tol")<<"\n";
         CheckError(options.find("verbose") != options.end(), "Missing option verbose.");
+        std::cout<<"verbose: "<<options.at("verbose")<<"\n";
         CheckError(options.find("thread_ct") != options.end(), "Missing option thread_ct.");
-        const int max_newton_iter = static_cast<int>(options.at("max_newton_iter"));
-        const int max_ls_iter = static_cast<int>(options.at("max_ls_iter"));
+        std::cout<<"thread_ct: "<<options.at("thread_ct")<<"\n";
         const int verbose_level = static_cast<int>(options.at("verbose"));
         const int thread_ct = static_cast<int>(options.at("thread_ct"));
-        CheckError(max_newton_iter > 0, "Invalid max_newton_iter: " + std::to_string(max_newton_iter));
-        CheckError(max_ls_iter > 0, "Invalid max_ls_iter: " + std::to_string(max_ls_iter));
-
         omp_set_num_threads(thread_ct);
-
+        std::cout<<"thread_ct: "<<thread_ct<<"\n";
         const real h = dt;
         VectorXr g;
+        std::cout<<"before g\n";
         CheckError(state_forces_.size() <= 1, "Only one state force, gravity, is supported for SIERE");
         if(state_forces_.size() == 1) {
             g = state_forces_[0]->parameters().head(vertex_dim);
@@ -78,52 +79,74 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
         
         std::vector<real> inv_h2_lumped_mass;
         std::transform(lumped_mass_.begin(),lumped_mass_.end(), std::back_inserter(inv_h2_lumped_mass),[&h](real mass)-> real { return mass/(h * h);});
+        std::cout<<"lumped_mass_ size:" << lumped_mass_.size()<<"\n";
         const int max_contact_iter = 5;
         const bool use_precomputed_data = !pd_element_energies_.empty();
-
+        std::cout<<"main loop\n";
         for (int contact_iter = 0; contact_iter < max_contact_iter; ++contact_iter) {
             if (verbose_level > 0) std::cout << "Contact iteration " << contact_iter << std::endl;
             // Fix dirichlet_ + active_contact_nodes.
+            std::cout<<"before fix dirichlet\n";
             std::map<int, real> augmented_dirichlet = dirichlet_;
 
+            std::cout<<"before active contact idx\n";
+            std::cout<<active_contact_idx.size()<<"\n";
             for (const int idx : active_contact_idx) {
-                for (int i = 0; i < vertex_dim; ++i)
+                for (int i = 0; i < vertex_dim; ++i){
                     augmented_dirichlet[idx * vertex_dim + i] = q(idx * vertex_dim + i);
+                    std::cout<<"augmented_dirichlet[ide *vertex_dim + i]\n";
+                    std::cout<<augmented_dirichlet[idx * vertex_dim + i]<<"\n";
+                }
             }
             // Initial guess.
             VectorXr q_sol = q;
             VectorXr v_sol = v;
+            std::cout<<"before selected\n";
             VectorXr selected = VectorXr::Ones(dofs_);
             for (const auto& pair : augmented_dirichlet) {
                 q_sol(pair.first) = pair.second;
                 v_sol(pair.first) = 0;
                 selected(pair.first) = 0;
             }
-            if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol);
+
+            // std::cout<<"before use_precomputed_data\n";
+            // if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol);
             
+            std::cout<<"before compute stiffness matrix\n";
             if (verbose_level > 1) Tic();
             SparseMatrix stiffness = StiffnessMatrix(q_sol, a, augmented_dirichlet, use_precomputed_data);
-            #ifndef NDEBUG
-            MatrixXr dense_stiffness;
-            dense_stiffness = MatrixXr(stiffness);
-            #endif
+            // #ifndef NDEBUG
+            // MatrixXr dense_stiffness;
+            // dense_stiffness = MatrixXr(stiffness);
+            // PrintMatrix(dense_stiffness);
+            // #endif
             if (verbose_level > 1) Toc("Assemble Stiffness Matrix");
             if (verbose_level > 1) Tic();
+
+            std::cout<<"before compute mass matrix\n";
             SparseMatrix lumped_mass = LumpedMassMatrix(augmented_dirichlet);
+            // std::cout<<"lumped_mass: "<<lumped_mass.nonZeros()<<"\n";
+            std::cout<<"g:\n";
+            PrintVector(g);
             const VectorXr gravitational_force = lumped_mass * g.replicate(dofs()/vertex_dim, 1);
-            #ifndef NDEBUG
-            MatrixXr dense_lumped_mass;
-            dense_lumped_mass = MatrixXr(lumped_mass);
-            #endif
+            // std::cout<<"gravitational_force:\n";
+            // PrintVector(gravitational_force);
+            
+            // #ifndef NDEBUG
+            // MatrixXr dense_lumped_mass;
+            // dense_lumped_mass = MatrixXr(lumped_mass);
+            // PrintMatrix(dense_lumped_mass);
+            // #endif
             if (verbose_level > 1) Toc("Assemble Mass Matrix");
             if (verbose_level > 1) Tic();
             SparseMatrix lumped_mass_inv = LumpedMassMatrixInverse(augmented_dirichlet);
-            #ifndef NDEBUG
-            MatrixXr dense_lumped_mass_inv;
-            dense_lumped_mass_inv = MatrixXr(lumped_mass_inv);
-            #endif
+            // #ifndef NDEBUG
+            // MatrixXr dense_lumped_mass_inv;
+            // dense_lumped_mass_inv = MatrixXr(lumped_mass_inv);
+            // #endif
             if (verbose_level > 1) Toc("Assemble Mass Matrix Inverse");
 
+            std::cout<<"force\n";
             VectorXr force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_precomputed_data) + ActuationForce(q_sol, a) + gravitational_force;
             for (const auto& pair : augmented_dirichlet) {
                 force_sol(pair.first) = 0;
@@ -135,13 +158,16 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             // MinvK0 = (1)*mass_lumped_inv.asDiagonal()*(K0_map);
 
 
+            std::cout<<"mink\n";
             SparseMatrix MinvK = lumped_mass_inv * stiffness;
-            #ifndef NDEBUG
-            MatrixXr dense_MinvK;
-            dense_MinvK = MatrixXr(MinvK);
-            #endif
+            // #ifndef NDEBUG
+            // MatrixXr dense_MinvK;
+            // dense_MinvK = MatrixXr(MinvK);
+            // PrintMatrix(dense_MinvK);
+            // #endif
             
 
+            std::cout<<"spectra op\n";
             Spectra::SparseSymShiftSolve<real> op(MinvK);
             
             int m_numModes = 5;
@@ -200,12 +226,15 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             std::vector<int> stiffness0_outer_ind_ptr;
             std::vector<int> stiffness0_inner_ind;
 
+            std::cout<<"eigen solve:\n";
             int DecomposedDim = std::max(m_numModes+2*vertex_dim,m_numModes + vertex_dim * (int)active_contact_idx.size());
             Spectra::SymEigsShiftSolver<Spectra::SparseSymShiftSolve<real>> eigs(op, DecomposedDim, std::min(2*(DecomposedDim),dofs()), 0.01);
             
             // Initialize and compute
             eigs.init();
+            Tic();
             eigs.compute(Spectra::SortRule::LargestMagn);
+            Toc("Eigen Solve");
             Eigen::VectorXd normalizing_const;
             if(eigs.info() == Spectra::CompInfo::Successful)
             {
@@ -324,20 +353,20 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             fG.noalias() = (lumped_mass * m_Us.first ) * (m_Us.first.transpose() * force_sol);
             fH = force_sol - fG;
             
-            #ifndef NDEBUG
-            MatrixXr dense_J12, dense_J21;
-            dense_J12 = MatrixXr(J12);
-            dense_J21 = MatrixXr(J21_map);
-            #endif
+            // #ifndef NDEBUG
+            // MatrixXr dense_J12, dense_J21;
+            // dense_J12 = MatrixXr(J12);
+            // dense_J21 = MatrixXr(J21_map);
+            // #endif
             
             A.resize((J12).rows(), (J12).cols());
             
             A.setIdentity();
             A -= h * (J12 - J21_map);
-             #ifndef NDEBUG
-            MatrixXr dense_A;
-            dense_A = MatrixXr(A);
-            #endif
+            //  #ifndef NDEBUG
+            // MatrixXr dense_A;
+            // dense_A = MatrixXr(A);
+            // #endif
             VectorXr rhs1;
             rhs1.resize(dofs()*2);
             VectorXr rhs2;
@@ -371,9 +400,12 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             rhs = rhs1 + rhs2;
             
             PardisoSolver solver;
-            if (verbose_level > 1) Toc("SIERE: decomposition");
-            solver.Compute(A, options);
+            
+            std::cout<<"Solving for the first sparse J"<<std::endl;
+
             if (verbose_level > 1) Tic();
+            solver.Compute(A, options);
+            if (verbose_level > 1) Toc("SIERE: decomposition");
             VectorXr x0 = solver.Solve(rhs);
             
             for(auto i: active_contact_idx){
@@ -407,7 +439,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             }
 
             
-            
+            std::cout<<"Solving for the SMW"<<std::endl;
             MatrixXr Is;
             Is.resize(U1.cols(),U1.cols());
             Is.setIdentity();
