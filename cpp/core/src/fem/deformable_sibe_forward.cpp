@@ -8,18 +8,13 @@ void Deformable<vertex_dim, element_dim>::ForwardSIBE(const std::string& method,
     const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext, const real dt,
     const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next, std::vector<int>& active_contact_idx) const {
         std::cout<<"forward sibe\n";
-        CheckError(options.find("max_ls_iter") != options.end(), "Missing option max_ls_iter.");
         CheckError(options.find("abs_tol") != options.end(), "Missing option abs_tol.");
         CheckError(options.find("rel_tol") != options.end(), "Missing option rel_tol.");
         CheckError(options.find("verbose") != options.end(), "Missing option verbose.");
         CheckError(options.find("thread_ct") != options.end(), "Missing option thread_ct.");
-        const int max_newton_iter = static_cast<int>(options.at("max_newton_iter"));
-        const int max_ls_iter = static_cast<int>(options.at("max_ls_iter"));
         const int verbose_level = static_cast<int>(options.at("verbose"));
         const int thread_ct = static_cast<int>(options.at("thread_ct"));
-        CheckError(max_newton_iter > 0, "Invalid max_newton_iter: " + std::to_string(max_newton_iter));
-        CheckError(max_ls_iter > 0, "Invalid max_ls_iter: " + std::to_string(max_ls_iter));
-
+        
         omp_set_num_threads(thread_ct);
 
         const real h = dt;
@@ -59,9 +54,10 @@ void Deformable<vertex_dim, element_dim>::ForwardSIBE(const std::string& method,
             if (verbose_level > 1) Tic();
             PardisoSpdSolver solver;
             solver.Compute(A, options);
-            if (verbose_level > 1) Toc("Newton-Pardiso: decomposition");
+            if (verbose_level > 1) Toc("sibe-Pardiso: decomposition");
             if (verbose_level > 1) Tic();
             VectorXr dv = solver.Solve(b);
+            if (verbose_level > 1) Toc("sibe-Pardiso: solve");
 
             v_next = v + dv;
             q_next = q + h * v_next;
