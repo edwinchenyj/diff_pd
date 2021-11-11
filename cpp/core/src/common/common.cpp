@@ -137,6 +137,23 @@ void PrintMatrix(const MatrixXr& mat) {
     std::cout << "]" << std::endl;
 }
 
+
+// Debugging.
+void PrintMatrixi(const MatrixXi& mat) {
+    
+    const int n_row = static_cast<int>(mat.rows());
+    const int n_col = static_cast<int>(mat.cols());
+    std::cout << "mat = [" << std::endl;
+    for (int i = 0; i < n_row; ++i) {
+        std::cout << "\t\t\t";
+        for (int j = 0; j < n_col; ++j) {
+            std::cout << mat(i, j) << (j == n_col - 1 ? "" : ", ");
+        }
+        std::cout << (i == n_row - 1 ? "" : ";") << std::endl;
+    }
+    std::cout << "]" << std::endl;
+}
+
 void PrintVector(const VectorXr& vec) {
     std::cout << "vec = ([";
     const int n = static_cast<int>(vec.size());
@@ -318,6 +335,28 @@ const MatrixXr LoadEigenMatrixFromBinaryFile(const std::string& file_name) {
     for (int i = 0; i < row_num; ++i)
         for (int j = 0; j < col_num; ++j)
             A(i, j) = ToReal(Load<double>(fin));
+    return A;
+}
+
+const MatrixXr LoadEigenMatrixXrFromFile(const std::string& file_name) {
+    std::ifstream fin(file_name,std::ifstream::in);
+    const int row_num = Load<int>(fin);
+    const int col_num = Load<int>(fin);
+    MatrixXr A = MatrixXr::Zero(row_num, col_num);
+    for (int i = 0; i < row_num; ++i)
+        for (int j = 0; j < col_num; ++j)
+            A(i, j) = ToReal(Load<double>(fin));
+    return A;
+}
+
+const MatrixXi LoadEigenMatrixXiFromFile(const std::string& file_name) {
+    std::ifstream fin(file_name);
+    const int row_num = Load<int>(fin);
+    const int col_num = Load<int>(fin);
+    MatrixXi A = MatrixXi::Zero(row_num, col_num);
+    for (int i = 0; i < row_num; ++i)
+        for (int j = 0; j < col_num; ++j)
+            A(i, j) = (Load<int>(fin));
     return A;
 }
 
