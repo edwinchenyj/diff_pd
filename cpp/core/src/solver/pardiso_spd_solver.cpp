@@ -92,8 +92,26 @@ void PardisoSolver::Compute(const SparseMatrix& A, const std::map<std::string, r
     CheckError(error == 0, "Pardiso: during numerical factorization: " + std::to_string(error));
 }
 
-const VectorXr PardisoSolver::Solve(const VectorXr& rhs){}
-const VectorXr PardisoSolver::Solve(VectorXr& rhs){
+const VectorXr PardisoSolver::Solve(const VectorXr& rhs) const{
+        int phase = 33;
+        int      idum = 0;              /* Integer dummy. */
+        int error = 0;
+        int nrhs = rhs.cols();
+
+        std::vector<double> b_vec(n_, 0);
+        for (int i = 0; i < n_; ++i) b_vec[i] = ToDouble(rhs(i));
+        double* b = b_vec.data();
+        
+        MatrixXr m_x;
+        m_x.resize(rhs.rows(), nrhs);
+        
+        // pardiso(pt_, &maxfct_, &mnum_, &mtype_, &phase, &n_, m_a.data(), m_outerArray.data(), m_innerArray.data(), &idum, &nrhs, iparm_, &msglvl_, b, m_x.data(), &error, dparm_);
+        pardiso(pt_, &maxfct_, &mnum_, &mtype_, &phase, &n_, m_a.data(), m_outerArray.data(),
+                m_innerArray.data(), &idum, &nrhs, iparm_, &msglvl_, b, m_x.data(), &error, dparm_);
+        
+        return m_x;
+}
+const VectorXr PardisoSolver::Solve(VectorXr& rhs) const{
     int phase = 33;
         int      idum = 0;              /* Integer dummy. */
         int error = 0;
@@ -108,8 +126,8 @@ const VectorXr PardisoSolver::Solve(VectorXr& rhs){
         
         return m_x;
 }
-const MatrixXr PardisoSolver::Solve(const MatrixXr& rhs){}
-const MatrixXr PardisoSolver::Solve( MatrixXr& rhs){
+
+const MatrixXr PardisoSolver::Solve( MatrixXr& rhs) const{
     int phase = 33;
         int      idum = 0;              /* Integer dummy. */
         int error = 0;
@@ -267,7 +285,7 @@ void PardisoSpdSolver::Compute(const SparseMatrix& lhs, const std::map<std::stri
 #endif
 }
 
-const VectorXr PardisoSpdSolver::Solve(const VectorXr& rhs) {
+const VectorXr PardisoSpdSolver::Solve(const VectorXr& rhs) const {
 #ifdef PARDISO_AVAILABLE
     // We do not perform symmetry check as it is quite expensive in SparseMatrix.
     CheckError(n_ == static_cast<int>(rhs.size()), "Inconsistent rhs size: " + std::to_string(n_) + ", "
@@ -314,60 +332,5 @@ const VectorXr PardisoSpdSolver::Solve(const VectorXr& rhs) {
 #else
     CheckError(false, "You are calling Pardiso but you haven't compiled it yet.");
     return VectorXr::Zero(rhs.size());
-#endif
-}
-
-const MatrixXr PardisoSpdSolver::Solve(const MatrixXr& rhs) {
-#ifdef PARDISO_AVAILABLE
-    // We do not perform symmetry check as it is quite expensive in SparseMatrix.
-    CheckError(n_ == static_cast<int>(rhs.rows()), "Inconsistent rhs size: " + std::to_string(n_) + ", "
-        + std::to_string(rhs.size()));
-    CheckError(rhs.size() > 0, "You are passing empty rhs.");
-    
-    int nrhs = rhs.cols();               // Number of right hand sides. Use 1 because the input is VectorXr.
-
-    // Translating rhs.
-    std::vector<double> b_vec(n_, 0);
-    for (int i = 0; i < n_; ++i) b_vec[i] = ToDouble(rhs(i));
-    double* b = b_vec.data();
-    // Solution.
-    // std::vector<double> x_vec(n_, 0);
-    // double* x = x_vec.data();   // Solution will be written back to x.
-
-    MatrixXr m_x;
-    m_x.resize(rhs.rows(), rhs.cols());
-
-    // Pardiso control parameters.
-    int error = 0;
-    error  = 0; // Initialize error flag.
-    // Checks the given vectors for infinite and NaN values.
-    // Use this functionality only for debugging purposes.
-    pardiso_chkvec(&n_, &nrhs, b, &error);
-    CheckError(error == 0, "Pardiso solver: in right hand side: " + std::to_string(error));
- 
-    if (msglvl_ > 0) {
-        // Prints information on the matrix to STDOUT.
-        // Use this functionality only for debugging purposes. 
-        pardiso_printstats(&mtype_, &n_, a_, ia_, ja_, &nrhs, b, &error);
-        CheckError(error == 0, "Pardiso solver: error in printstats: " + std::to_string(error));
-    }
-
-    // Back substitution and iterative refinement.
-    int phase = 33;
-    // Max numbers of iterative refinement steps.
-    iparm_[7] = 1;
-    int idum;   // Integer dummy.
-    pardiso(pt_, &maxfct_, &mnum_, &mtype_, &phase, &n_, a_, ia_, ja_, &idum, &nrhs, iparm_, &msglvl_, b, m_x.data(), &error, dparm_);
-    CheckError(error == 0, "Pardiso: during solution: " + std::to_string(error));
-
-    // // Write back solution.
-    // VectorXr x_sol = VectorXr::Zero(n_);
-    // for (int i = 0; i < n_; ++i) x_sol(i) = ToReal(x[i]);
-
-    return m_x;
-#else
-    CheckError(false, "You are calling Pardiso but you haven't compiled it yet.");
-    m_x.setZero()
-    return m_x;
 #endif
 }

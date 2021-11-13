@@ -8,6 +8,8 @@
 #include "Spectra/GenEigsRealShiftSolver.h"
 #include "Spectra/SymEigsShiftSolver.h"
 #include "Spectra/MatOp/SparseSymShiftSolve.h"
+#include "Spectra/MatOp/SparseGenRealShiftSolve.h"
+#include "solver/SparseGenRealShiftSolvePardiso.h"
 
 
 void phi(MatrixXr &A, MatrixXr &output)
@@ -94,8 +96,6 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             for (const int idx : active_contact_idx) {
                 for (int i = 0; i < vertex_dim; ++i){
                     augmented_dirichlet[idx * vertex_dim + i] = q(idx * vertex_dim + i);
-                    std::cout<<"augmented_dirichlet[ide *vertex_dim + i]\n";
-                    std::cout<<augmented_dirichlet[idx * vertex_dim + i]<<"\n";
                 }
             }
             // Initial guess.
@@ -108,8 +108,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
                 v_sol(pair.first) = 0;
                 selected(pair.first) = 0;
             }
-            std::cout<<"q_sol\n";
-            PrintVector(q_sol);
+
             // std::cout<<"before use_precomputed_data\n";
             // if (use_precomputed_data) ComputeDeformationGradientAuxiliaryDataAndProjection(q_sol);
             
@@ -169,7 +168,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             
 
             std::cout<<"spectra op\n";
-            Spectra::SparseSymShiftSolve<real> op(MinvK);
+            Spectra::SparseGenRealShiftSolvePardiso<real> op(MinvK);
             
             int m_numModes = 5;
 
@@ -193,44 +192,14 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             }
             J12.setFromTriplets(tripletListJ12.begin(),tripletListJ12.end());
             
-                
-            MatrixXr U1;
-            MatrixXr V1;
-            MatrixXr U2;
-            MatrixXr V2;
             
-            std::pair<MatrixXr, VectorXr > m_Us;
-            std::pair<MatrixXr, VectorXr > m_Us2;
-            
-            MatrixXr dt_J_G_reduced;
-            
-            VectorXr vG;
-            VectorXr vH;
-            
-            VectorXr fG;
-            
-            VectorXr fH;
-            
-            SparseMatrix A;
-            
-            SparseMatrix Identity;
-            
-            std::vector<int> J21_J22_outer_ind_ptr;
-            std::vector<int> J21_outer_ind_ptr;
-            std::vector<int> J22_outer_ind_ptr;
-            std::vector<int> J22i_outer_ind_ptr;
-            std::vector<int> J21_inner_ind;
-            std::vector<int> J22_inner_ind;
-            std::vector<int> J22i_inner_ind;
-            std::vector<double> J22i_identity_val;
-            std::vector<double> stiffness0_val;
-            std::vector<int> stiffness0_outer_ind_ptr;
-            std::vector<int> stiffness0_inner_ind;
-
             std::cout<<"eigen solve:\n";
             int DecomposedDim = std::max(m_numModes+2*vertex_dim,m_numModes + vertex_dim * (int)active_contact_idx.size());
-            Spectra::SymEigsShiftSolver<Spectra::SparseSymShiftSolve<real>> eigs(op, DecomposedDim, std::min(2*(DecomposedDim),dofs()), 0.01);
+            Spectra::GenEigsRealShiftSolver<Spectra::SparseGenRealShiftSolvePardiso<real>> eigs(op, DecomposedDim, std::min(2*(DecomposedDim),dofs()), 0.01);
             
+            VectorXr ritz_error = VectorXr::Zero(DecomposedDim);
+
+
             // Initialize and compute
             eigs.init();
             Tic();
@@ -250,7 +219,9 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
                 std::cout<<"eigen solve failed"<<std::endl;
                 exit(1);
             }
-            
+
+            ritz_error = (MinvK * m_Us.first - m_Us.first * m_Us.second.asDiagonal()).colwise().norm();
+            PrintVector(ritz_error);
 
             for(auto i: active_contact_idx){
                 for(int j = 0; j < vertex_dim; j++){
