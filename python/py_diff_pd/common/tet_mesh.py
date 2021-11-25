@@ -320,6 +320,7 @@ def read_tetgen_file(node_file, ele_file):
         lines = f.readlines()
         lines = [l.strip().split() for l in lines]
         ele_num = int(lines[0][0])
+        # elements = np.asarray([[int(e) for e in lines[i + 1][1:5]] for i in range(ele_num)], dtype=int)
         elements = np.asarray([[int(e) for e in lines[i + 1][1:5]] for i in range(ele_num)], dtype=int) - 1
         if np.min(elements) == -1:
             elements = elements + 1

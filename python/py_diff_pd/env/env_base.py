@@ -314,3 +314,139 @@ class EnvBase:
             else:
                 info['state_force_parameter_gradients'] = ndarray(np.zeros(0))
             return loss, grad, info
+
+
+    def simulate_simple(self, dt, frame_num, method, opt, q0=None, v0=None, act=None, f_ext=None,
+        vis_folder=None, velocity_bound=np.inf, render_frame_skip=1):
+        # Check input parameters.
+        assert dt > 0
+        assert frame_num > 0
+        if isinstance(method, str):
+            forward_method = method
+            backward_method = method
+        elif isinstance(method, tuple):
+            assert len(method) == 2
+            forward_method, backward_method = method
+        else:
+            raise NotImplementedError
+        if isinstance(opt, dict):
+            forward_opt = opt
+            backward_opt = opt
+        elif isinstance(opt, tuple):
+            assert len(opt) == 2
+            forward_opt, backward_opt = opt
+
+        if q0 is None:
+            sim_q0 = np.copy(self._q0)
+        else:
+            sim_q0 = np.copy(ndarray(q0))
+        assert sim_q0.size == self._q0.size
+
+        if v0 is None:
+            sim_v0 = np.copy(self._v0)
+        else:
+            sim_v0 = np.copy(ndarray(v0))
+        assert sim_v0.size == self._v0.size
+
+        if act is None:
+            sim_act = [np.zeros(self._deformable.act_dofs()) for _ in range(frame_num)]
+        else:
+            sim_act = [ndarray(a) for a in act]
+        assert len(sim_act) == frame_num
+        for a in sim_act:
+            assert a.size == self._deformable.act_dofs()
+
+        if f_ext is None:
+            sim_f_ext = [self._f_ext for _ in range(frame_num)]
+        else:
+            sim_f_ext = [ndarray(f) for f in f_ext]
+        assert len(sim_f_ext) == frame_num
+        for f in sim_f_ext:
+            assert f.size == self._deformable.dofs()
+
+        if vis_folder is not None:
+            create_folder(self._folder / vis_folder, exist_ok=False)
+
+        # Forward simulation.
+        t_begin = time.time()
+
+        def clamp_velocity(unclamped_vel):
+            clamped_vel = np.clip(np.copy(ndarray(unclamped_vel)), -velocity_bound, velocity_bound)
+            return clamped_vel
+
+        q = [sim_q0,]
+        v = [sim_v0,]
+        v_clamped = []
+        # Computational graph:
+        # Clamp v[i] to get v_clamped[i].
+        # Forward sim(q[i], v_clamped[i]) to obtain q[i + 1] and v[i + 1].
+        dofs = self._deformable.dofs()
+        loss = 0
+        grad_custom = {}
+        t_sim = 0
+        t_render = 0
+        active_contact_indices = [StdIntVector(0),]
+        for i in range(frame_num):
+            v_clamped.append(clamp_velocity(v[-1]))
+            q_next_array = StdRealVector(dofs)
+            v_next_array = StdRealVector(dofs)
+            active_contact_idx = copy_std_int_vector(active_contact_indices[-1])
+            t_begin = time.time()
+            self._deformable.PyForward(forward_method, q[-1], v_clamped[-1], sim_act[i], sim_f_ext[i], dt, forward_opt,
+                q_next_array, v_next_array, active_contact_idx)
+            t_forward = time.time() - t_begin
+            t_sim += t_forward
+            q_next = ndarray(q_next_array)
+            v_next = ndarray(v_next_array)
+            active_contact_indices.append(active_contact_idx)
+            if self._stepwise_loss:
+                # See if a custom grad is provided.
+                ret = self._stepwise_loss_and_grad(q_next, v_next, i + 1)
+                l, grad_q, grad_v = ret[:3]
+                if len(ret) > 3:
+                    grad_c = ret[3]
+                    for grad_c_key, grad_c_val in grad_c.items():
+                        if grad_c_key in grad_custom:
+                            grad_custom[grad_c_key] += grad_c_val
+                        else:
+                            grad_custom[grad_c_key] = grad_c_val
+                loss += l
+            elif i == frame_num - 1:
+                ret = self._loss_and_grad(q_next, v_next)
+                l, grad_q, grad_v = ret[:3]
+                if len(ret) > 3:
+                    grad_c = ret[3]
+                    for grad_c_key, grad_c_val in grad_c.items():
+                        if grad_c_key in grad_custom:
+                            grad_custom[grad_c_key] += grad_c_val
+                        else:
+                            grad_custom[grad_c_key] = grad_c_val
+                loss += l
+            
+            if vis_folder is not None and i % render_frame_skip == 0:
+                t_begin = time.time()
+                mesh_file = str(self._folder / vis_folder / '{:04d}.bin'.format(i))
+                self._deformable.PySaveToMeshFile(q[-1], mesh_file)
+                self._display_mesh(mesh_file, self._folder / vis_folder / '{:04d}.png'.format(i))
+                t_render += time.time() - t_begin
+
+            q[-1] = q_next
+            v[-1] = v_next
+
+
+        # Save data.
+        info = { 'grad_custom': grad_custom }
+        info['q'] = q
+        info['v'] = v
+        info['active_contact_indices'] = [list(a) for a in active_contact_indices]
+
+        info['forward_time'] = t_sim
+        info['render_time'] = t_render
+
+        if vis_folder is not None:
+            t_begin = time.time()
+            export_mp4(self._folder / vis_folder, self._folder / '{}.mp4'.format(vis_folder), 20)
+            t_vis = time.time() - t_begin
+            info['visualize_time'] = t_vis
+
+        return loss, info

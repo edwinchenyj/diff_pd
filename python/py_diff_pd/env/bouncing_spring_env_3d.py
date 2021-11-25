@@ -22,7 +22,7 @@ class BouncingSpringEnv3d(EnvBase):
 
         create_folder(folder, exist_ok=True)
 
-        youngs_modulus = options['youngs_modulus'] if 'youngs_modulus' in options else 1e6
+        youngs_modulus = options['youngs_modulus'] if 'youngs_modulus' in options else 1e7
         poissons_ratio = options['poissons_ratio'] if 'poissons_ratio' in options else 0.45
         state_force_parameters = options['state_force_parameters'] if 'state_force_parameters' in options else ndarray([0.0, 0.0, -9.81])
 
@@ -33,28 +33,26 @@ class BouncingSpringEnv3d(EnvBase):
 
                 # Generate spring mesh.
         ele_file_name = Path(root_path) / 'asset' / 'mesh' / 'spring_5.ele'
-        node_file_name = Path(root_path) / 'asset' / 'mesh' / 'spring_5.node'
+        node_file_name = Path(root_path) / 'asset' / 'mesh' / 'spring_5_new.node'
         verts, eles = read_tetgen_file(node_file_name, ele_file_name)
-        # To make the mesh consistent with our coordinate system, we need to:
-        # - rotate the model along +x by 90 degrees.
-        # - shift it so that its min_z = 0.
-        # - divide it by 1000.
-        R = ndarray([
-            [1, 0, 0],
-            [0, 0, -1],
-            [0, 1, 0]
-        ])
-        verts = verts @ R.T
-        # Next, rotate along z by 180 degrees.
-        R = ndarray([
-            [-1, 0, 0],
-            [0, -1, 0],
-            [0, 0, 1],
-        ])
-        verts = verts @ R.T
-        min_z = np.min(verts, axis=0)[2]
-        verts[:, 2] -= min_z
-        # verts /= 1000
+        # - rotate the model 
+        # R = ndarray([
+        #     [1, 0, 0],
+        #     [0, 0, 1],
+        #     [0, 1, 0]
+        # ])
+        # verts = verts @ R.T
+        # # # Next, rotate along z by 180 degrees.
+        # # R = ndarray([
+        # #     [-1, 0, 0],
+        # #     [0, -1, 0],
+        # #     [0, 0, 1],
+        # # ])
+        # # verts = verts @ R.T
+        # min_z = np.min(verts, axis=0)[2]
+        # verts[:, 2] -= min_z
+        # verts[:, 2] += 1
+        # verts /= 20
         tmp_bin_file_name = '.tmp.bin'
         generate_tet_mesh(verts, eles, tmp_bin_file_name)
         mesh = TetMesh3d()
@@ -66,19 +64,55 @@ class BouncingSpringEnv3d(EnvBase):
         # Obtain dx.
         fi = ndarray(mesh.py_element(0))
         dx = np.linalg.norm(ndarray(mesh.py_vertex(int(fi[0]))) - ndarray(mesh.py_vertex(int(fi[1]))))
+
+                # Boundary conditions.
+        # Figure out the lowest z nodes.
+        vert_num = mesh.NumOfVertices()
+        all_verts = ndarray([ndarray(mesh.py_vertex(i)) for i in range(vert_num)])
+        max_corner = np.max(all_verts, axis=0)
+        min_corner = np.min(all_verts, axis=0)
+        center = (max_corner + min_corner) / 2
+        min_z = min_corner[2]
+        max_z = max_corner[2]
+        min_x = min_corner[0]
+        max_x = max_corner[0]
+        dirichlet_dofs = []
+        self.__min_x_nodes = []
+        self.__max_x_nodes = []
+        constraint_nodes = []
+        for i in range(vert_num):
+            vx, vy, vz = all_verts[i]
+            if vx - min_x < 1e-3:
+                self.__min_x_nodes.append(i)
+            if max_x - vx < 1e-3:
+                self.__max_x_nodes.append(i)
+            # if vz - min_z < 1e-3:
+            #     deformable.SetDirichletBoundaryCondition(3 * i + 2, vz)
+            #     dirichlet_dofs += [3 * i, 3 * i + 1, 3 * i + 2]
+            if max_z - vz < 1e-3:
+                constraint_nodes.append(i)
+                deformable.SetDirichletBoundaryCondition(3 * i, vx)
+                deformable.SetDirichletBoundaryCondition(3 * i + 1, vy)
+                deformable.SetDirichletBoundaryCondition(3 * i + 2, vz)
+                dirichlet_dofs += [3 * i + 2,]
+        self.__dirichlet_dofs = dirichlet_dofs
+        # print('dirichlet_dofs:', dirichlet_dofs)
+        print('constraint_nodes:', constraint_nodes)
+
+
         # State-based forces.
         deformable.AddStateForce('gravity', state_force_parameters)
         # Elasticity.
-        deformable.AddPdEnergy('corotated', [2 * mu,], [])
-        deformable.AddPdEnergy('volume', [la,], [])
+        # deformable.AddPdEnergy('corotated', [2 * mu,], [])
+        # deformable.AddPdEnergy('volume', [la,], [])
 
-        # Collisions.
-        friction_node_idx = get_tet_contact_vertex(mesh)
-        deformable.SetFrictionalBoundary('planar', [0.0, 0.0, 1.0, 0.0], friction_node_idx)
+        # # Collisions.
+        # friction_node_idx = get_tet_contact_vertex(mesh)
+        # deformable.SetFrictionalBoundary('planar', [0.0, 0.0, 1.0, 0.0], friction_node_idx)
 
         # Initial state set by rotating the cuboid kinematically.
         dofs = deformable.dofs()
-        print('Bouncing ball element: {:d}, DoFs: {:d}.'.format(mesh.NumOfElements(), dofs))
+        print('Bouncing spring element: {:d}, DoFs: {:d}.'.format(mesh.NumOfElements(), dofs))
         act_dofs = deformable.act_dofs()
         q0 = ndarray(mesh.py_vertices())
         v0 = np.zeros(dofs)
@@ -95,9 +129,7 @@ class BouncingSpringEnv3d(EnvBase):
         self._stepwise_loss = False
         self.__loss_q_grad = np.random.normal(size=dofs)
         self.__loss_v_grad = np.random.normal(size=dofs)
-
         self.__spp = options['spp'] if 'spp' in options else 4
-
 
     def material_stiffness_differential(self, youngs_modulus, poissons_ratio):
         jac = self._material_jacobian(youngs_modulus, poissons_ratio)
@@ -107,7 +139,7 @@ class BouncingSpringEnv3d(EnvBase):
         return jac_total
 
     def is_dirichlet_dof(self, dof):
-        return False
+        return dof in self.__dirichlet_dofs
 
     # def _stepwise_loss_and_grad(self, q, v, i):
     #     mesh_file = self._folder / 'groundtruth' / '{:04d}.bin'.format(i)
@@ -127,8 +159,8 @@ class BouncingSpringEnv3d(EnvBase):
                 'light_map': 'uffizi-large.exr',
                 'sample': self.__spp,
                 'max_depth': 2,
-                'camera_pos': (0.12, -0.8, 0.34),
-                'camera_lookat': (0, 0, .15)
+                'camera_pos': (0.5, -15, -3),
+                'camera_lookat': (0, 0, -3)
             }
             renderer = PbrtRenderer(options)
 
@@ -141,7 +173,7 @@ class BouncingSpringEnv3d(EnvBase):
                 render_tet_edge=True,
             )
             renderer.add_tri_mesh(Path(root_path) / 'asset/mesh/curved_ground.obj',
-                texture_img='chkbd_24_0.7', transforms=[('s', 2)])
+                texture_img='chkbd_24_0.7', transforms=[('s', 50), ['t',[0,0,-10]]])
 
             renderer.render()
 
