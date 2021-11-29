@@ -27,6 +27,8 @@ void Deformable<vertex_dim, element_dim>::Initialize(const std::string& binary_f
             }
         }
     }
+
+    m_Us.second.setZero();
 }
 
 template<int vertex_dim, int element_dim>
@@ -45,6 +47,9 @@ void Deformable<vertex_dim, element_dim>::Initialize(const Eigen::Matrix<real, v
             }
         }
     }
+
+    m_Us.second.setZero();
+
 }
 
 template<int vertex_dim, int element_dim>
@@ -131,6 +136,7 @@ void Deformable<vertex_dim, element_dim>::Forward(const std::string& method, con
     if (method == "semi_implicit") ForwardSemiImplicit(q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "pd")) ForwardProjectiveDynamics(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "newton")) ForwardNewton(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (BeginsWith(method, "sibefull")) ForwardSIBEFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "sibe")) ForwardSIBE(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "siere")) ForwardSIERE(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else PrintError("Unsupported forward method: " + method);

@@ -152,11 +152,6 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
                 force_sol(pair.first) = 0;
             }
             
-            // TODO: implement siere
-
-            // SparseMatirx MinvK0;
-            // MinvK0 = (1)*mass_lumped_inv.asDiagonal()*(K0_map);
-
 
             std::cout<<"mink\n";
             SparseMatrix MinvK = lumped_mass_inv * stiffness;
@@ -199,29 +194,37 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             
             VectorXr ritz_error = VectorXr::Zero(DecomposedDim);
 
+            
+            if(m_Us.second.sum() != 0){
+                ritz_error = (MinvK * m_Us.first - m_Us.first * m_Us.second.asDiagonal()).colwise().norm();
+                PrintVector(ritz_error);
+                ritz_error_norm = ritz_error.maxCoeff();
 
-            // Initialize and compute
-            eigs.init();
-            Tic();
-            eigs.compute(Spectra::SortRule::LargestMagn);
-            Toc("Eigen Solve");
-            Eigen::VectorXd normalizing_const;
-            if(eigs.info() == Spectra::CompInfo::Successful)
-            {
-                m_Us = std::make_pair(eigs.eigenvectors().real().leftCols(m_numModes), eigs.eigenvalues().real().head(m_numModes));
-                normalizing_const.noalias() = (m_Us.first.transpose() * lumped_mass * m_Us.first).diagonal();
-                normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
+            }
+
+            if(ritz_error_norm > 1){
+
                 
-                m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
+                // Initialize and compute
+                eigs.init();
+                Tic();
+                eigs.compute(Spectra::SortRule::LargestMagn);
+                Toc("Eigen Solve");
+                Eigen::VectorXd normalizing_const;
+                if(eigs.info() == Spectra::CompInfo::Successful)
+                {
+                    m_Us = std::make_pair(eigs.eigenvectors().real().leftCols(m_numModes), eigs.eigenvalues().real().head(m_numModes));
+                    normalizing_const.noalias() = (m_Us.first.transpose() * lumped_mass * m_Us.first).diagonal();
+                    normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
+                    
+                    m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
 
+                }
+                else{
+                    std::cout<<"eigen solve failed"<<std::endl;
+                    exit(1);
+                }
             }
-            else{
-                std::cout<<"eigen solve failed"<<std::endl;
-                exit(1);
-            }
-
-            ritz_error = (MinvK * m_Us.first - m_Us.first * m_Us.second.asDiagonal()).colwise().norm();
-            PrintVector(ritz_error);
 
             for(auto i: active_contact_idx){
                 for(int j = 0; j < vertex_dim; j++){
