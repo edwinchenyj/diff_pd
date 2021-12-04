@@ -202,7 +202,8 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
 
             }
 
-            if(ritz_error_norm > 1){
+            if(true){
+            // if(ritz_error_norm > 1){
 
                 
                 // Initialize and compute

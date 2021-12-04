@@ -192,6 +192,7 @@ public:
     mutable std::vector<double> stiffness0_val;
     mutable std::vector<int> stiffness0_outer_ind_ptr;
     mutable std::vector<int> stiffness0_inner_ind;
+    mutable real ritz_error_norm = 2.0;
 
 protected:
     void ForwardSemiImplicit(const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
@@ -201,6 +202,9 @@ protected:
         const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
         std::vector<int>& active_contact_idx) const;
     void ForwardSIBE(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
+        const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
+        std::vector<int>& active_contact_idx) const;
+    void ForwardSIBEFULL(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
         const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
         std::vector<int>& active_contact_idx) const;
     void ForwardSIERE(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
