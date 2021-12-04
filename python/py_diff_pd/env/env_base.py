@@ -376,7 +376,7 @@ class EnvBase:
 
         q = [sim_q0,]
         v = [sim_v0,]
-        v_clamped = []
+        v_clamped = [clamp_velocity(v[-1]),]
         # Computational graph:
         # Clamp v[i] to get v_clamped[i].
         # Forward sim(q[i], v_clamped[i]) to obtain q[i + 1] and v[i + 1].
@@ -387,7 +387,7 @@ class EnvBase:
         t_render = 0
         active_contact_indices = [StdIntVector(0),]
         for i in range(frame_num):
-            v_clamped.append(clamp_velocity(v[-1]))
+            v_clamped[-1] = (clamp_velocity(v[-1]))
             q_next_array = StdRealVector(dofs)
             v_next_array = StdRealVector(dofs)
             active_contact_idx = copy_std_int_vector(active_contact_indices[-1])
@@ -398,31 +398,7 @@ class EnvBase:
             t_sim += t_forward
             q_next = ndarray(q_next_array)
             v_next = ndarray(v_next_array)
-            active_contact_indices.append(active_contact_idx)
-            if self._stepwise_loss:
-                # See if a custom grad is provided.
-                ret = self._stepwise_loss_and_grad(q_next, v_next, i + 1)
-                l, grad_q, grad_v = ret[:3]
-                if len(ret) > 3:
-                    grad_c = ret[3]
-                    for grad_c_key, grad_c_val in grad_c.items():
-                        if grad_c_key in grad_custom:
-                            grad_custom[grad_c_key] += grad_c_val
-                        else:
-                            grad_custom[grad_c_key] = grad_c_val
-                loss += l
-            elif i == frame_num - 1:
-                ret = self._loss_and_grad(q_next, v_next)
-                l, grad_q, grad_v = ret[:3]
-                if len(ret) > 3:
-                    grad_c = ret[3]
-                    for grad_c_key, grad_c_val in grad_c.items():
-                        if grad_c_key in grad_custom:
-                            grad_custom[grad_c_key] += grad_c_val
-                        else:
-                            grad_custom[grad_c_key] = grad_c_val
-                loss += l
-            
+            active_contact_indices[-1] = active_contact_idx
             if vis_folder is not None and i % render_frame_skip == 0:
                 t_begin = time.time()
                 mesh_file = str(self._folder / vis_folder / '{:04d}.bin'.format(i))

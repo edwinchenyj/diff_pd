@@ -102,10 +102,20 @@ include(${Catch2_SOURCE_DIR}/contrib/Catch.cmake)
 catch_discover_tests(${PROJECT_NAME}-tests)
 
 
-add_executable(${PROJECT_NAME}-example tests/example.cxx)
+add_executable(${PROJECT_NAME}-siere-example tests/siere-example.cxx)
 
 #
-target_link_libraries(${PROJECT_NAME}-example
+target_link_libraries(${PROJECT_NAME}-siere-example
+  PRIVATE
+    diff_pd_core
+  )
+
+  
+
+add_executable(${PROJECT_NAME}-sibe-full-example tests/sibe-full-example.cxx)
+
+#
+target_link_libraries(${PROJECT_NAME}-sibe-full-example
   PRIVATE
     diff_pd_core
   )
