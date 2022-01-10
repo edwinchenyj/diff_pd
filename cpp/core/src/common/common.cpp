@@ -136,6 +136,19 @@ void PrintMatrix(const MatrixXr& mat) {
     }
     std::cout << "]" << std::endl;
 }
+void PrintMatrixHead(const MatrixXr& mat, int rows, int cols) {
+    
+    std::cout << "mat = [" << std::endl;
+    for (int i = 0; i < rows; ++i) {
+        std::cout << "\t\t\t";
+        for (int j = 0; j < cols; ++j) {
+            std::cout << mat(i, j) << (j == cols - 1 ? "" : ", ");
+        }
+        std::cout << (i == rows - 1 ? "" : ";") << std::endl;
+    }
+    std::cout << "]" << std::endl;
+}
+
 
 
 // Debugging.
@@ -154,6 +167,13 @@ void PrintMatrixi(const MatrixXi& mat) {
     std::cout << "]" << std::endl;
 }
 
+void PrintVectorHead(const VectorXr& vec, int rows) {
+    std::cout << "vec = ([";
+    for (int i = 0; i < rows; ++i) {
+        std::cout << vec(i) << (i == rows - 1 ? "" : "; ");
+    }
+    std::cout << "])" << std::endl;
+}
 void PrintVector(const VectorXr& vec) {
     std::cout << "vec = ([";
     const int n = static_cast<int>(vec.size());
@@ -162,6 +182,75 @@ void PrintVector(const VectorXr& vec) {
     }
     std::cout << "])" << std::endl;
 }
+void SaveMatrixXd(const Eigen::MatrixXd &matrix, std::string filename)
+{
+    std::ofstream file;
+    file.open(filename);
+    for(int i = 0; i < matrix.rows(); i++)
+    {
+        for(int j = 0; j < matrix.cols(); j++)
+        {
+            file<<matrix(i,j)<<" ";
+        }
+        file<<std::endl;
+    }
+    file.close();
+}
+
+void SaveMatrixXd(const Eigen::SparseMatrix<double> &matrix, std::string filename)
+{
+    std::ofstream file;
+    file.open(filename);
+    for(int i = 0; i < matrix.rows(); i++)
+    {
+        for(int j = 0; j < matrix.cols(); j++)
+        {
+            file<<matrix.coeff(i,j)<<" ";
+        }
+        file<<std::endl;
+    }
+    file.close();
+}
+
+void SaveMatrixXi(const Eigen::MatrixXi &matrix, std::string filename)
+{
+    std::ofstream file;
+    file.open(filename);
+    for(int i = 0; i < matrix.rows(); i++)
+    {
+        for(int j = 0; j < matrix.cols(); j++)
+        {
+            file<<matrix(i,j)<<" ";
+        }
+        file<<std::endl;
+    }
+    file.close();
+}
+
+void SaveVectorXd(const Eigen::VectorXd &vector, std::string filename)
+{
+    std::ofstream file;
+    file.open(filename);
+    for(int i = 0; i < vector.rows(); i++)
+    {
+        file<<vector(i)<<" ";
+    }
+    file<<std::endl;
+    file.close();
+}
+
+void SaveVectorXi(const Eigen::VectorXi &vector, std::string filename)
+{
+    std::ofstream file;
+    file.open(filename);
+    for(int i = 0; i < vector.rows(); i++)
+    {
+        file<<vector(i)<<" ";
+    }
+    file<<std::endl;
+    file.close();
+}
+
 
 const real Clip(const real val, const real min, const real max) {
     if (val < min) return min;

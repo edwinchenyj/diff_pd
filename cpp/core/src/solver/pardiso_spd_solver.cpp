@@ -100,14 +100,15 @@ const VectorXr PardisoSolver::Solve(const VectorXr& rhs) const{
 
         std::vector<double> b_vec(n_, 0);
         for (int i = 0; i < n_; ++i) b_vec[i] = ToDouble(rhs(i));
-        double* b = b_vec.data();
+        // std::unique_ptr<double[]> b = std::make_unique<double[]>(b_vec.data(), b_vec.data() + b_vec.size());
+        // double* b = b_vec.data();
         
         MatrixXr m_x;
         m_x.resize(rhs.rows(), nrhs);
         
         // pardiso(pt_, &maxfct_, &mnum_, &mtype_, &phase, &n_, m_a.data(), m_outerArray.data(), m_innerArray.data(), &idum, &nrhs, iparm_, &msglvl_, b, m_x.data(), &error, dparm_);
         pardiso(pt_, &maxfct_, &mnum_, &mtype_, &phase, &n_, m_a.data(), m_outerArray.data(),
-                m_innerArray.data(), &idum, &nrhs, iparm_, &msglvl_, b, m_x.data(), &error, dparm_);
+                m_innerArray.data(), &idum, &nrhs, iparm_, &msglvl_, b_vec.data(), m_x.data(), &error, dparm_);
         
         return m_x;
 }
@@ -295,24 +296,28 @@ const VectorXr PardisoSpdSolver::Solve(const VectorXr& rhs) const {
     // Translating rhs.
     std::vector<double> b_vec(n_, 0);
     for (int i = 0; i < n_; ++i) b_vec[i] = ToDouble(rhs(i));
-    double* b = b_vec.data();
+    // double* b = b_vec.data();
     // Solution.
     std::vector<double> x_vec(n_, 0);
-    double* x = x_vec.data();   // Solution will be written back to x.
+    // double* x = x_vec.data();   // Solution will be written back to x.
     int nrhs = 1;               // Number of right hand sides. Use 1 because the input is VectorXr.
 
+    
+    VectorXr m_x;
+    m_x.resize(rhs.rows());
+        
     // Pardiso control parameters.
     int error = 0;
     error  = 0; // Initialize error flag.
     // Checks the given vectors for infinite and NaN values.
     // Use this functionality only for debugging purposes.
-    pardiso_chkvec(&n_, &nrhs, b, &error);
+    pardiso_chkvec(&n_, &nrhs, m_x.data(), &error);
     CheckError(error == 0, "Pardiso solver: in right hand side: " + std::to_string(error));
  
     if (msglvl_ > 0) {
         // Prints information on the matrix to STDOUT.
         // Use this functionality only for debugging purposes. 
-        pardiso_printstats(&mtype_, &n_, a_, ia_, ja_, &nrhs, b, &error);
+        pardiso_printstats(&mtype_, &n_, a_, ia_, ja_, &nrhs, m_x.data(), &error);
         CheckError(error == 0, "Pardiso solver: error in printstats: " + std::to_string(error));
     }
 
@@ -321,13 +326,12 @@ const VectorXr PardisoSpdSolver::Solve(const VectorXr& rhs) const {
     // Max numbers of iterative refinement steps.
     iparm_[7] = 1;
     int idum;   // Integer dummy.
-    pardiso(pt_, &maxfct_, &mnum_, &mtype_, &phase, &n_, a_, ia_, ja_, &idum, &nrhs, iparm_, &msglvl_, b, x, &error, dparm_);
+    pardiso(pt_, &maxfct_, &mnum_, &mtype_, &phase, &n_, a_, ia_, ja_, &idum, &nrhs, iparm_, &msglvl_, b_vec.data(), m_x.data(), &error, dparm_);
     CheckError(error == 0, "Pardiso: during solution: " + std::to_string(error));
 
     // Write back solution.
     VectorXr x_sol = VectorXr::Zero(n_);
-    for (int i = 0; i < n_; ++i) x_sol(i) = ToReal(x[i]);
-
+    for (int i = 0; i < n_; ++i) x_sol(i) = ToReal(m_x[i]);
     return x_sol;
 #else
     CheckError(false, "You are calling Pardiso but you haven't compiled it yet.");

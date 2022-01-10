@@ -34,8 +34,18 @@ void PrintNumpyStyleVector(const VectorXr& vec);
 
 // Debugging.
 void PrintMatrix(const MatrixXr& mat);
+void PrintMatrixHead(const MatrixXr& mat, int rows, int cols);
+void PrintMatrixTail(const MatrixXr& mat);
 void PrintVector(const VectorXr& vec);
+void PrintVectorHead(const VectorXr& vec, int rows);
+void PrintVectorTail(const VectorXr& vec, int rows);
 
+
+void SaveMatrixXd(const Eigen::MatrixXd &matrix, std::string filename);
+void SaveMatrixXd(const Eigen::SparseMatrix<double> &matrix, std::string filename);
+void SaveMatrixXi(const Eigen::MatrixXi &matrix, std::string filename);
+void SaveVectorXd(const Eigen::VectorXd &vector, std::string filename);
+void SaveVectorXi(const Eigen::VectorXi &vector, std::string filename);
 const real Clip(const real val, const real min, const real max);
 const real ClipWithGradient(const real val, const real min, const real max, real& grad);
 
