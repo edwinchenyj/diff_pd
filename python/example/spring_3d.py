@@ -1,5 +1,6 @@
 import sys
 sys.path.append('../')
+from contextlib import redirect_stdout
 
 from pathlib import Path
 import time
@@ -20,7 +21,7 @@ if __name__ == '__main__':
     seed = 42
     np.random.seed(seed)
     folder = Path('spring_3d')
-    youngs_modulus = 6e8
+    youngs_modulus = 6e6
     poissons_ratio = 0.4
     env = BouncingSpringEnv3d(seed, folder, { 'youngs_modulus': youngs_modulus,
         'poissons_ratio': poissons_ratio, 'spp': 4 })
@@ -28,16 +29,16 @@ if __name__ == '__main__':
 
     # Optimization parameters.
     thread_ct = 12
-    newton_opt = { 'max_newton_iter': 500, 'max_ls_iter': 10, 'abs_tol': 1e-2, 'rel_tol': 1e-4, 'verbose': 2, 'thread_ct': thread_ct }
-    pd_opt = { 'max_pd_iter': 500, 'max_ls_iter': 10, 'abs_tol': 1e-4, 'rel_tol': 1e-2, 'verbose': 2, 'thread_ct': thread_ct,
+    newton_opt = { 'max_newton_iter': 500, 'max_ls_iter': 10, 'abs_tol': 1e-2, 'rel_tol': 1e-4, 'verbose': 1, 'thread_ct': thread_ct }
+    pd_opt = { 'max_pd_iter': 500, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-2, 'verbose': 1, 'thread_ct': thread_ct,
         'use_bfgs': 1, 'bfgs_history_size': 10 }
-    siere_opt = { 'max_pd_iter': 500, 'max_ls_iter': 10, 'abs_tol': 1e-4, 'rel_tol': 1e-2, 'verbose': 2, 'thread_ct': thread_ct,
-        'use_bfgs': 1, 'bfgs_history_size': 10 }
-    methods = ('siere','sibefull','newton_pardiso','newton_pcg', 'newton_cholesky','pd_pardiso')
+    siere_opt = { 'max_pd_iter': 500, 'max_ls_iter': 10, 'abs_tol': 1e-4, 'rel_tol': 1e-2, 'verbose': 1, 'thread_ct': thread_ct,
+        'use_bfgs': 1, 'bfgs_history_size': 10 , 'recompute_eigen_decomp_each_step': 1, 'num_modes': 5 }
+    methods = ('siere','sibefull','sibe','newton_pardiso','newton_pcg', 'newton_cholesky','pd_pardiso')
     opts = (siere_opt, newton_opt, newton_opt, pd_opt)
 
-    dt = 50e-3
-    frame_num = 66
+    dt = 10e-3
+    frame_num = 1 
 
     # Compute the initial state.
     dofs = deformable.dofs()
@@ -52,12 +53,33 @@ if __name__ == '__main__':
     f0 = [np.zeros(dofs) for _ in range(frame_num)]
 
     # Generate groundtruth motion.
-    _, info = env.simulate_simple(dt, frame_num, methods[0], opts[0], q0, v0, a0, f0, vis_folder='siere_recomp_1_n_5')
+    method = methods[0]
+    opt = opts[0]
+    simulation_name = f'{method}_recomp_{opt["recompute_eigen_decomp_each_step"]}_nmode_{opt["num_modes"]}_dt_{dt}_Y_{youngs_modulus}_frame_num_{frame_num}'
+    print(simulation_name)
+    with open( 'output.txt', 'w') as f:
+        with redirect_stdout(f):
+            _, info = env.simulate_simple(dt, frame_num, method, opt, q0, v0, a0, f0, vis_folder=simulation_name)
+            print('info')
     print("siere")
     print("forward time")
     print(info["forward_time"])
     print("render time")
     print(info["render_time"])
+
+    # Generate siere data. 
+
+    # Generate sibe_full data.
+    # method = methods[1]
+    # opt = opts[0]
+    # simulation_name = f'{method}_dt_{dt}_frame_num_{frame_num}'
+    # print(simulation_name)
+    # _, info = env.simulate_simple(dt, frame_num, methods[1], opts[0], q0, v0, a0, f0, vis_folder=simulation_name)
+    # print("sibefull")
+    # print("forward time")
+    # print(info["forward_time"])
+    # print("render time")
+    # print(info["render_time"])
 
     # # Generate groundtruth motion.
     # _, info = env.simulate_simple(dt, frame_num, methods[1], opts[0], q0, v0, a0, f0, vis_folder='sibefull')
