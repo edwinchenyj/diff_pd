@@ -194,6 +194,12 @@ public:
     mutable std::vector<int> stiffness0_inner_ind;
     mutable real ritz_error_norm = 2.0;
 
+    mutable VectorXr q_prev;
+    mutable VectorXr v_prev;
+    mutable VectorXr q_current;
+    mutable VectorXr v_current;
+    mutable bool two_step_method = false;
+
 protected:
     void ForwardSemiImplicit(const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
         const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
@@ -202,6 +208,12 @@ protected:
         const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
         std::vector<int>& active_contact_idx) const;
     void ForwardSIBE(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
+        const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
+        std::vector<int>& active_contact_idx) const;
+    void ForwardBDF2FULL(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
+        const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
+        std::vector<int>& active_contact_idx) const;
+    void ForwardBDFFULL(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
         const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
         std::vector<int>& active_contact_idx) const;
     void ForwardSIBEFULL(const std::string& method, const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,

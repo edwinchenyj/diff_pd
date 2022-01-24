@@ -51,6 +51,8 @@ void Deformable<vertex_dim, element_dim>::ForwardSIBE(const std::string& method,
             SparseMatrix A = lumped_mass + h*h * stiffness;
             VectorXr b = h * ((force_sol + state_force) -h*stiffness*v).array() * selected.array();
 
+            std::cout<<"current residual: "<<( h * (force_sol + state_force)).norm()<<"\n";
+
             if (verbose_level > 1) Tic();
             PardisoSpdSolver solver;
             solver.Compute(A, options);
@@ -61,6 +63,9 @@ void Deformable<vertex_dim, element_dim>::ForwardSIBE(const std::string& method,
 
             v_next = v + dv;
             q_next = q + h * v_next;
+            VectorXr force_sol_new = ElasticForce(q_next) + PdEnergyForce(q_next, use_precomputed_data) + ActuationForce(q_next, a);
+            double residual = (lumped_mass * dv - h * (force_sol_new + state_force)).norm();
+            std::cout<<"Residual: "<<residual<<"\n";
             break; // skip contact for now
 
             

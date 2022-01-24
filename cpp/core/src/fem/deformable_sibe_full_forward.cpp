@@ -197,7 +197,12 @@ void Deformable<vertex_dim, element_dim>::ForwardSIBEFULL(const std::string& met
                 force_sol_new(pair.first) = 0;
             }
             rhs.tail(dofs()).noalias() = (-h) * lumped_mass_inv * force_sol_new;
-            double residual = (rhs - x0).norm();
+            VectorXr diff;
+            diff.resize(dofs()*2);
+            diff.head(dofs()) = q_next - q;
+            diff.tail(dofs()) = v_next - v;
+            rhs += diff;
+            double residual = (rhs).norm();
             std::cout<<"Residual: "<<residual<<std::endl;
             break; // skip contact for now
 

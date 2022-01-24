@@ -119,3 +119,10 @@ target_link_libraries(${PROJECT_NAME}-sibe-full-example
   PRIVATE
     diff_pd_core
   )
+add_executable(${PROJECT_NAME}-bdf-full-example tests/bdf-full-example.cxx)
+
+#
+target_link_libraries(${PROJECT_NAME}-bdf-full-example
+  PRIVATE
+    diff_pd_core
+  )
