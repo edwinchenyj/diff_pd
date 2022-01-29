@@ -11,7 +11,9 @@ This codebase contains our research code for a few publications relevant to diff
 - Ubuntu 18.04
 - (Mini)conda 4.7.12 or higher
 - GCC 7.5 (Other versions might work but we tested the codebase with 7.5 only)
-
+- `apt-get install build-essential`
+- CMake
+- Pardiso
 ## Installation
 ```
 git clone --recursive https://github.com/dut09/diff_pd.git
