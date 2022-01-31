@@ -14,6 +14,8 @@ This codebase contains our research code for a few publications relevant to diff
 - `apt-get install build-essential`
 - CMake
 - Pardiso
+- `export PARDISO_LIC_PATH="/path/to/pardiso/" 
+- apt-get install libblas-dev liblapack-dev
 ## Installation
 ```
 git clone --recursive https://github.com/dut09/diff_pd.git
