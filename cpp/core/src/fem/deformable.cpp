@@ -129,6 +129,42 @@ const SparseMatrix Deformable<vertex_dim, element_dim>::LumpedMassMatrixInverse(
 }
 
 template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::phi(MatrixXr &A, MatrixXr &output) const
+{ 
+    Eigen::EigenSolver<MatrixXr> es(A);
+    Eigen::MatrixXcd D;
+    D.resize(A.rows(),A.rows());
+    D.setZero();
+    D = es.eigenvalues().asDiagonal();
+    Eigen::MatrixXcd D_new;
+    D_new.resize(A.rows(),A.rows());
+    D_new.setZero();
+    
+    for (int j = 0; j < D.rows(); j++) {
+        if(norm(D(j,j)) > 1e-8)
+        {
+            std::complex<double> tempc;
+            tempc.real(exp(D(j,j)).real() - 1);
+            tempc.imag(exp(D(j,j)).imag());
+            tempc = tempc/D(j,j);
+            D_new(j,j).real(tempc.real());
+            D_new(j,j).imag(tempc.imag());
+        }
+        else
+        {
+            D_new(j,j).real(1.0);
+            D_new(j,j).imag(0.0);
+            
+        }
+    }
+    //
+    Eigen::MatrixXcd U;
+    U = es.eigenvectors();
+    output = ((U) * (D_new) * (U.inverse())).real();
+}
+
+
+template<int vertex_dim, int element_dim>
 void Deformable<vertex_dim, element_dim>::Forward(const std::string& method, const VectorXr& q, const VectorXr& v,
     const VectorXr& a, const VectorXr& f_ext,
     const real dt, const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next,
@@ -139,13 +175,17 @@ void Deformable<vertex_dim, element_dim>::Forward(const std::string& method, con
     else if (BeginsWith(method, "sibefull")) ForwardSIBEFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "bdffull")) ForwardBDFFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "bdf2full")) ForwardBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (BeginsWith(method, "bdf2erefull")) ForwardBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "sbdf2full")) ForwardSBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "trbdf2full")) ForwardTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (BeginsWith(method, "sbdf2erefull")) ForwardSBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "strbdf2full")) ForwardSTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (BeginsWith(method, "strbdf2erefull")) ForwardSTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "strsbdf2full")) ForwardSTRSBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "thetatrbdf2full")) ForwardTHETATRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (BeginsWith(method, "strsbdf2erefull")) ForwardSTRSBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "thetastrbdf2full")) ForwardTHETASTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (BeginsWith(method, "thetastrbdf2erefull")) ForwardTHETASTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "thetastrsbdf2full")) ForwardTHETASTRSBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (BeginsWith(method, "thetastrsbdf2erefull")) ForwardTHETASTRSBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "sibe")) ForwardSIBE(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "siere")) ForwardSIERE(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else PrintError("Unsupported forward method: " + method);

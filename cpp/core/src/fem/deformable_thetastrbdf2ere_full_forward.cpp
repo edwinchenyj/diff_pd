@@ -12,7 +12,7 @@
 #include "solver/SparseGenRealShiftSolvePardiso.h"
 
 template<int vertex_dim, int element_dim>
-void Deformable<vertex_dim, element_dim>::ForwardSBDF2FULL(const std::string& method,
+void Deformable<vertex_dim, element_dim>::ForwardTHETASTRBDF2EREFULL(const std::string& method,
     const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext, const real dt,
     const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next, std::vector<int>& active_contact_idx) const {
         const int verbose_level = static_cast<int>(options.at("verbose"));
@@ -232,8 +232,9 @@ void Deformable<vertex_dim, element_dim>::ForwardSBDF2FULL(const std::string& me
                 rhs += diff;
                 double residual = (rhs).norm();
                 std::cout<<"Residual: "<<residual<<std::endl;
-                // semi implicit version, only 1 iteration
-                break;
+                if (residual < 1e-6) {
+                    break;
+                }
             }
             q_prev = q;
             v_prev = v;

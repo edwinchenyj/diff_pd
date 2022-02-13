@@ -11,12 +11,13 @@
 #include "Spectra/MatOp/SparseGenRealShiftSolve.h"
 #include "solver/SparseGenRealShiftSolvePardiso.h"
 
+
 template<int vertex_dim, int element_dim>
-void Deformable<vertex_dim, element_dim>::ForwardTHETATRBDF2FULL(const std::string& method,
+void Deformable<vertex_dim, element_dim>::ForwardBDF2EREFULL(const std::string& method,
     const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext, const real dt,
     const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next, std::vector<int>& active_contact_idx) const {
         const int verbose_level = static_cast<int>(options.at("verbose"));
-        if (verbose_level > 1) std::cout<<"forward bdf 2 full\n";
+        if (verbose_level > 1) std::cout<<"forward bdf 2 ere full\n";
         CheckError(options.find("max_ls_iter") != options.end(), "Missing option max_ls_iter.");
         if (verbose_level > 1) std::cout<<"max_ls_iter: "<<options.at("max_ls_iter")<<"\n";
         CheckError(options.find("abs_tol") != options.end(), "Missing option abs_tol.");
@@ -39,6 +40,13 @@ void Deformable<vertex_dim, element_dim>::ForwardTHETATRBDF2FULL(const std::stri
             g = VectorXr::Zero(vertex_dim);
         }
         
+        const bool recompute_eigen_decomp_each_step = static_cast<bool>(options.at("recompute_eigen_decomp_each_step"));
+        if (verbose_level > 1) std::cout<<"recompute_eigen_decomp_each_step: "<<recompute_eigen_decomp_each_step<<"\n";
+        
+        const int num_modes = static_cast<int>(options.at("num_modes"));
+        if (verbose_level > 1) std::cout<<"num_modes: "<<num_modes<<"\n";
+
+
         std::vector<real> inv_h2_lumped_mass;
         std::transform(lumped_mass_.begin(),lumped_mass_.end(), std::back_inserter(inv_h2_lumped_mass),[&h](real mass)-> real { return mass/(h * h);});
         const int max_contact_iter = 5;
@@ -107,7 +115,13 @@ void Deformable<vertex_dim, element_dim>::ForwardTHETATRBDF2FULL(const std::stri
 
 
                 SparseMatrix MinvK = lumped_mass_inv * stiffness;
+                
+                if (verbose_level > 1) std::cout<<"spectra op\n";
+                Spectra::SparseGenRealShiftSolvePardiso<real> op(MinvK);
+                
+                int m_numModes = num_modes;
 
+ 
                 SparseMatrix J12;
                 SparseMatrix J21;
                 SparseMatrix J22;
@@ -129,12 +143,56 @@ void Deformable<vertex_dim, element_dim>::ForwardTHETATRBDF2FULL(const std::stri
                 J12.setFromTriplets(tripletListJ12.begin(),tripletListJ12.end());
                 
                 
+                if (verbose_level > 1) std::cout<<"eigen solve:\n";
+                int DecomposedDim = std::max(m_numModes+2*vertex_dim,m_numModes + vertex_dim * (int)active_contact_idx.size());
+                Spectra::GenEigsRealShiftSolver<Spectra::SparseGenRealShiftSolvePardiso<real>> eigs(op, DecomposedDim, std::min(2*(DecomposedDim),dofs()), 0.01);
                 
+                VectorXr ritz_error = VectorXr::Zero(DecomposedDim);
+
+                
+                if(m_Us.second.sum() != 0){
+                    ritz_error = (MinvK * m_Us.first - m_Us.first * m_Us.second.asDiagonal()).colwise().norm();
+                    ritz_error_norm = ritz_error.maxCoeff();
+
+                }
+
+                if(true){
+                // if(ritz_error_norm > 1){
+
+                    
+                    // Initialize and compute
+                    eigs.init();
+                    Tic();
+                    eigs.compute(Spectra::SortRule::LargestMagn);
+                    Toc("Eigen Solve");
+                    Eigen::VectorXd normalizing_const;
+                    if(eigs.info() == Spectra::CompInfo::Successful)
+                    {
+                        m_Us = std::make_pair(eigs.eigenvectors().real().leftCols(m_numModes), eigs.eigenvalues().real().head(m_numModes));
+                        normalizing_const.noalias() = (m_Us.first.transpose() * lumped_mass * m_Us.first).diagonal();
+                        normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
+                        
+                        m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
+
+                    }
+                    else{
+                        std::cout<<"eigen solve failed"<<std::endl;
+                        exit(1);
+                    }
+                }
+
+                for(auto i: active_contact_idx){
+                    for(int j = 0; j < vertex_dim; j++){
+                        m_Us.first.row(i*vertex_dim+j).setZero();
+                    }
+                }
+            
                     
                 J21_J22_outer_ind_ptr.erase(J21_J22_outer_ind_ptr.begin(),J21_J22_outer_ind_ptr.end());
                 J21_outer_ind_ptr.erase(J21_outer_ind_ptr.begin(),J21_outer_ind_ptr.end());
                 J22i_outer_ind_ptr.erase(J22i_outer_ind_ptr.begin(),J22i_outer_ind_ptr.end());
                 for (int i_row = 0; i_row < MinvK.rows(); i_row++) {
+                    // J21_J22_outer_ind_ptr.push_back(0);
                     J22i_outer_ind_ptr.push_back(0);
                     J22_outer_ind_ptr.push_back(0);
                 }
@@ -170,11 +228,106 @@ void Deformable<vertex_dim, element_dim>::ForwardTHETATRBDF2FULL(const std::stri
                 Eigen::Map<SparseMatrix> J22_map((MinvK.rows())*2, (MinvK.cols())*2, MinvK.nonZeros(), J21_J22_outer_ind_ptr.data(), J22_inner_ind.data(), (MinvK).valuePtr());
                 Eigen::Map<SparseMatrix> J22i_map((MinvK.rows())*2, (MinvK.cols())*2, MinvK.cols(), J22i_outer_ind_ptr.data(), J22i_inner_ind.data(),J22i_identity_val.data());
                 
+                
+                U1.resize((MinvK.rows())*2,m_numModes);
+                V1.resize((MinvK.rows())*2,m_numModes);
+                U2.resize((MinvK.rows())*2,m_numModes);
+                V2.resize((MinvK.rows())*2,m_numModes);
+                
+                U1.setZero();
+                V1.setZero();
+                U2.setZero();
+                V2.setZero();
+                
+                MatrixXr inertial = lumped_mass * m_Us.first;
+
+                for(auto i: active_contact_idx){
+                    for(int j = 0; j < vertex_dim; j++){
+                        inertial.row(i*vertex_dim+j).setZero();
+                    }
+                }
+
+
+                U1.block(0,0,m_Us.first.rows(),m_Us.first.cols()) << m_Us.first;
+                V1.block(m_Us.first.rows(),0,m_Us.first.rows(),m_Us.first.cols()) << inertial;
+                U2.block(m_Us.first.rows(),0,m_Us.first.rows(),m_Us.first.cols()) << m_Us.first * (m_Us.second.asDiagonal());
+                V2.block(0,0,m_Us.first.rows(),m_Us.first.cols()) << inertial;
+                
+                for(auto i: active_contact_idx){
+                    for(int j = 0; j < vertex_dim; j++){
+                        U1.row(i*vertex_dim+j).setZero();
+                        U2.row(i*vertex_dim+j).setZero();
+                        V1.row(i*vertex_dim+j).setZero();
+                        V2.row(i*vertex_dim+j).setZero();
+                        U1.row(i*vertex_dim+j + dofs()).setZero();
+                        U2.row(i*vertex_dim+j + dofs()).setZero();
+                        V1.row(i*vertex_dim+j + dofs()).setZero();
+                        V2.row(i*vertex_dim+j + dofs()).setZero();
+                    }
+                }
+
+
+                dt_J_G_reduced.resize(m_numModes*2,m_numModes*2);
+                dt_J_G_reduced.setZero();
+                dt_J_G_reduced.block(0,m_Us.first.cols(),m_Us.first.cols(),m_Us.first.cols()).setIdentity();
+                for (int ind = 0; ind < m_Us.first.cols() ; ind++) {
+                    dt_J_G_reduced(m_Us.first.cols() + ind ,0 + ind ) = m_Us.second(ind);
+                }
+                dt_J_G_reduced *= h;
+                
+                vG.noalias() = m_Us.first * (m_Us.first.transpose() * lumped_mass * v_sol);
+                
+                vH = -vG;
+                vH.noalias() += v_sol;
+                
+                fG.noalias() = (lumped_mass * m_Us.first ) * (m_Us.first.transpose() * force_sol);
+                fH = force_sol - fG;
+                
+                // #ifndef NDEBUG
+                // MatrixXr dense_J12, dense_J21;
+                // dense_J12 = MatrixXr(J12);
+                // dense_J21 = MatrixXr(J21_map);
+                // #endif
+                
+                
+                //  #ifndef NDEBUG
+                // MatrixXr dense_A;
+                // dense_A = MatrixXr(A);
+                // #endif
+                VectorXr rhs1;
+                rhs1.resize(dofs()*2);
+                VectorXr rhs2;
+                rhs2.resize(dofs()*2);
                 VectorXr rhs;
                 rhs.resize(dofs()*2);
                 
-                rhs.head(dofs()) = (2.0/3.0)*(-h) * v_sol;
-                rhs.tail(dofs()).noalias() = (2.0/3.0) * (-h) * lumped_mass_inv * force_sol;
+                rhs1.head(dofs()) = (-h) * vH;
+                rhs1.tail(dofs()).noalias() = (-h) * lumped_mass_inv * fH;
+                
+                VectorXr reduced_vec;
+                reduced_vec.resize(dt_J_G_reduced.cols());
+                reduced_vec.head(dt_J_G_reduced.cols()/2).noalias() = m_Us.first.transpose() * (lumped_mass * (v_sol));
+                reduced_vec.tail(dt_J_G_reduced.cols()/2).noalias() = (m_Us.first.transpose() * (force_sol));
+                
+                MatrixXr block_diag_eigv;
+                
+                block_diag_eigv.resize(m_Us.first.rows()*2,m_Us.first.cols()*2);
+                block_diag_eigv.setZero();
+                block_diag_eigv.block(0,0,m_Us.first.rows(),m_Us.first.cols()) << m_Us.first;
+                block_diag_eigv.block(m_Us.first.rows(),m_Us.first.cols(),m_Us.first.rows(),m_Us.first.cols()) << m_Us.first;
+                
+                MatrixXr phi_reduced;
+                phi_reduced.resize(m_Us.first.cols()*2,m_Us.first.cols()*2);
+                phi_reduced.setZero();
+                
+                phi((dt_J_G_reduced), phi_reduced);
+                if (verbose_level > 1) std::cout<<"phi: "<<std::endl;
+                
+                rhs2.noalias() = (-h) * block_diag_eigv * phi_reduced * reduced_vec;
+                
+                rhs = (2.0/3.0) * (rhs1 + rhs2);
+                std::cout<<"current residual: "<<rhs.norm()<<std::endl;
+                PardisoSolver solver;
                 VectorXr diff_prev;
                 diff_prev.resize(dofs()*2);
                 diff_prev.setZero();
@@ -187,8 +340,9 @@ void Deformable<vertex_dim, element_dim>::ForwardTHETATRBDF2FULL(const std::stri
                 diff.tail(dofs()) = v_sol - v;
                 rhs += diff;
                 std::cout<<"current residual: "<<(rhs).norm()<<"\n";
-                PardisoSolver solver;
                 
+
+
                 A.resize((J12).rows(), (J12).cols());
                 
                 A.setIdentity();
@@ -199,7 +353,7 @@ void Deformable<vertex_dim, element_dim>::ForwardTHETATRBDF2FULL(const std::stri
 
                 if (verbose_level > 1) Tic();
                 solver.Compute(A, options);
-                if (verbose_level > 1) Toc("BDF FULL: decomposition");
+                if (verbose_level > 1) Toc("BDF2ERE FULL: decomposition");
                 VectorXr x0 = solver.Solve(rhs);
                 
                 for(auto i: active_contact_idx){
@@ -208,10 +362,54 @@ void Deformable<vertex_dim, element_dim>::ForwardTHETATRBDF2FULL(const std::stri
                         x0.row(i*vertex_dim+j+dofs()).setZero();
                     }
                 }
-                // q_sol = q;
+                U1 *= h;
+                MatrixXr x1;
+                x1 = solver.Solve(U1);
+
+                for(auto i: active_contact_idx){
+                    for(int j = 0; j < vertex_dim; j++){
+                        x1.row(i*vertex_dim+j).setZero();
+                        x1.row(i*vertex_dim+j+dofs()).setZero();
+                    }
+                }
+
+                
+                U2 *= dt;
+                MatrixXr x2;
+                x2 = solver.Solve(U2);
+
+                for(auto i: active_contact_idx){
+                    for(int j = 0; j < vertex_dim; j++){
+                        x2.row(i*vertex_dim+j).setZero();
+                        x2.row(i*vertex_dim+j+dofs()).setZero();
+                    }
+                }
+
+                
+                if (verbose_level > 1) std::cout<<"Solving for the SMW"<<std::endl;
+                MatrixXr Is;
+                Is.resize(U1.cols(),U1.cols());
+                Is.setIdentity();
+                
+                MatrixXr yLHS = Is + V1.transpose()*x1;
+                VectorXr y0;
+                y0 = x0;
+                y0.noalias() -= x1 * yLHS.ldlt().solve(V1.transpose()*x0);
+                VectorXr y1;
+                y1.resize(x2.rows());
+                MatrixXr yRHS2 = V1.transpose()*x2;
+                x2.noalias() -= x1 * (yLHS.ldlt().solve(yRHS2));
+                MatrixXr sol2LHS = Is + V2.transpose()*x2;
+                VectorXr sol2;
+                MatrixXr sol2RHS = V2.transpose()*y0;
+                y0.noalias() -= x2 * (sol2LHS).ldlt().solve(sol2RHS);
+                
+                if (verbose_level > 1) std::cout<<"y0: "<<std::endl;
+
+// q_sol = q;
                 // v_sol = v;
-                q_sol -= x0.head(dofs());
-                v_sol -= x0.tail(dofs());
+                q_sol -= y0.head(dofs());
+                v_sol -= y0.tail(dofs());
                 for (const auto& pair : augmented_dirichlet) {
                     q_sol(pair.first) = pair.second;
                     v_sol(pair.first) = 0;
@@ -220,12 +418,16 @@ void Deformable<vertex_dim, element_dim>::ForwardTHETATRBDF2FULL(const std::stri
 
 
                 if (verbose_level > 1) std::cout<<"calculating residual after a newton iteration"<<std::endl; 
-                rhs.head(dofs()) = (2.0/3.0) * (-h) * v_sol;
+                vH = -vG;
+                vH.noalias() += v_sol;
+                rhs1.head(dofs()) = (2.0/3.0) * (-h) * vH;
                 VectorXr force_sol_new = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_precomputed_data) + ActuationForce(q_sol, a) + gravitational_force;
                 for (const auto& pair : augmented_dirichlet) {
                     force_sol_new(pair.first) = 0;
                 }
-                rhs.tail(dofs()).noalias() = (2.0/3.0) * (-h) * lumped_mass_inv * force_sol_new;
+                fH = force_sol_new - fG;
+                rhs1.tail(dofs()).noalias() = (2.0/3.0) * (-h) * lumped_mass_inv * fH;
+                rhs = rhs1 + rhs2;
                 rhs -= (1.0/3.0) * diff_prev;
                 diff.head(dofs()) = q_sol - q;
                 diff.tail(dofs()) = v_sol - v;

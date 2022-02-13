@@ -12,11 +12,11 @@
 #include "solver/SparseGenRealShiftSolvePardiso.h"
 
 template<int vertex_dim, int element_dim>
-void Deformable<vertex_dim, element_dim>::ForwardSBDF2FULL(const std::string& method,
+void Deformable<vertex_dim, element_dim>::ForwardSTRBDF2EREFULL(const std::string& method,
     const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext, const real dt,
     const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next, std::vector<int>& active_contact_idx) const {
         const int verbose_level = static_cast<int>(options.at("verbose"));
-        if (verbose_level > 1) std::cout<<"forward bdf 2 full\n";
+        if (verbose_level > 1) std::cout<<"forward tr bdf 2 full\n";
         CheckError(options.find("max_ls_iter") != options.end(), "Missing option max_ls_iter.");
         if (verbose_level > 1) std::cout<<"max_ls_iter: "<<options.at("max_ls_iter")<<"\n";
         CheckError(options.find("abs_tol") != options.end(), "Missing option abs_tol.");
@@ -70,9 +70,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSBDF2FULL(const std::string& me
             if (verbose_level > 1) std::cout<<"before selected\n";
             VectorXr selected = VectorXr::Ones(dofs_);
 
-            for (size_t i = 0; i < 20; i++)
-            {
-                if (verbose_level > 1) std::cout<<"BDF newton iteration "<<i<<"\n";
+                if (verbose_level > 1) std::cout<<"semi implicit TR newton iteration \n";
             
                 for (const auto& pair : augmented_dirichlet) {
                     q_sol(pair.first) = pair.second;
@@ -173,33 +171,22 @@ void Deformable<vertex_dim, element_dim>::ForwardSBDF2FULL(const std::string& me
                 VectorXr rhs;
                 rhs.resize(dofs()*2);
                 
-                rhs.head(dofs()) = (2.0/3.0)*(-h) * v_sol;
-                rhs.tail(dofs()).noalias() = (2.0/3.0) * (-h) * lumped_mass_inv * force_sol;
-                VectorXr diff_prev;
-                diff_prev.resize(dofs()*2);
-                diff_prev.setZero();
-                diff_prev.head(dofs()) = (q - q_prev);
-                diff_prev.tail(dofs()) = (v - v_prev);
-                rhs -= (1.0/3.0) * diff_prev;
-                VectorXr diff;
-                diff.resize(dofs()*2);
-                diff.head(dofs()) = q_sol - q;
-                diff.tail(dofs()) = v_sol - v;
-                rhs += diff;
+                rhs.head(dofs()) = (1.0/2.0)*(-h) * v_sol;
+                rhs.tail(dofs()).noalias() = (1.0/2.0) * (-h) * lumped_mass_inv * force_sol;
                 std::cout<<"current residual: "<<(rhs).norm()<<"\n";
                 PardisoSolver solver;
                 
                 A.resize((J12).rows(), (J12).cols());
                 
                 A.setIdentity();
-                A -= (2.0/3.0) * h * (J12 + J21_map);
+                A -= (1.0/4.0) * h * (J12 + J21_map);
                 
                 
-                if (verbose_level > 1) std::cout<<"Solving for the first sparse J"<<std::endl;
+                if (verbose_level > 1) std::cout<<"Solving for the first sparse J for TR"<<std::endl;
 
                 if (verbose_level > 1) Tic();
                 solver.Compute(A, options);
-                if (verbose_level > 1) Toc("BDF FULL: decomposition");
+                if (verbose_level > 1) Toc("TR: decomposition");
                 VectorXr x0 = solver.Solve(rhs);
                 
                 for(auto i: active_contact_idx){
@@ -208,8 +195,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSBDF2FULL(const std::string& me
                         x0.row(i*vertex_dim+j+dofs()).setZero();
                     }
                 }
-                // q_sol = q;
-                // v_sol = v;
+
                 q_sol -= x0.head(dofs());
                 v_sol -= x0.tail(dofs());
                 for (const auto& pair : augmented_dirichlet) {
@@ -217,29 +203,127 @@ void Deformable<vertex_dim, element_dim>::ForwardSBDF2FULL(const std::string& me
                     v_sol(pair.first) = 0;
                     selected(pair.first) = 0;
                 }
+                VectorXr q_tr = q_sol;
+                VectorXr v_tr = v_sol;
+
+                if (verbose_level > 1) std::cout<<"BDF part"<<std::endl;;
+
+                if (verbose_level > 1) std::cout<<"before compute stiffness matrix\n";
+                if (verbose_level > 1) Tic();
+                stiffness = -StiffnessMatrix(q_tr, a, augmented_dirichlet, use_precomputed_data);
+                if (verbose_level > 1) Toc("Assemble Stiffness Matrix");
+                if (verbose_level > 1) Tic();
+               
+                MinvK = lumped_mass_inv * stiffness;
 
 
-                if (verbose_level > 1) std::cout<<"calculating residual after a newton iteration"<<std::endl; 
-                rhs.head(dofs()) = (2.0/3.0) * (-h) * v_sol;
-                VectorXr force_sol_new = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_precomputed_data) + ActuationForce(q_sol, a) + gravitational_force;
-                for (const auto& pair : augmented_dirichlet) {
-                    force_sol_new(pair.first) = 0;
+                J12.resize(dofs()*2,dofs()*2);
+                J21.resize(dofs()*2,dofs()*2);
+                J12.setZero();
+                J21.setZero();
+               
+                J21_J22_outer_ind_ptr.erase(J21_J22_outer_ind_ptr.begin(),J21_J22_outer_ind_ptr.end());
+                J21_outer_ind_ptr.erase(J21_outer_ind_ptr.begin(),J21_outer_ind_ptr.end());
+                J22i_outer_ind_ptr.erase(J22i_outer_ind_ptr.begin(),J22i_outer_ind_ptr.end());
+                
+                J21_outer_ind_ptr.erase(J21_outer_ind_ptr.begin(),J21_outer_ind_ptr.end());
+
+                for (int i_row = 0; i_row < MinvK.rows() + 1; i_row++) {
+                    J21_J22_outer_ind_ptr.push_back(*(MinvK.outerIndexPtr()+i_row));
+                    J21_outer_ind_ptr.push_back(*(MinvK.outerIndexPtr()+i_row));
                 }
-                rhs.tail(dofs()).noalias() = (2.0/3.0) * (-h) * lumped_mass_inv * force_sol_new;
-                rhs -= (1.0/3.0) * diff_prev;
-                diff.head(dofs()) = q_sol - q;
-                diff.tail(dofs()) = v_sol - v;
-                rhs += diff;
-                double residual = (rhs).norm();
-                std::cout<<"Residual: "<<residual<<std::endl;
-                // semi implicit version, only 1 iteration
-                break;
-            }
+
+                for (int i_row = 0; i_row < MinvK.rows(); i_row++) {
+                    J21_outer_ind_ptr.push_back(0);
+                }
+                
+                J21_inner_ind.erase(J21_inner_ind.begin(),J21_inner_ind.end());
+                
+                for (int i_nnz = 0; i_nnz < MinvK.nonZeros(); i_nnz++)
+                {
+                    J21_inner_ind.push_back(*(MinvK.innerIndexPtr()+i_nnz) + MinvK.cols());
+                }
+                
+                Eigen::Map<SparseMatrix> J21_tr_map((MinvK.rows())*2, (MinvK.cols())*2, MinvK.nonZeros(), J21_outer_ind_ptr.data(), J21_inner_ind.data(), (MinvK).valuePtr());
+                
+                for (size_t i = 0; i < 20; i++)
+                {
+                    if (verbose_level > 1) std::cout<<"BDF newton iteration "<<i<<"\n";
+                
+                    VectorXr force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_precomputed_data) + ActuationForce(q_sol, a) + gravitational_force;
+                    for (const auto& pair : augmented_dirichlet) {
+                        force_sol(pair.first) = 0;
+                    }
+    
+                    rhs.setZero();
+                    
+                    rhs.head(dofs()) = (1.0/3.0)*(-h) * v_sol;
+                    rhs.tail(dofs()).noalias() = (1.0/3.0) * (-h) * lumped_mass_inv * force_sol;
+                    VectorXr diff_prev;
+                    diff_prev.resize(dofs()*2);
+                    diff_prev.setZero();
+                    diff_prev.head(dofs()) = (q_tr - q);
+                    diff_prev.tail(dofs()) = (v_tr - v);
+                    rhs -= (1.0/3.0) * diff_prev;
+                    VectorXr diff;
+                    diff.resize(dofs()*2);
+                    diff.head(dofs()) = q_sol - q_tr;
+                    diff.tail(dofs()) = v_sol - v_tr;
+                    rhs += diff;
+                    std::cout<<"current residual: "<<(rhs).norm()<<"\n";
+                    PardisoSolver solver;
+                    
+                    A.resize((J12).rows(), (J12).cols());
+                    
+                    A.setIdentity();
+                    A -= (1.0/3.0) * h * (J12 + J21_tr_map);
+                    
+                    
+                    if (verbose_level > 1) std::cout<<"Solving for the first sparse J"<<std::endl;
+
+                    if (verbose_level > 1) Tic();
+                    solver.Compute(A, options);
+                    if (verbose_level > 1) Toc("BDF FULL: decomposition");
+                    VectorXr x0 = solver.Solve(rhs);
+                    
+                    for(auto i: active_contact_idx){
+                        for(int j = 0; j < vertex_dim; j++){
+                            x0.row(i*vertex_dim+j).setZero();
+                            x0.row(i*vertex_dim+j+dofs()).setZero();
+                        }
+                    }
+                    q_sol -= x0.head(dofs());
+                    v_sol -= x0.tail(dofs());
+                    for (const auto& pair : augmented_dirichlet) {
+                        q_sol(pair.first) = pair.second;
+                        v_sol(pair.first) = 0;
+                        selected(pair.first) = 0;
+                    }
+                    if (verbose_level > 1) std::cout<<"calculating residual after a newton iteration"<<std::endl; 
+                    rhs.head(dofs()) = (1.0/3.0) * (-h) * v_sol;
+                    VectorXr force_sol_new = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_precomputed_data) + ActuationForce(q_sol, a) + gravitational_force;
+                    for (const auto& pair : augmented_dirichlet) {
+                        force_sol_new(pair.first) = 0;
+                    }
+                    rhs.tail(dofs()).noalias() = (1.0/3.0) * (-h) * lumped_mass_inv * force_sol_new;
+                    rhs -= (1.0/3.0) * diff_prev;
+                    diff.head(dofs()) = q_sol - q_tr;
+                    diff.tail(dofs()) = v_sol - v_tr;
+                    rhs += diff;
+                    double residual = (rhs).norm();
+                    std::cout<<"Residual: "<<residual<<std::endl;
+
+                    if(residual < 1e-6){
+                        break;
+                    }
+                }
+            
             q_prev = q;
             v_prev = v;
             q_next = q_sol;
             v_next = v_sol; 
             break; // skip contact for now
+                
         }
 
 
