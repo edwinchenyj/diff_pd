@@ -13,6 +13,13 @@
 #include "friction/frictional_boundary.h"
 #include "solver/pardiso_spd_solver.h"
 #include "Eigen/SparseCholesky"
+#include "Spectra/GenEigsSolver.h"
+#include "Spectra/MatOp/SparseGenMatProd.h"
+#include "Spectra/GenEigsRealShiftSolver.h"
+#include "Spectra/SymEigsShiftSolver.h"
+#include "Spectra/MatOp/SparseSymShiftSolve.h"
+#include "Spectra/MatOp/SparseGenRealShiftSolve.h"
+#include "solver/SparseGenRealShiftSolvePardiso.h"
 
 template<int vertex_dim, int element_dim>
 class Deformable {
@@ -158,7 +165,8 @@ public:
     const VectorXr PdLhsSolve(const std::string& method, const VectorXr& rhs,
         const std::map<int, real>& additional_dirichlet_boundary_condition,
         const bool use_acc, const bool use_sparse) const;
-
+    mutable int verbose_level;
+    
     
     mutable MatrixXr U1;
     mutable MatrixXr V1;
@@ -200,6 +208,11 @@ public:
     mutable VectorXr v_current;
     mutable bool two_step_method = false;
 
+    mutable SparseMatrix lumped_mass;
+    mutable SparseMatrix lumped_mass_inv;
+    mutable SparseMatrix stiffness;
+    mutable SparseMatrix MinvK;
+    mutable SparseMatrix J12, J21;
     void phi(MatrixXr &A, MatrixXr &output) const;
 protected:
     void ForwardSemiImplicit(const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext,
@@ -309,7 +322,6 @@ protected:
     std::vector<real> lumped_mass_;
 
 
-    
 
 private:
     void AssignToGlobalDeformable() const;
@@ -369,6 +381,17 @@ private:
 
     // Boundary conditions.
     std::map<int, real> dirichlet_;
+    void ApplyDirichlet(const std::map<int, real>& dirichlet_with_friction, VectorXr& q, VectorXr& v) const;
+    void ApplyDirichlet(const std::map<int, real>& dirichlet_with_friction, VectorXr& vector) const;
+    void SetupMatrices(const VectorXr& q, const VectorXr& a, const std::map<int, real>& dirichlet_with_friction,
+        const bool use_precomputed_data) const;
+    void MassPCA(const SparseMatrix lumped_mass, const SparseMatrix MinvK, const int pca_dim, const int constraint_dim) const;
+    void SetupJacobian(std::vector<int>& active_contact_idx) const;
+    void ComputeProjection(const std::vector<int>& active_contact_idx) const;
+    void SplitVelocityState(const VectorXr& v) const;
+    void SplitForceState(const VectorXr& f) const;
+    void ComputeReducedRhs(VectorXr& reduced_rhs, const VectorXr& v_sol, const VectorXr& force_sol, const real h) const;
+    void SubspaceEREUpdate(VectorXr& state, const PardisoSolver& solver, const real h) const;
 
     // Projective-dynamics-related data members.
     mutable std::array<PardisoSpdSolver, vertex_dim> pd_pardiso_solver_;

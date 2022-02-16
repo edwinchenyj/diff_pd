@@ -6,11 +6,11 @@ import numpy as np
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 obj_list = ['bar_clamped']
-methods = ['bdf2full','siere']
+methods = ['siere']
 Youngs_modulus = [5e4]
 Poissons_ratio = [0.4]
 dt = [0.05]
-frame_num = [150]
+frame_num = [1]
 for obj, method, youngs_modulus, poissons_ratio, dt, frame_num in product(obj_list, methods, Youngs_modulus, Poissons_ratio, dt, frame_num):
     os.makedirs(f'{dir_path}/{obj}', exist_ok=True)
     output_file = f'{dir_path}/{obj}/{obj}_{method}_Y_{youngs_modulus}_P_{poissons_ratio}_dt_{dt}_frame_num_{frame_num}.txt'

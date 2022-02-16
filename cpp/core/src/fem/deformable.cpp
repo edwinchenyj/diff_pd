@@ -87,7 +87,252 @@ const std::shared_ptr<Material<vertex_dim>> Deformable<vertex_dim, element_dim>:
 
 
 template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::ApplyDirichlet(const std::map<int, real>& dirichlet_with_friction, VectorXr& q, VectorXr& v) const{
+    std::cout<<"ApplyDirichlet"<<std::endl;
+    for (auto& it : dirichlet_with_friction) {
+        const int index = it.first;
+        const real value = it.second;
+        q(index) = value;
+        v(index) = 0;
+    }
+}
+template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::ApplyDirichlet(const std::map<int, real>& dirichlet_with_friction, VectorXr& vector) const{
+    std::cout<<"ApplyDirichlet to vector"<<std::endl;
+    for (auto& it : dirichlet_with_friction) {
+        const int index = it.first;
+        vector(index) = 0;
+    }
+}
+
+template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::SetupMatrices(const VectorXr& q, const VectorXr& a, const std::map<int, real>& augmented_dirichlet,
+        const bool use_precomputed_data) const {
+
+            if (verbose_level > 1) Tic();
+            Deformable<vertex_dim,element_dim>::stiffness = -StiffnessMatrix(q, a, augmented_dirichlet, use_precomputed_data);
+            if (verbose_level > 1) Toc("Assemble Stiffness Matrix");
+
+            if (verbose_level > 1) Tic();
+            Deformable<vertex_dim,element_dim>::lumped_mass = LumpedMassMatrix(augmented_dirichlet);
+            if (verbose_level > 1) Toc("Assemble Mass Matrix");
+
+            if (verbose_level > 1) Tic();
+            Deformable<vertex_dim,element_dim>::lumped_mass_inv = LumpedMassMatrixInverse(augmented_dirichlet);
+            if (verbose_level > 1) Toc("Assemble Mass Matrix Inverse");
+
+            Deformable<vertex_dim,element_dim>::MinvK = Deformable<vertex_dim,element_dim>::lumped_mass_inv * stiffness;
+}
+
+template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::MassPCA(const SparseMatrix lumped_mass, const SparseMatrix MinvK, const int pca_dim, const int constraint_dim) const{
+    std::cout<<"MassPCA"<<std::endl;
+    Spectra::SparseGenRealShiftSolvePardiso<real> op(MinvK);
+    int DecomposedDim = std::max(pca_dim+2*vertex_dim,pca_dim+ vertex_dim * (int)constraint_dim);
+    Spectra::GenEigsRealShiftSolver<Spectra::SparseGenRealShiftSolvePardiso<real>> eigs(op, DecomposedDim, std::min(2*(DecomposedDim),dofs()), 0.01);
+    
+    VectorXr ritz_error = VectorXr::Zero(DecomposedDim);
+    
+    if(m_Us.second.sum() != 0){
+        ritz_error = (MinvK * m_Us.first - m_Us.first * m_Us.second.asDiagonal()).colwise().norm();
+        ritz_error_norm = ritz_error.maxCoeff();
+    }
+
+    if(true){
+    // if(ritz_error_norm > 1){
+        // Initialize and compute
+        eigs.init();
+        Tic();
+        eigs.compute(Spectra::SortRule::LargestMagn);
+        Toc("Eigen Solve");
+        Eigen::VectorXd normalizing_const;
+        if(eigs.info() == Spectra::CompInfo::Successful)
+        {
+            m_Us = std::make_pair(eigs.eigenvectors().real().leftCols(pca_dim), eigs.eigenvalues().real().head(pca_dim));
+            normalizing_const.noalias() = (m_Us.first.transpose() * lumped_mass * m_Us.first).diagonal();
+            normalizing_const = normalizing_const.cwiseSqrt().cwiseInverse();
+            
+            m_Us.first = m_Us.first * (normalizing_const.asDiagonal());
+
+        }
+        else{
+            std::cout<<"eigen solve failed"<<std::endl;
+            exit(1);
+        }
+    }
+
+}
+
+template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::SetupJacobian(std::vector<int>& active_contact_idx) const{
+    std::cout<<"SetupJacobian"<<std::endl;
+
+    J12.resize(dofs()*2,dofs()*2);
+    J21.resize(dofs()*2,dofs()*2);
+
+    J12.setZero();
+    J21.setZero();
+
+    typedef Eigen::Triplet<double> T;
+    std::vector<T> tripletListJ12;
+    tripletListJ12.reserve(dofs());
+    for(int i = 0; i < dofs(); i++)
+    {
+        if(std::find(active_contact_idx.begin(),active_contact_idx.end(),i/vertex_dim) == active_contact_idx.end()){          
+            tripletListJ12.push_back(T(i,i+dofs(),1.0));
+        }
+    }
+    J12.setFromTriplets(tripletListJ12.begin(),tripletListJ12.end());
+        
+    J21_J22_outer_ind_ptr.erase(J21_J22_outer_ind_ptr.begin(),J21_J22_outer_ind_ptr.end());
+    J21_outer_ind_ptr.erase(J21_outer_ind_ptr.begin(),J21_outer_ind_ptr.end());
+    
+    J21_outer_ind_ptr.erase(J21_outer_ind_ptr.begin(),J21_outer_ind_ptr.end());
+
+    for (int i_row = 0; i_row < MinvK.rows() + 1; i_row++) {
+        J21_J22_outer_ind_ptr.push_back(*(MinvK.outerIndexPtr()+i_row));
+        J21_outer_ind_ptr.push_back(*(MinvK.outerIndexPtr()+i_row));
+    }
+
+    for (int i_row = 0; i_row < MinvK.rows(); i_row++) {
+        J21_outer_ind_ptr.push_back(0);
+    }
+    
+    J21_inner_ind.erase(J21_inner_ind.begin(),J21_inner_ind.end());
+    
+    for (int i_nnz = 0; i_nnz < MinvK.nonZeros(); i_nnz++)
+    {
+        J21_inner_ind.push_back(*(MinvK.innerIndexPtr()+i_nnz) + MinvK.cols());
+    }
+    
+    Eigen::Map<SparseMatrix> J21_map((MinvK.rows())*2, (MinvK.cols())*2, MinvK.nonZeros(), J21_outer_ind_ptr.data(), J21_inner_ind.data(), (MinvK).valuePtr());
+    J21 = J21_map;
+}
+
+
+template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::ComputeProjection(const std::vector<int>& active_contact_idx) const{
+    std::cout<<"ComputeProjection"<<std::endl;
+
+    U1.resize((MinvK.rows())*2,m_Us.first.cols());
+    V1.resize((MinvK.rows())*2,m_Us.first.cols());
+    U2.resize((MinvK.rows())*2,m_Us.first.cols());
+    V2.resize((MinvK.rows())*2,m_Us.first.cols());
+    
+    U1.setZero();
+    V1.setZero();
+    U2.setZero();
+    V2.setZero();
+    
+    MatrixXr inertial = lumped_mass * m_Us.first;
+
+    for(auto i: active_contact_idx){
+        for(int j = 0; j < vertex_dim; j++){
+            inertial.row(i*vertex_dim+j).setZero();
+        }
+    }
+
+
+    U1.block(0,0,m_Us.first.rows(),m_Us.first.cols()) << m_Us.first;
+    V1.block(m_Us.first.rows(),0,m_Us.first.rows(),m_Us.first.cols()) << inertial;
+    U2.block(m_Us.first.rows(),0,m_Us.first.rows(),m_Us.first.cols()) << m_Us.first * (m_Us.second.asDiagonal());
+    V2.block(0,0,m_Us.first.rows(),m_Us.first.cols()) << inertial;
+    
+    for(auto i: active_contact_idx){
+        for(int j = 0; j < vertex_dim; j++){
+            U1.row(i*vertex_dim+j).setZero();
+            U2.row(i*vertex_dim+j).setZero();
+            V1.row(i*vertex_dim+j).setZero();
+            V2.row(i*vertex_dim+j).setZero();
+            U1.row(i*vertex_dim+j + dofs()).setZero();
+            U2.row(i*vertex_dim+j + dofs()).setZero();
+            V1.row(i*vertex_dim+j + dofs()).setZero();
+            V2.row(i*vertex_dim+j + dofs()).setZero();
+        }
+    }
+
+}
+
+template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::SplitVelocityState(const VectorXr& v) const{
+    std::cout<<"SplitStates"<<std::endl;
+
+    vG.noalias() = m_Us.first * (m_Us.first.transpose() * lumped_mass * v);
+    
+    vH = -vG;
+    vH.noalias() += v;
+
+}
+
+template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::SplitForceState(const VectorXr& f) const{
+    std::cout<<"SplitForceStates"<<std::endl;
+
+    fG.noalias() = (lumped_mass * m_Us.first ) * (m_Us.first.transpose() * f);
+    fH = f - fG;
+
+}
+template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::ComputeReducedRhs(VectorXr& reduced_rhs, const VectorXr& v_sol, const VectorXr& force_sol, const real h) const{
+    std::cout<<"ComputeReducedRhs"<<std::endl;
+
+    dt_J_G_reduced.resize(m_Us.first.cols()*2,m_Us.first.cols()*2);
+    dt_J_G_reduced.setZero();
+    dt_J_G_reduced.block(0,m_Us.first.cols(),m_Us.first.cols(),m_Us.first.cols()).setIdentity();
+    for (int ind = 0; ind < m_Us.first.cols() ; ind++) {
+        dt_J_G_reduced(m_Us.first.cols() + ind ,0 + ind ) = m_Us.second(ind);
+    }
+    dt_J_G_reduced *= h;
+    VectorXr reduced_vec;
+    reduced_vec.resize(dt_J_G_reduced.cols());
+    reduced_vec.head(dt_J_G_reduced.cols()/2).noalias() = m_Us.first.transpose() * (lumped_mass * (v_sol));
+    reduced_vec.tail(dt_J_G_reduced.cols()/2).noalias() = (m_Us.first.transpose() * (force_sol));
+    
+    MatrixXr block_diag_eigv;
+    
+    block_diag_eigv.resize(m_Us.first.rows()*2,m_Us.first.cols()*2);
+    block_diag_eigv.setZero();
+    block_diag_eigv.block(0,0,m_Us.first.rows(),m_Us.first.cols()) << m_Us.first;
+    block_diag_eigv.block(m_Us.first.rows(),m_Us.first.cols(),m_Us.first.rows(),m_Us.first.cols()) << m_Us.first;
+    
+    MatrixXr phi_reduced;
+    phi_reduced.resize(m_Us.first.cols()*2,m_Us.first.cols()*2);
+    phi_reduced.setZero();
+    
+    phi((dt_J_G_reduced), phi_reduced);
+    if (verbose_level > 1) std::cout<<"phi: "<<std::endl;
+    
+    reduced_rhs = (-h) * block_diag_eigv * phi_reduced * reduced_vec;
+    
+}
+
+template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::SubspaceEREUpdate(VectorXr& x0, const PardisoSolver& solver, const real h) const{
+    std::cout<<"SubspaceEREUpdate"<<std::endl;
+    U1 *= h;
+    MatrixXr x1;
+    x1 = solver.Solve(U1);
+
+    U2 *= h;
+    MatrixXr x2;
+    x2 = solver.Solve(U2);
+
+    if (verbose_level > 1) std::cout<<"Solving for the SMW"<<std::endl;
+    MatrixXr Is;
+    Is.resize(U1.cols(),U1.cols());
+    Is.setIdentity();
+    
+    MatrixXr sol1LHS = Is + V1.transpose()*x1;
+    MatrixXr sol1RHS = V1.transpose()*x2;
+    x0.noalias() -= x1 * sol1LHS.ldlt().solve(V1.transpose()*x0);
+    x2.noalias() -= x1 * sol1LHS.ldlt().solve(sol1RHS);
+    MatrixXr sol2LHS = Is + V2.transpose()*x2;
+    MatrixXr sol2RHS = V2.transpose()*x0;
+    x0.noalias() -= x2 * (sol2LHS).ldlt().solve(sol2RHS);
+}
+template<int vertex_dim, int element_dim>
 const SparseMatrix Deformable<vertex_dim, element_dim>::StiffnessMatrix(const VectorXr& q_sol, const VectorXr& a, const std::map<int, real>& dirichlet_with_friction, const bool use_precomputed_data) const {
+    std::cout<<"StiffnessMatrix"<<std::endl;
     SparseMatrixElements nonzeros = ElasticForceDifferential(q_sol);
     SparseMatrixElements nonzeros_pd, nonzeros_dummy;
     SparseMatrixElements nonzeros_new;
@@ -105,6 +350,7 @@ const SparseMatrix Deformable<vertex_dim, element_dim>::StiffnessMatrix(const Ve
 
 template<int vertex_dim, int element_dim>
 const SparseMatrix Deformable<vertex_dim, element_dim>::LumpedMassMatrix(const std::map<int, real>& dirichlet_with_friction) const {
+    std::cout<<"LumpedMassMatrix"<<std::endl;
     SparseMatrixElements nonzeros_new;
         for (int i = 0; i < dofs_; ++i) {
         if (dirichlet_with_friction.find(i) != dirichlet_with_friction.end())
@@ -117,6 +363,7 @@ const SparseMatrix Deformable<vertex_dim, element_dim>::LumpedMassMatrix(const s
 }
 template<int vertex_dim, int element_dim>
 const SparseMatrix Deformable<vertex_dim, element_dim>::LumpedMassMatrixInverse(const std::map<int, real>& dirichlet_with_friction) const {
+    std::cout<<"LumpedMassMatrixInverse"<<std::endl;
     SparseMatrixElements nonzeros_new;
         for (int i = 0; i < dofs_; ++i) {
         if (dirichlet_with_friction.find(i) != dirichlet_with_friction.end())
