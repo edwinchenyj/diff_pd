@@ -125,6 +125,14 @@ void Deformable<vertex_dim, element_dim>::SetupMatrices(const VectorXr& q, const
 }
 
 template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::SimpleForce(const VectorXr& q, const VectorXr& a, const std::map<int, real>& augmented_dirichlet,
+        const bool use_precomputed_data, const VectorXr& g, VectorXr& force) const {
+
+            std::cout<<"force\n";
+            gravitational_force = lumped_mass * g.replicate(dofs()/vertex_dim, 1);
+            force= ElasticForce(q) + PdEnergyForce(q, use_precomputed_data) + ActuationForce(q, a) + gravitational_force;
+        }
+template<int vertex_dim, int element_dim>
 void Deformable<vertex_dim, element_dim>::MassPCA(const SparseMatrix lumped_mass, const SparseMatrix MinvK, const int pca_dim, const int constraint_dim) const{
     std::cout<<"MassPCA"<<std::endl;
     Spectra::SparseGenRealShiftSolvePardiso<real> op(MinvK);

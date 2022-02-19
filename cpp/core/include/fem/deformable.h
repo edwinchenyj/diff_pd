@@ -165,6 +165,10 @@ public:
     const VectorXr PdLhsSolve(const std::string& method, const VectorXr& rhs,
         const std::map<int, real>& additional_dirichlet_boundary_condition,
         const bool use_acc, const bool use_sparse) const;
+    
+    mutable VectorXr gravitational_force;
+    mutable VectorXr pd_energy_force;
+    mutable VectorXr actuation_force;
     mutable int verbose_level;
     
     
@@ -385,6 +389,8 @@ private:
     void ApplyDirichlet(const std::map<int, real>& dirichlet_with_friction, VectorXr& vector) const;
     void SetupMatrices(const VectorXr& q, const VectorXr& a, const std::map<int, real>& dirichlet_with_friction,
         const bool use_precomputed_data) const;
+    void SimpleForce(const VectorXr& q, const VectorXr& a, const std::map<int, real>& dirichlet_with_friction,
+        const bool use_precomputed_data, const VectorXr& g, VectorXr& force) const;
     void MassPCA(const SparseMatrix lumped_mass, const SparseMatrix MinvK, const int pca_dim, const int constraint_dim) const;
     void SetupJacobian(std::vector<int>& active_contact_idx) const;
     void ComputeProjection(const std::vector<int>& active_contact_idx) const;

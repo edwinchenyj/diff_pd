@@ -91,7 +91,11 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
         if (verbose_level > 1) std::cout<<"lumped_mass_ size:" << lumped_mass_.size()<<"\n";
         const int max_contact_iter = 5;
         const bool use_precomputed_data = !pd_element_energies_.empty();
+
         if (verbose_level > 1) std::cout<<"main loop\n";
+        // Initial guess
+        q_next = q;
+        v_next = v;
         for (int contact_iter = 0; contact_iter < max_contact_iter; ++contact_iter) {
             if (verbose_level > 0) std::cout << "Contact iteration " << contact_iter << std::endl;
             // Fix dirichlet_ + active_contact_nodes.
@@ -103,16 +107,11 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
                     augmented_dirichlet[idx * vertex_dim + i] = q(idx * vertex_dim + i);
                 }
             }
-            // Initial guess.
-            VectorXr q_sol = q;
-            VectorXr v_sol = v;
-            ApplyDirichlet(augmented_dirichlet, q_sol, v_sol);
+            ApplyDirichlet(augmented_dirichlet, q_next, v_next);
 
-            SetupMatrices(q_sol, a, augmented_dirichlet, use_precomputed_data);
-            
-            if (verbose_level > 1) std::cout<<"force\n";
-            const VectorXr gravitational_force = lumped_mass * g.replicate(dofs()/vertex_dim, 1);
-            VectorXr force_sol = ElasticForce(q_sol) + PdEnergyForce(q_sol, use_precomputed_data) + ActuationForce(q_sol, a) + gravitational_force;
+            SetupMatrices(q_next, a, augmented_dirichlet, use_precomputed_data);
+            VectorXr force_sol;
+            SimpleForce(q_next, a, augmented_dirichlet, use_precomputed_data, g, force_sol);
             ApplyDirichlet(dirichlet_, force_sol);
             
             MassPCA(lumped_mass, MinvK, num_modes, active_contact_idx.size());
@@ -123,7 +122,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
                 }
             }
             ComputeProjection(active_contact_idx); 
-            SplitVelocityState(v_sol);
+            SplitVelocityState(v_next);
             SplitForceState(force_sol);
             
             
@@ -143,7 +142,7 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             rhs1.head(dofs()) = (-h) * vH;
             rhs1.tail(dofs()).noalias() = (-h) * lumped_mass_inv * fH;
 
-            ComputeReducedRhs(rhs2, v_sol, force_sol, h);
+            ComputeReducedRhs(rhs2, v_next, force_sol, h);
 
             rhs = rhs1 + rhs2;
             std::cout<<"current residual: "<<rhs.norm()<<std::endl;
@@ -171,7 +170,8 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
 
 
             if (verbose_level > 1) std::cout<<"Construct force for the next step\n";
-            VectorXr force_sol_new = ElasticForce(q_next) + PdEnergyForce(q_next, use_precomputed_data) + ActuationForce(q_next, a) + gravitational_force;
+            VectorXr force_sol_new; 
+            SimpleForce(q_next, a, dirichlet_, use_precomputed_data, g, force_sol_new);
             for (const auto& pair : augmented_dirichlet) {
                 force_sol_new(pair.first) = 0;
             }
