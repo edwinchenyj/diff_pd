@@ -112,16 +112,10 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             SetupMatrices(q_next, a, augmented_dirichlet, use_precomputed_data);
             VectorXr force_sol;
             SimpleForce(q_next, a, augmented_dirichlet, use_precomputed_data, g, force_sol);
-            ApplyDirichlet(dirichlet_, force_sol);
             
-            MassPCA(lumped_mass, MinvK, num_modes, active_contact_idx.size());
+            MassPCA(lumped_mass, MinvK, num_modes, active_contact_idx);
 
-            for(auto i: active_contact_idx){
-                for(int j = 0; j < vertex_dim; j++){
-                    m_Us.first.row(i*vertex_dim+j).setZero();
-                }
-            }
-            ComputeProjection(active_contact_idx); 
+            ComputePCAProjection(active_contact_idx); 
             SplitVelocityState(v_next);
             SplitForceState(force_sol);
             
@@ -163,22 +157,14 @@ void Deformable<vertex_dim, element_dim>::ForwardSIERE(const std::string& method
             
             if (verbose_level > 1) std::cout<<"Calculating residual\n";
             if (verbose_level > 1) Tic();
-            for (const auto& pair : augmented_dirichlet) {
-                q_next(pair.first) = pair.second;
-                v_next(pair.first) = 0;
-            }
-
+            ApplyDirichlet(augmented_dirichlet, q_next, v_next);
 
             if (verbose_level > 1) std::cout<<"Construct force for the next step\n";
             VectorXr force_sol_new; 
             SimpleForce(q_next, a, dirichlet_, use_precomputed_data, g, force_sol_new);
-            for (const auto& pair : augmented_dirichlet) {
-                force_sol_new(pair.first) = 0;
-            }
 
             vH = -vG;
             vH.noalias() += v_next;
-            
             fH = force_sol_new - fG;
             
             rhs1.head(dofs()) = (-h) * vH;

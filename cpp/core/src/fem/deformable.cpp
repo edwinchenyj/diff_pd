@@ -131,10 +131,12 @@ void Deformable<vertex_dim, element_dim>::SimpleForce(const VectorXr& q, const V
             std::cout<<"force\n";
             gravitational_force = lumped_mass * g.replicate(dofs()/vertex_dim, 1);
             force= ElasticForce(q) + PdEnergyForce(q, use_precomputed_data) + ActuationForce(q, a) + gravitational_force;
+            ApplyDirichlet(augmented_dirichlet, force);
         }
 template<int vertex_dim, int element_dim>
-void Deformable<vertex_dim, element_dim>::MassPCA(const SparseMatrix lumped_mass, const SparseMatrix MinvK, const int pca_dim, const int constraint_dim) const{
+void Deformable<vertex_dim, element_dim>::MassPCA(const SparseMatrix lumped_mass, const SparseMatrix MinvK, const int pca_dim, const std::vector<int>& active_contact_idx) const{
     std::cout<<"MassPCA"<<std::endl;
+    int constraint_dim = static_cast<int>(active_contact_idx.size());
     Spectra::SparseGenRealShiftSolvePardiso<real> op(MinvK);
     int DecomposedDim = std::max(pca_dim+2*vertex_dim,pca_dim+ vertex_dim * (int)constraint_dim);
     Spectra::GenEigsRealShiftSolver<Spectra::SparseGenRealShiftSolvePardiso<real>> eigs(op, DecomposedDim, std::min(2*(DecomposedDim),dofs()), 0.01);
@@ -169,6 +171,11 @@ void Deformable<vertex_dim, element_dim>::MassPCA(const SparseMatrix lumped_mass
         }
     }
 
+    for(auto i: active_contact_idx){
+        for(int j = 0; j < vertex_dim; j++){
+            m_Us.first.row(i*vertex_dim+j).setZero();
+        }
+    }
 }
 
 template<int vertex_dim, int element_dim>
@@ -219,7 +226,7 @@ void Deformable<vertex_dim, element_dim>::SetupJacobian(std::vector<int>& active
 
 
 template<int vertex_dim, int element_dim>
-void Deformable<vertex_dim, element_dim>::ComputeProjection(const std::vector<int>& active_contact_idx) const{
+void Deformable<vertex_dim, element_dim>::ComputePCAProjection(const std::vector<int>& active_contact_idx) const{
     std::cout<<"ComputeProjection"<<std::endl;
 
     U1.resize((MinvK.rows())*2,m_Us.first.cols());

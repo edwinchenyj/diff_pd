@@ -391,9 +391,9 @@ private:
         const bool use_precomputed_data) const;
     void SimpleForce(const VectorXr& q, const VectorXr& a, const std::map<int, real>& dirichlet_with_friction,
         const bool use_precomputed_data, const VectorXr& g, VectorXr& force) const;
-    void MassPCA(const SparseMatrix lumped_mass, const SparseMatrix MinvK, const int pca_dim, const int constraint_dim) const;
+    void MassPCA(const SparseMatrix lumped_mass, const SparseMatrix MinvK, const int pca_dim, const std::vector<int>& active_contact_idx) const;
     void SetupJacobian(std::vector<int>& active_contact_idx) const;
-    void ComputeProjection(const std::vector<int>& active_contact_idx) const;
+    void ComputePCAProjection(const std::vector<int>& active_contact_idx) const;
     void SplitVelocityState(const VectorXr& v) const;
     void SplitForceState(const VectorXr& f) const;
     void ComputeReducedRhs(VectorXr& reduced_rhs, const VectorXr& v_sol, const VectorXr& force_sol, const real h) const;
