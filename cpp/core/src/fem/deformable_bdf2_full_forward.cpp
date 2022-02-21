@@ -30,6 +30,9 @@ void Deformable<vertex_dim, element_dim>::ForwardBDF2FULL(const std::string& met
         const int thread_ct = static_cast<int>(options.at("thread_ct"));
         omp_set_num_threads(thread_ct);
         if (verbose_level > 1) std::cout<<"thread_ct: "<<thread_ct<<"\n";
+        bool si_method = false;
+        if (options.find("si_method") != options.end()) si_method = true;
+        else si_method = false;
         const real h = dt;
         VectorXr g;
         CheckError(state_forces_.size() <= 1, "Only one state force, gravity, is supported for SIERE");
@@ -119,7 +122,7 @@ void Deformable<vertex_dim, element_dim>::ForwardBDF2FULL(const std::string& met
                 rhs += diff;
                 double residual = (rhs).norm();
                 std::cout<<"Residual: "<<residual<<std::endl;
-                if (residual < 1e-6) {
+                if (si_method || residual < 1e-6) {
                     break;
                 }
             }

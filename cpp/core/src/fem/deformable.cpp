@@ -440,14 +440,14 @@ void Deformable<vertex_dim, element_dim>::Forward(const std::string& method, con
     else if (BeginsWith(method, "bdf2erefull")) ForwardBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "sbdf2full")) ForwardSBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "sbdf2erefull")) ForwardSBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (BeginsWith(method, "trbdf2full")) ForwardTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (BeginsWith(method, "trbdf2erefull")) ForwardTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "strbdf2full")) ForwardSTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "strbdf2erefull")) ForwardSTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "strsbdf2full")) ForwardSTRSBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "strsbdf2erefull")) ForwardSTRSBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (BeginsWith(method, "thetatrbdf2full")) ForwardTHETATRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (BeginsWith(method, "thetatrbdf2erefull")) ForwardTHETATRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "thetastrbdf2full")) ForwardTHETASTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "thetastrbdf2erefull")) ForwardTHETASTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "thetastrsbdf2full")) ForwardTHETASTRSBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "thetastrsbdf2erefull")) ForwardTHETASTRSBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "sibe")) ForwardSIBE(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "siere")) ForwardSIERE(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else PrintError("Unsupported forward method: " + method);
