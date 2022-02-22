@@ -42,6 +42,12 @@ void Deformable<vertex_dim, element_dim>::ForwardTRBDF2EREFULL(const std::string
             g = VectorXr::Zero(vertex_dim);
         }
         
+        const bool recompute_eigen_decomp_each_step = static_cast<bool>(options.at("recompute_eigen_decomp_each_step"));
+        if (verbose_level > 1) std::cout<<"recompute_eigen_decomp_each_step: "<<recompute_eigen_decomp_each_step<<"\n";
+        
+        const int num_modes = static_cast<int>(options.at("num_modes"));
+        if (verbose_level > 1) std::cout<<"num_modes: "<<num_modes<<"\n";
+        
         std::vector<real> inv_h2_lumped_mass;
         std::transform(lumped_mass_.begin(),lumped_mass_.end(), std::back_inserter(inv_h2_lumped_mass),[&h](real mass)-> real { return mass/(h * h);});
         const int max_contact_iter = 5;
@@ -105,14 +111,25 @@ void Deformable<vertex_dim, element_dim>::ForwardTRBDF2EREFULL(const std::string
                     SetupMatrices(q_next, a, augmented_dirichlet, use_precomputed_data); 
                     VectorXr force_next;
                     SimpleForce(q_next, a, augmented_dirichlet, use_precomputed_data, g, force_next);
-    
+
+                    MassPCA(lumped_mass, MinvK, num_modes, active_contact_idx); 
+                    ComputePCAProjection(active_contact_idx);
+                    SplitVelocityState(v_next);
+                    SplitForceState(force_next);
+                    ApplyDirichlet(augmented_dirichlet, vH);
+                    ApplyDirichlet(augmented_dirichlet, fH);
+
                     SetupJacobian(active_contact_idx);
                     VectorXr rhs;
                     rhs.resize(dofs()*2);
                     rhs.setZero();
                     
-                    rhs.head(dofs()) = (1.0/3.0)*(-h) * v_next;
-                    rhs.tail(dofs()).noalias() = (1.0/3.0) * (-h) * lumped_mass_inv * force_next;
+                    rhs.head(dofs()) = (1.0/3.0)*(-h) * vH;
+                    rhs.tail(dofs()).noalias() = (1.0/3.0) * (-h) * lumped_mass_inv * fH;
+                    VectorXr reduced_rhs;
+                    reduced_rhs.resize(dofs()*2);
+                    ComputeReducedRhs(reduced_rhs, v_next, force_next, 1.0/2.0 * h ); // a hack for adjusting the internal step now
+                    rhs += (2.0/3.0) * reduced_rhs; // using 2/3 is also part of the hack
                     VectorXr diff_tr;
                     diff_tr.resize(dofs()*2);
                     diff_tr.setZero();
@@ -140,18 +157,24 @@ void Deformable<vertex_dim, element_dim>::ForwardTRBDF2EREFULL(const std::string
                     solver.Compute(A, options);
                     if (verbose_level > 1) Toc("BDF FULL: decomposition");
                     VectorXr x0 = solver.Solve(rhs);
-                    
+
+                    SubspaceEREUpdate(x0, solver, 1.0/3.0 * h);
+
                     q_next -= x0.head(dofs());
                     v_next -= x0.tail(dofs());
                     ApplyDirichlet(augmented_dirichlet, q_next, v_next);
 
                     if (verbose_level > 1) std::cout<<"calculating residual after a newton iteration"<<std::endl; 
-                    rhs.head(dofs()) = (1.0/3.0) * (-h) * v_next;
 
                     VectorXr force_sol_new;
                     SimpleForce(q_next, a, augmented_dirichlet, use_precomputed_data, g, force_sol_new);
-
-                    rhs.tail(dofs()).noalias() = (1.0/3.0) * (-h) * lumped_mass_inv * force_sol_new;
+                    vH = -vG;
+                    vH.noalias() += v_next;
+                    fH = force_sol_new - fG;
+                    
+                    rhs.head(dofs()) = (1.0/3.0) * (-h) * vH;
+                    rhs.tail(dofs()).noalias() = (1.0/3.0) * (-h) * lumped_mass_inv * fH;
+                    rhs += (2.0/3.0) * reduced_rhs; // using 2/3 is also part of the hack
                     rhs -= (1.0/3.0) * diff_tr;
                     diff_bdf.head(dofs()) = (q_next - q_tr);
                     diff_bdf.tail(dofs()) = (v_next - v_tr);
