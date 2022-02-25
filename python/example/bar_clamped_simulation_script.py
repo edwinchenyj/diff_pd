@@ -43,8 +43,9 @@ opt = { 'max_pd_iter': 500, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4,
 if 'ere' not in method:
     opt['num_modes'] = 0
     opt['recompute_eigen_decomp_each_step'] = 0
-if 'theta' in method:
-    opt['theta_parameter'] = (str)(1/int(method[5]))
+if 'theta6' in method:
+    opt['theta_parameter'] = 1.0/6.0
+    print(opt['theta_parameter'])
 simulation_name = f'{method}_recomp_{opt["recompute_eigen_decomp_each_step"]}_nmode_{opt["num_modes"]}_dt_{dt}_Y_{youngs_modulus}_frame_num_{frame_num}'
 print(simulation_name)
 # Generate siere data.
