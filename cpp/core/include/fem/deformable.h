@@ -385,6 +385,19 @@ private:
 
     // Boundary conditions.
     std::map<int, real> dirichlet_;
+
+    // Used for stepper
+    mutable int thread_ct;
+    mutable bool si_method;
+    mutable real h;
+    mutable bool recompute_eigen_decomp_each_step; 
+    mutable int num_modes; 
+    mutable VectorXr g;
+    mutable bool use_precomputed_data = false;
+    mutable int max_contact_iter = 5;
+    void GetG() const;
+    const void ContactDirichlet(const VectorXr& q, const std::vector<int>& contact_idx, std::map<int, real>& augmented_dirichlet) const;
+    void InitializeStepperOptions(const std::map<std::string, real>& options) const;
     void ApplyDirichlet(const std::map<int, real>& dirichlet_with_friction, VectorXr& q, VectorXr& v) const;
     void ApplyDirichlet(const std::map<int, real>& dirichlet_with_friction, VectorXr& vector) const;
     void SetupMatrices(const VectorXr& q, const VectorXr& a, const std::map<int, real>& dirichlet_with_friction,
@@ -398,7 +411,7 @@ private:
     void SplitForceState(const VectorXr& f) const;
     void ComputeReducedRhs(VectorXr& reduced_rhs, const VectorXr& v_sol, const VectorXr& force_sol, const real h) const;
     void SubspaceEREUpdate(VectorXr& state, const PardisoSolver& solver, const real h) const;
-
+    
     // Projective-dynamics-related data members.
     mutable std::array<PardisoSpdSolver, vertex_dim> pd_pardiso_solver_;
     mutable std::array<Eigen::SimplicialLDLT<SparseMatrix>, vertex_dim> pd_eigen_solver_;

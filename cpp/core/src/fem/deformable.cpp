@@ -85,7 +85,55 @@ const std::shared_ptr<Material<vertex_dim>> Deformable<vertex_dim, element_dim>:
     return material;
 }
 
+template<int vertex_dim,  int element_dim>
+void Deformable<vertex_dim, element_dim>::InitializeStepperOptions(const std::map<std::string, real>& options) const {
+        verbose_level = static_cast<int>(options.at("verbose"));
+        if (verbose_level > 1) std::cout<<"forward tr bdf 2 ere full\n";
+        CheckError(options.find("max_ls_iter") != options.end(), "Missing option max_ls_iter.");
+        if (verbose_level > 1) std::cout<<"max_ls_iter: "<<options.at("max_ls_iter")<<"\n";
+        CheckError(options.find("abs_tol") != options.end(), "Missing option abs_tol.");
+        if (verbose_level > 1) std::cout<<"abs_tol: "<<options.at("abs_tol")<<"\n";
+        CheckError(options.find("rel_tol") != options.end(), "Missing option rel_tol.");
+        if (verbose_level > 1) std::cout<<"rel_tol: "<<options.at("rel_tol")<<"\n";
+        CheckError(options.find("verbose") != options.end(), "Missing option verbose.");
+        if (verbose_level > 1) std::cout<<"verbose: "<<options.at("verbose")<<"\n";
+        CheckError(options.find("thread_ct") != options.end(), "Missing option thread_ct.");
+        if (verbose_level > 1) std::cout<<"thread_ct: "<<options.at("thread_ct")<<"\n";
+        thread_ct = static_cast<int>(options.at("thread_ct"));
+        omp_set_num_threads(thread_ct);
+        if (verbose_level > 1) std::cout<<"thread_ct: "<<thread_ct<<"\n";
+        if (options.find("si_method") != options.end()) si_method = true;
+        else si_method = false;
+        if (options.find("recompute_eigen_decomp_each_step") !=options.end()){
+            recompute_eigen_decomp_each_step = static_cast<bool>(options.at("recompute_eigen_decomp_each_step"));
+            if (verbose_level > 1) std::cout<<"recompute_eigen_decomp_each_step: "<<recompute_eigen_decomp_each_step<<"\n";
+        }
+        if (options.find("num_modes") != options.end()){
+            num_modes = static_cast<int>(options.at("num_modes"));
+            if (verbose_level > 1) std::cout<<"num_modes: "<<num_modes<<"\n";
+        }
+}
+template<int vertex_dim, int element_dim>
+const void Deformable<vertex_dim, element_dim>::ContactDirichlet(const VectorXr& q, const std::vector<int>& contact_idx, std::map<int, real>& augmented_dirichlet) const{
 
+    std::cout<<"Fix dirichlet_ + active_contact_nodes.\n";
+    augmented_dirichlet = dirichlet_;
+    for (const int idx : contact_idx) {
+        for (int i = 0; i < vertex_dim; ++i){
+            augmented_dirichlet[idx * vertex_dim + i] = q(idx * vertex_dim + i);
+        }
+    }
+}
+template<int vertex_dim, int element_dim>
+void Deformable<vertex_dim, element_dim>::GetG() const{
+    if (verbose_level > 1) std::cout<<"before g\n";
+    CheckError(state_forces_.size() <= 1, "Only one state force, gravity, is supported for SIERE");
+    if(state_forces_.size() == 1) {
+        g = state_forces_[0]->parameters().head(vertex_dim);
+    } else {
+        g = VectorXr::Zero(vertex_dim);
+    }
+}
 template<int vertex_dim, int element_dim>
 void Deformable<vertex_dim, element_dim>::ApplyDirichlet(const std::map<int, real>& dirichlet_with_friction, VectorXr& q, VectorXr& v) const{
     std::cout<<"ApplyDirichlet"<<std::endl;
