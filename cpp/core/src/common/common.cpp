@@ -283,6 +283,9 @@ const VectorXr ToEigenVector(const std::vector<real>& v) {
     return Eigen::Map<const VectorXr>(v.data(), v.size());
 }
 
+const bool StringsEqual(const std::string& s1, const std::string& s2) {
+    return s1.compare(s2) == 0;
+}
 const bool BeginsWith(const std::string& full, const std::string& beginning) {
     return full.length() >= beginning.length() &&
         full.compare(0, beginning.length(), beginning) == 0;

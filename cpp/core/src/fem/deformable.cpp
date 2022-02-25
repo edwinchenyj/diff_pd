@@ -88,7 +88,6 @@ const std::shared_ptr<Material<vertex_dim>> Deformable<vertex_dim, element_dim>:
 template<int vertex_dim,  int element_dim>
 void Deformable<vertex_dim, element_dim>::InitializeStepperOptions(const std::map<std::string, real>& options) const {
         verbose_level = static_cast<int>(options.at("verbose"));
-        if (verbose_level > 1) std::cout<<"forward tr bdf 2 ere full\n";
         CheckError(options.find("max_ls_iter") != options.end(), "Missing option max_ls_iter.");
         if (verbose_level > 1) std::cout<<"max_ls_iter: "<<options.at("max_ls_iter")<<"\n";
         CheckError(options.find("abs_tol") != options.end(), "Missing option abs_tol.");
@@ -111,6 +110,10 @@ void Deformable<vertex_dim, element_dim>::InitializeStepperOptions(const std::ma
         if (options.find("num_modes") != options.end()){
             num_modes = static_cast<int>(options.at("num_modes"));
             if (verbose_level > 1) std::cout<<"num_modes: "<<num_modes<<"\n";
+        }
+        if (options.find("theta_parameter") != options.end()){
+            theta_parameter = static_cast<real>(options.at("theta_parameter"));
+            if (verbose_level > 1) std::cout<<"theta_parameter: "<<theta_parameter<<"\n";
         }
 }
 template<int vertex_dim, int element_dim>
@@ -482,22 +485,21 @@ void Deformable<vertex_dim, element_dim>::Forward(const std::string& method, con
     if (method == "semi_implicit") ForwardSemiImplicit(q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "pd")) ForwardProjectiveDynamics(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "newton")) ForwardNewton(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "sibefull")) ForwardSIBEFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "bdffull")) ForwardBDFFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "bdf2full")) ForwardBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "bdf2erefull")) ForwardBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "sbdf2full")) ForwardSBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "sbdf2erefull")) ForwardSBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "trbdf2full")) ForwardTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "trbdf2erefull")) ForwardTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "strbdf2full")) ForwardSTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "strbdf2erefull")) ForwardSTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "thetatrbdf2full")) ForwardTHETATRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "thetatrbdf2erefull")) ForwardTHETATRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "thetastrbdf2full")) ForwardTHETASTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "thetastrbdf2erefull")) ForwardTHETASTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "sibe")) ForwardSIBE(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (BeginsWith(method, "siere")) ForwardSIERE(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "sibe")) ForwardSIBEFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "bdf")) ForwardBDFFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "bdf2")) ForwardBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "bdf2ere")) ForwardBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "sbdf2")) ForwardSBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "sbdf2ere")) ForwardSBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "trbdf2")) ForwardTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "trbdf2ere")) ForwardTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "strbdf2")) ForwardSTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "strbdf2ere")) ForwardSTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "thetatrbdf2")) ForwardTHETATRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "thetatrbdf2ere")) ForwardTHETATRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "thetastrbdf2")) ForwardTHETASTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "thetastrbdf2ere")) ForwardTHETASTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "siere")) ForwardSIERE(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else PrintError("Unsupported forward method: " + method);
 }
 

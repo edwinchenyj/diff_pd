@@ -15,6 +15,7 @@ template<int vertex_dim, int element_dim>
 void Deformable<vertex_dim, element_dim>::ForwardSBDF2FULL(const std::string& method,
     const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext, const real dt,
     const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next, std::vector<int>& active_contact_idx) const {
+        if (verbose_level > 1) std::cout<<"method: "<<method<<std::endl;
        std::map<std::string, real> opt_si = options;
        opt_si["si_method"] = 1;
 

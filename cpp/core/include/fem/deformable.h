@@ -395,6 +395,7 @@ private:
     mutable VectorXr g;
     mutable bool use_precomputed_data = false;
     mutable int max_contact_iter = 5;
+    mutable real theta_parameter;
     void GetG() const;
     const void ContactDirichlet(const VectorXr& q, const std::vector<int>& contact_idx, std::map<int, real>& augmented_dirichlet) const;
     void InitializeStepperOptions(const std::map<std::string, real>& options) const;
