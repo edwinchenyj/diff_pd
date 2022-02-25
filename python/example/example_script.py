@@ -7,12 +7,11 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 
 obj_list = ['bar_clamped']
 # methods = ['siere','sibe','sbdf2','sbdf2ere','strbdf2','strbdf2ere','theta6strbdf2','theta6strbdf2ere']
-# methods = ['siere','sbdf2ere','strbdf2erefull','sbdf2','strbdf2']
-methods = ['theta6strbdf2ere','theta6strbdf2']
+methods = ['bdf2ere']
 Youngs_modulus = [5e4]
 Poissons_ratio = [0.4]
-dt = [0.01]
-frame_num = [15]
+dt = [0.1]
+frame_num = [10]
 for obj, method, youngs_modulus, poissons_ratio, dt, frame_num in product(obj_list, methods, Youngs_modulus, Poissons_ratio, dt, frame_num):
     os.makedirs(f'{dir_path}/{obj}', exist_ok=True)
     output_file = f'{dir_path}/{obj}/{obj}_{method}_Y_{youngs_modulus}_P_{poissons_ratio}_dt_{dt}_frame_num_{frame_num}.txt'
