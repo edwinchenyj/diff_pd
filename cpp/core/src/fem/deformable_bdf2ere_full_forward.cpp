@@ -16,10 +16,10 @@ template<int vertex_dim, int element_dim>
 void Deformable<vertex_dim, element_dim>::ForwardBDF2EREFULL(const std::string& method,
     const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext, const real dt,
     const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next, std::vector<int>& active_contact_idx) const {
-        if (verbose_level > 1) std::cout<<"method: "<<method<<std::endl;
+        std::cout<<"method: bdf2ere\n";
         InitializeStepperOptions(options);
         GetG();
-
+        
         q_next = q;
         v_next = v;
         for (int contact_iter = 0; contact_iter < max_contact_iter; ++contact_iter) {
@@ -82,7 +82,7 @@ void Deformable<vertex_dim, element_dim>::ForwardBDF2EREFULL(const std::string& 
                 if (verbose_level > 1) Toc("BDF FULL: decomposition");
                 VectorXr x0 = solver.Solve(rhs);
                 
-                SubspaceEREUpdate(x0, solver, 2.0/3.0 * dt);
+                SubspaceEREUpdate(x0, solver, 2.0/3.0*dt);
                 
                 q_next -= x0.head(dofs());
                 v_next -= x0.tail(dofs());

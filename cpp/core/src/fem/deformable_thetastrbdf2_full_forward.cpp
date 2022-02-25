@@ -18,7 +18,7 @@ void Deformable<vertex_dim, element_dim>::ForwardTHETASTRBDF2FULL(const std::str
         if (verbose_level > 1) std::cout<<"method: "<<method<<std::endl;
        std::map<std::string, real> opt_si = options;
        opt_si["si_method"] = 1;
-
+if (opt_si.find("si_method") != opt_si.end()) std::cout<<"si_method: "<<opt_si["si_method"]<<std::endl; 
          ForwardTHETATRBDF2FULL(method, q, v, a, f_ext, dt, opt_si, q_next, v_next, active_contact_idx);
         }
 

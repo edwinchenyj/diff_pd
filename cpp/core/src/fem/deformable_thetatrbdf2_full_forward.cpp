@@ -126,6 +126,7 @@ void Deformable<vertex_dim, element_dim>::ForwardTHETATRBDF2FULL(const std::stri
                     if(si_method || residual < 1e-6){
                         break;
                     }
+                    std::cout<<si_method<<"\n";
                 }
             
             break; // skip contact for now
