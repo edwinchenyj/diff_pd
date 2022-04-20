@@ -51,13 +51,13 @@ void Deformable<vertex_dim, element_dim>::ForwardBDF2EREFULL(const std::string& 
                 SetupJacobian(active_contact_idx);
                 VectorXr rhs;
                 rhs.resize(dofs()*2);
-                
+
                 rhs.head(dofs()) = (2.0/3.0)*(-dt) * vH;
                 rhs.tail(dofs()).noalias() = (2.0/3.0) * (-dt) * lumped_mass_inv * fH;
                 VectorXr reduced_rhs;
                 reduced_rhs.resize(dofs()*2);
                 ComputeReducedRhs(reduced_rhs, v_next, force_sol, dt);
-                rhs += 2.0/3.0 * reduced_rhs;
+                rhs += (2.0/3.0) * reduced_rhs;
                 VectorXr diff_prev;
                 diff_prev.resize(dofs()*2);
                 diff_prev.setZero();
@@ -82,7 +82,7 @@ void Deformable<vertex_dim, element_dim>::ForwardBDF2EREFULL(const std::string& 
                 if (verbose_level > 1) Toc("BDF FULL: decomposition");
                 VectorXr x0 = solver.Solve(rhs);
                 
-                SubspaceEREUpdate(x0, solver, 2.0/3.0*dt);
+                SubspaceEREUpdate(x0, solver, (2.0/3.0)*dt);
                 
                 q_next -= x0.head(dofs());
                 v_next -= x0.tail(dofs());
@@ -90,8 +90,10 @@ void Deformable<vertex_dim, element_dim>::ForwardBDF2EREFULL(const std::string& 
 
 
                 if (verbose_level > 1) std::cout<<"calculating residual after a newton iteration"<<std::endl; 
+                SetupMatrices(q_next, a, augmented_dirichlet, use_precomputed_data);
                 VectorXr force_sol_new;
                 SimpleForce(q_next, a, augmented_dirichlet, use_precomputed_data, g, force_sol_new);
+
                 vH = -vG;
                 vH.noalias() += v_next;
                 fH = force_sol_new - fG;
@@ -100,6 +102,7 @@ void Deformable<vertex_dim, element_dim>::ForwardBDF2EREFULL(const std::string& 
                 ApplyDirichlet(augmented_dirichlet,fH);
                 rhs.head(dofs()) = (2.0/3.0) * (-dt) * vH;
                 rhs.tail(dofs()).noalias() = (2.0/3.0) * (-dt) * lumped_mass_inv * fH;
+                
                 rhs += (2.0/3.0) * reduced_rhs;
                 rhs -= (1.0/3.0) * diff_prev;
                 diff.head(dofs()) = q_next - q;
@@ -107,11 +110,11 @@ void Deformable<vertex_dim, element_dim>::ForwardBDF2EREFULL(const std::string& 
                 rhs += diff;
                 double residual = (rhs).norm();
                 std::cout<<"Residual: "<<residual<<std::endl;
-                std::cout<<"Elastic Energy: "<<ElasticEnergy(q_next)<<std::endl;
                 if (si_method || residual < 1e-6) {
                     break;
                 }
             }
+            std::cout<<"Elastic Energy: "<<ElasticEnergy(q_next)<<std::endl;
             q_prev = q;
             v_prev = v;
             break; // skip contact for now

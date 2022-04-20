@@ -488,6 +488,7 @@ void Deformable<vertex_dim, element_dim>::Forward(const std::string& method, con
     else if (BeginsWith(method, "newton")) ForwardNewton(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "sibe")) ForwardSIBEFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "bdf")) ForwardBDFFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "bdfere")) ForwardBDFEREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "bdf2")) ForwardBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "bdf2ere")) ForwardBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "sbdf2")) ForwardSBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);

@@ -94,12 +94,12 @@ void Deformable<vertex_dim, element_dim>::ForwardTRBDF2EREFULL(const std::string
                     diff_tr.head(dofs()) = (q_tr - q);
                     diff_tr.tail(dofs()) = (v_tr - v);
                     rhs -= (1.0/3.0) * diff_tr;
-                    VectorXr diff_bdf;
-                    diff_bdf.resize(dofs()*2);
-                    diff_bdf.setZero();
-                    diff_bdf.head(dofs()) = (q_next - q_tr);
-                    diff_bdf.tail(dofs()) = (v_next - v_tr);
-                    rhs += diff_bdf;
+                    // VectorXr diff_bdf;
+                    // diff_bdf.resize(dofs()*2);
+                    // diff_bdf.setZero();
+                    // diff_bdf.head(dofs()) = (q_next - q_tr);
+                    // diff_bdf.tail(dofs()) = (v_next - v_tr);
+                    // rhs += diff_bdf;
                     std::cout<<"current residual: "<<(rhs).norm()<<"\n";
                     PardisoSolver solver;
                     
@@ -122,25 +122,28 @@ void Deformable<vertex_dim, element_dim>::ForwardTRBDF2EREFULL(const std::string
                     v_next -= x0.tail(dofs());
                     ApplyDirichlet(augmented_dirichlet, q_next, v_next);
 
-                    if (verbose_level > 1) std::cout<<"calculating residual after a newton iteration"<<std::endl; 
+                    // if (verbose_level > 1) std::cout<<"calculating residual after a newton iteration"<<std::endl; 
 
-                    VectorXr force_sol_new;
-                    SimpleForce(q_next, a, augmented_dirichlet, use_precomputed_data, g, force_sol_new);
-                    vH = -vG;
-                    vH.noalias() += v_next;
-                    fH = force_sol_new - fG;
+                    // VectorXr force_sol_new;
+                    // SimpleForce(q_next, a, augmented_dirichlet, use_precomputed_data, g, force_sol_new);
+                    // vH = -vG;
+                    // vH.noalias() += v_next;
+                    // fH = force_sol_new - fG;
                     
-                    rhs.head(dofs()) = (1.0/3.0) * (-dt) * vH;
-                    rhs.tail(dofs()).noalias() = (1.0/3.0) * (-dt) * lumped_mass_inv * fH;
-                    rhs += (2.0/3.0) * reduced_rhs; // using 2/3 is also part of the hack
-                    rhs -= (1.0/3.0) * diff_tr;
-                    diff_bdf.head(dofs()) = (q_next - q_tr);
-                    diff_bdf.tail(dofs()) = (v_next - v_tr);
-                    rhs += diff_bdf;
-                    double residual = (rhs).norm();
-                    std::cout<<"Residual: "<<residual<<std::endl;
+                    // rhs.head(dofs()) = (1.0/3.0) * (-dt) * vH;
+                    // rhs.tail(dofs()).noalias() = (1.0/3.0) * (-dt) * lumped_mass_inv * fH;
+                    // rhs += (2.0/3.0) * reduced_rhs; // using 2/3 is also part of the hack
+                    // rhs -= (1.0/3.0) * diff_tr;
+                    // diff_bdf.head(dofs()) = (q_next - q_tr);
+                    // diff_bdf.tail(dofs()) = (v_next - v_tr);
+                    // rhs += diff_bdf;
+                    // double residual = (rhs).norm();
+                    // std::cout<<"Residual: "<<residual<<std::endl;
+                    // if( residual < 1e-6){
+                    //     break;
+                    // }
                     std::cout<<"Elastic Energy: "<<ElasticEnergy(q_next)<<std::endl;
-                    if(si_method || residual < 1e-6){
+                    if(si_method){
                         break;
                     }
                 }

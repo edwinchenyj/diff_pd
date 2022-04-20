@@ -88,11 +88,11 @@ void Deformable<vertex_dim, element_dim>::ForwardBDF2FULL(const std::string& met
                 rhs += diff;
                 double residual = (rhs).norm();
                 std::cout<<"Residual: "<<residual<<std::endl;
-                std::cout<<"Elastic Energy: "<<ElasticEnergy(q_next)<<std::endl;
                 if (si_method || residual < 1e-6) {
                     break;
                 }
             }
+            std::cout<<"Elastic Energy: "<<ElasticEnergy(q_next)<<std::endl;
             q_prev = q;
             v_prev = v;
             break; // skip contact for now
