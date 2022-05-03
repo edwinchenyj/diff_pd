@@ -36,7 +36,6 @@ v0 = (v0.reshape((-1, 3)) + v_gt).ravel()
 a0 = [np.zeros(act_dofs) for _ in range(frame_num)]
 f0 = [np.zeros(dofs) for _ in range(frame_num)]
 
-# Generate groundtruth motion.
 method = args.method
 opt = { 'max_pd_iter': 500, 'max_ls_iter': 10, 'abs_tol': 1e-9, 'rel_tol': 1e-4, 'verbose': 1, 'thread_ct': thread_ct,
      'recompute_eigen_decomp_each_step': 1, 'num_modes': 5 }

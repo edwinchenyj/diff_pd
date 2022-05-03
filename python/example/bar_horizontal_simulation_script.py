@@ -9,7 +9,6 @@ from py_diff_pd.env.bar_horizontal_env_3d import BarHorizontalEnv3d
 from script_util import parse_args
 
 args = parse_args()
-
 seed = 42
 np.random.seed(seed)
 folder = Path('bar_horizontal')
