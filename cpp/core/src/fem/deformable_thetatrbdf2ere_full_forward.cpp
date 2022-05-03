@@ -122,9 +122,7 @@ void Deformable<vertex_dim, element_dim>::ForwardTHETATRBDF2EREFULL(const std::s
                     v_next -= x0.tail(dofs());
                     ApplyDirichlet(augmented_dirichlet, q_next, v_next);
 
-                    // if( residual < 1e-6){
-                    //     break;
-                    // }
+                    std::cout<<"Elastic Energy: "<<ElasticEnergy(q_next)<<std::endl;
                     if(si_method ){
                         break;
                     }
