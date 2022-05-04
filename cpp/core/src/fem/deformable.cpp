@@ -495,12 +495,16 @@ void Deformable<vertex_dim, element_dim>::Forward(const std::string& method, con
     else if (StringsEqual(method, "sbdf2ere")) ForwardSBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "trbdf2")) ForwardTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "trbdf2ere")) ForwardTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "trerebdf2ere")) ForwardTREREBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "strbdf2")) ForwardSTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "strbdf2ere")) ForwardSTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "strerebdf2ere")) ForwardSTREREBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "theta") && EndsWith(method,"strbdf2")) ForwardTHETASTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "theta") && EndsWith(method,"strbdf2ere")) ForwardTHETASTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (BeginsWith(method, "theta") && EndsWith(method,"strerebdf2ere")) ForwardTHETASTREREBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "theta") && EndsWith(method,"trbdf2")) ForwardTHETATRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "theta") && EndsWith(method,"trbdf2ere")) ForwardTHETATRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (BeginsWith(method, "theta") && EndsWith(method,"trerebdf2ere")) ForwardTHETATREREBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "siere")) ForwardSIERE(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else PrintError("Unsupported forward method: " + method);
 }
