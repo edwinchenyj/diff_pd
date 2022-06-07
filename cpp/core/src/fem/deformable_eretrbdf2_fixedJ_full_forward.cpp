@@ -12,7 +12,7 @@
 #include "solver/SparseGenRealShiftSolvePardiso.h"
 
 template<int vertex_dim, int element_dim>
-void Deformable<vertex_dim, element_dim>::ForwardTRBDF2EREFULL(const std::string& method,
+void Deformable<vertex_dim, element_dim>::ForwardERETRBDF2FIXEDJFULL(const std::string& method,
     const VectorXr& q, const VectorXr& v, const VectorXr& a, const VectorXr& f_ext, const real dt,
     const std::map<std::string, real>& options, VectorXr& q_next, VectorXr& v_next, std::vector<int>& active_contact_idx) const {
         if (verbose_level > 1) std::cout<<"method: "<<method<<std::endl;
@@ -24,19 +24,32 @@ void Deformable<vertex_dim, element_dim>::ForwardTRBDF2EREFULL(const std::string
         for (int contact_iter = 0; contact_iter < max_contact_iter; ++contact_iter) {
             std::map<int, real> augmented_dirichlet;
             ContactDirichlet(q, active_contact_idx, augmented_dirichlet);
-            if (verbose_level > 1) std::cout<<"semi implicit TR newton iteration \n";
+            if (verbose_level > 1) std::cout<<"semi implicit TR ERE newton iteration \n";
                     
                 ApplyDirichlet(augmented_dirichlet, q_tr, v_tr);
                 SetupMatrices(q_tr, a, augmented_dirichlet, use_precomputed_data); 
 
                 VectorXr force_tr;
                 SimpleForce(q_tr, a, augmented_dirichlet, use_precomputed_data, g, force_tr);
+
+                MassPCA(lumped_mass, MinvK, num_modes, active_contact_idx); 
+                ComputePCAProjection(active_contact_idx);
+                SplitVelocityState(v_tr);
+                SplitForceState(force_tr);
+                ApplyDirichlet(augmented_dirichlet, vH);
+                ApplyDirichlet(augmented_dirichlet, fH);
+
                 SetupJacobian(active_contact_idx);
                 VectorXr rhs;
                 rhs.resize(dofs()*2);
-                
-                rhs.head(dofs()) = (1.0/2.0)*(-dt) * v_tr;
-                rhs.tail(dofs()).noalias() = (1.0/2.0) * (-dt) * lumped_mass_inv * force_tr;
+
+                rhs.head(dofs()) = (1.0/3.0)*(-dt) * vH;
+                rhs.tail(dofs()).noalias() = (1.0/3.0) * (-dt) * lumped_mass_inv * fH;
+                VectorXr reduced_rhs;
+                reduced_rhs.resize(dofs()*2);
+                ComputeReducedRhs(reduced_rhs, v_tr, force_tr, 1.0/2.0 * dt ); // a hack for adjusting the internal step now
+                rhs += (2.0/3.0) * reduced_rhs; // using 2/3 is also part of the hack
+
                 std::cout<<"current residual: "<<(rhs).norm()<<"\n";
                 PardisoSolver solver;
                 
@@ -54,6 +67,8 @@ void Deformable<vertex_dim, element_dim>::ForwardTRBDF2EREFULL(const std::string
                 VectorXr x0 = solver.Solve(rhs);
                 
 
+                SubspaceEREUpdate(x0, solver, 1.0/4.0 * dt);
+
                 q_tr -= x0.head(dofs());
                 v_tr -= x0.tail(dofs());
                 ApplyDirichlet(augmented_dirichlet, q_tr, v_tr);
@@ -66,18 +81,15 @@ void Deformable<vertex_dim, element_dim>::ForwardTRBDF2EREFULL(const std::string
                 {
                     if (verbose_level > 1) std::cout<<"BDF newton iteration "<<i<<"\n";
 
-                    SetupMatrices(q_next, a, augmented_dirichlet, use_precomputed_data); 
                     VectorXr force_next;
                     SimpleForce(q_next, a, augmented_dirichlet, use_precomputed_data, g, force_next);
 
-                    MassPCA(lumped_mass, MinvK, num_modes, active_contact_idx); 
                     ComputePCAProjection(active_contact_idx);
                     SplitVelocityState(v_next);
                     SplitForceState(force_next);
                     ApplyDirichlet(augmented_dirichlet, vH);
                     ApplyDirichlet(augmented_dirichlet, fH);
 
-                    SetupJacobian(active_contact_idx);
                     VectorXr rhs;
                     rhs.resize(dofs()*2);
                     rhs.setZero();

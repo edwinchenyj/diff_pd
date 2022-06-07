@@ -486,7 +486,7 @@ void Deformable<vertex_dim, element_dim>::Forward(const std::string& method, con
     if (method == "semi_implicit") ForwardSemiImplicit(q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "pd")) ForwardProjectiveDynamics(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "newton")) ForwardNewton(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
-    else if (StringsEqual(method, "sibe")) ForwardSIBEFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "sibe")) ForwardSIBE(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "bdf")) ForwardBDFFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "bdfere")) ForwardBDFEREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "bdf2")) ForwardBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
@@ -499,6 +499,8 @@ void Deformable<vertex_dim, element_dim>::Forward(const std::string& method, con
     else if (StringsEqual(method, "strbdf2")) ForwardSTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "strbdf2ere")) ForwardSTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (StringsEqual(method, "strerebdf2ere")) ForwardSTREREBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "seretrbdf2")) ForwardSERETRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
+    else if (StringsEqual(method, "seretrbdf2fixedj")) ForwardSERETRBDF2FIXEDJFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "theta") && EndsWith(method,"strbdf2")) ForwardTHETASTRBDF2FULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "theta") && EndsWith(method,"strbdf2ere")) ForwardTHETASTRBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);
     else if (BeginsWith(method, "theta") && EndsWith(method,"strerebdf2ere")) ForwardTHETASTREREBDF2EREFULL(method, q, v, a, f_ext, dt, options, q_next, v_next, active_contact_idx);

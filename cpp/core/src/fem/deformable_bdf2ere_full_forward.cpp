@@ -89,28 +89,7 @@ void Deformable<vertex_dim, element_dim>::ForwardBDF2EREFULL(const std::string& 
                 ApplyDirichlet(augmented_dirichlet, q_next, v_next);
 
 
-                if (verbose_level > 1) std::cout<<"calculating residual after a newton iteration"<<std::endl; 
-                SetupMatrices(q_next, a, augmented_dirichlet, use_precomputed_data);
-                VectorXr force_sol_new;
-                SimpleForce(q_next, a, augmented_dirichlet, use_precomputed_data, g, force_sol_new);
-
-                vH = -vG;
-                vH.noalias() += v_next;
-                fH = force_sol_new - fG;
-
-                ApplyDirichlet(augmented_dirichlet, vH);
-                ApplyDirichlet(augmented_dirichlet,fH);
-                rhs.head(dofs()) = (2.0/3.0) * (-dt) * vH;
-                rhs.tail(dofs()).noalias() = (2.0/3.0) * (-dt) * lumped_mass_inv * fH;
-                
-                rhs += (2.0/3.0) * reduced_rhs;
-                rhs -= (1.0/3.0) * diff_prev;
-                diff.head(dofs()) = q_next - q;
-                diff.tail(dofs()) = v_next - v;
-                rhs += diff;
-                double residual = (rhs).norm();
-                std::cout<<"Residual: "<<residual<<std::endl;
-                if (si_method || residual < 1e-6) {
+                if (si_method) {
                     break;
                 }
             }

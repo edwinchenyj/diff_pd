@@ -5,13 +5,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
-obj_list = ['spring_vertical','bar_horizontal','bar_clamped']
+obj_list = ['spring_vertical']
 # methods = ['siere','sibe','sbdf2','sbdf2ere','strbdf2','strbdf2ere','theta6strbdf2','theta6strbdf2ere']
-methods = ['sibe','siere','sbdf2','sbdf2ere','strbdf2','strbdf2ere','theta6strbdf2','theta6strbdf2ere']
-Youngs_modulus = [5e6,5e7,5e8]
-Poissons_ratio = [0.4]
+methods = ['sibe','siere']
+Youngs_modulus = [1e7,1e6,1e5,1e4,1e3]
+Poissons_ratio = [0.4,0.45,0.48,0.49,0.499]
 dt = [0.01]
-frame_num = [300]
+frame_num = [100]
 for obj, method, youngs_modulus, poissons_ratio, dt, frame_num in product(obj_list, methods, Youngs_modulus, Poissons_ratio, dt, frame_num):
     os.makedirs(f'{dir_path}/{obj}', exist_ok=True)
     output_file = f'{dir_path}/{obj}/{obj}_{method}_Y_{youngs_modulus}_P_{poissons_ratio}_dt_{dt}_frame_num_{frame_num}.txt'

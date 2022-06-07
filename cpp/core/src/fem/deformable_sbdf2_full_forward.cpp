@@ -78,17 +78,17 @@ void Deformable<vertex_dim, element_dim>::ForwardSBDF2FULL(const std::string& me
                 ApplyDirichlet(augmented_dirichlet, q_next, v_next);
 
 
-                if (verbose_level > 1) std::cout<<"calculating residual after a newton iteration"<<std::endl; 
-                rhs.head(dofs()) = (2.0/3.0) * (-dt) * v_next;
-                VectorXr force_sol_new;
-                SimpleForce(q_next, a, augmented_dirichlet, use_precomputed_data, g, force_sol_new);
-                rhs.tail(dofs()).noalias() = (2.0/3.0) * (-dt) * lumped_mass_inv * force_sol_new;
-                rhs -= (1.0/3.0) * diff_prev;
-                diff.head(dofs()) = q_next - q;
-                diff.tail(dofs()) = v_next - v;
-                rhs += diff;
-                double residual = (rhs).norm();
-                std::cout<<"Residual: "<<residual<<std::endl;
+                // if (verbose_level > 1) std::cout<<"calculating residual after a newton iteration"<<std::endl; 
+                // rhs.head(dofs()) = (2.0/3.0) * (-dt) * v_next;
+                // VectorXr force_sol_new;
+                // SimpleForce(q_next, a, augmented_dirichlet, use_precomputed_data, g, force_sol_new);
+                // rhs.tail(dofs()).noalias() = (2.0/3.0) * (-dt) * lumped_mass_inv * force_sol_new;
+                // rhs -= (1.0/3.0) * diff_prev;
+                // diff.head(dofs()) = q_next - q;
+                // diff.tail(dofs()) = v_next - v;
+                // rhs += diff;
+                // double residual = (rhs).norm();
+                // std::cout<<"Residual: "<<residual<<std::endl;
             std::cout<<"Elastic Energy: "<<ElasticEnergy(q_next)<<std::endl;
             q_prev = q;
             v_prev = v;
